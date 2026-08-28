@@ -4,7 +4,7 @@
  * File: ride909.h
  *
  * Tempo-synced TR-909 ride cymbal layer for NTS-3.
- * Tap-and-hold gates the classic 3-7-10-14 sixteenth-note pattern.
+ * Tap-and-hold gates a tempo-synced ride on steps 3-7-11-15 (every 4 sixteenths).
  * X controls pitch (center = normal), Y controls level.
  *
  */
@@ -151,13 +151,13 @@ private:
 
   static bool isPatternStep(uint32_t counter)
   {
-    // Classic techno ride on steps 3, 7, 10, 14 (1-based 16th grid).
+    // Offbeat ride every 4 sixteenths: steps 3, 7, 11, 15 (1-based grid).
     switch (stepOneBased(counter))
     {
     case 3U:
     case 7U:
-    case 10U:
-    case 14U:
+    case 11U:
+    case 15U:
       return true;
     default:
       return false;
