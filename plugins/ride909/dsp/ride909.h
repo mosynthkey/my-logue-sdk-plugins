@@ -194,8 +194,19 @@ private:
     Voice &voice = voices_[next_voice_index_];
     next_voice_index_ = (next_voice_index_ + 1U) % kVoiceCount;
     voice.position = 0.f;
-    voice.increment = pitch_ratio_;
+    voice.increment = pitch_ratio_ * (kRide909SampleRate / getSampleRate());
     voice.active = true;
+  }
+
+  static float decodeUlaw(uint8_t encoded)
+  {
+    const uint8_t inverted = static_cast<uint8_t>(~encoded);
+    const int32_t exponent = (inverted >> 4) & 0x07;
+    const int32_t mantissa = inverted & 0x0F;
+    int32_t magnitude = ((0x84 + (mantissa << 3)) << exponent) - 0x84;
+    if (inverted & 0x80)
+      magnitude = -magnitude;
+    return magnitude * (1.f / 32768.f);
   }
 
   float readSampleLinear(float position) const
@@ -208,8 +219,8 @@ private:
       return 0.f;
 
     const float fraction = position - static_cast<float>(sample_index);
-    const float sample_a = kRide909SampleData[sample_index];
-    const float sample_b = kRide909SampleData[sample_index + 1U];
+    const float sample_a = decodeUlaw(kRide909SampleData[sample_index]);
+    const float sample_b = decodeUlaw(kRide909SampleData[sample_index + 1U]);
     return sample_a + (sample_b - sample_a) * fraction;
   }
 
