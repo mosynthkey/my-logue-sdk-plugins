@@ -265,7 +265,7 @@ wasm-ci:
 		-s AUDIO_WORKLET=1 \
 		-s WASM_WORKERS=1 \
 		-lembind \
-		--shell-file $(SANDBOXDIR)/xypad.html \
+		--shell-file $(REPO_ROOT)/web/xypad.html \
 		--emrun \
 		-O2 \
 		-g -fdebug-compilation-dir='..' \
