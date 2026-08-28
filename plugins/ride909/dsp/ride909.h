@@ -4,10 +4,10 @@
  * File: ride909.h
  *
  * Tempo-synced TR-909 ride cymbal layer for NTS-3.
- * Tap-and-hold gates a tempo-synced ride on steps 3-7-11-15.
- * Steps 1-5-9-13 duck older ride tails (sidechain-style kick simulation).
+ * Tap-and-hold gates a techno-style ride wash on off-beats (3-7-11-15).
+ * Quarter-note kick steps (1-5-9-13) sidechain-pump the ride tail.
  * X controls pitch (center = normal) via granular overlap-add; decay length stays fixed.
- * Y controls duck depth (bottom = off, top = deepest).
+ * Y controls pump depth (bottom = off, top = deepest).
  *
  */
 
@@ -27,8 +27,7 @@ public:
   static constexpr uint32_t kGrainOutputSize = 256U;
   static constexpr uint32_t kGrainHop = 128U;
   static constexpr uint32_t kGrainsPerVoice = 2U;
-  static constexpr float kMaxDuckDepth = 0.35f;
-  static constexpr float kDuckRelease = 0.0025f;
+  static constexpr float kMaxPumpDepth = 0.5f;
 
   uint32_t getBufferSize() const override final { return 0; }
 
@@ -49,7 +48,7 @@ public:
       updatePitchRatio();
       break;
     case CURVE:
-      curve_amount_ = param_10bit_to_f32(value);
+      pump_depth_ = param_10bit_to_f32(value);
       break;
     case MIX:
       mix_ = value / 1000.f;
@@ -73,8 +72,8 @@ public:
   void init(float *) override final
   {
     pitch_norm_ = 0.f;
-    curve_amount_ = 0.f;
-    duck_gain_ = 1.f;
+    pump_depth_ = 0.f;
+    pump_gain_ = 1.f;
     base_level_ = 0.8f;
     mix_ = 1.f;
     bpm_ = 120.f;
@@ -91,7 +90,7 @@ public:
   void reset() override final
   {
     running_ = false;
-    duck_gain_ = 1.f;
+    pump_gain_ = 1.f;
     resetVoices();
   }
 
@@ -116,13 +115,18 @@ public:
     if (phase == k_unit_touch_phase_began || phase == k_unit_touch_phase_moved ||
         phase == k_unit_touch_phase_stationary)
     {
-      running_ = true;
+      if (!running_)
+      {
+        running_ = true;
+        triggerRide();
+      }
       return;
     }
 
     if (phase == k_unit_touch_phase_ended || phase == k_unit_touch_phase_cancelled)
     {
       running_ = false;
+      pump_gain_ = 1.f;
       resetVoices();
     }
   }
@@ -136,8 +140,8 @@ public:
 
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
-      advanceDuckEnvelope();
-      const float wet = renderVoices() * base_level_ * mix_;
+      advancePumpEnvelope();
+      const float wet = renderVoices() * base_level_ * mix_ * pump_gain_;
       const float mixed_left = in[0] * dry_gain + wet;
       const float mixed_right = in[1] * dry_gain + wet;
       out[0] = mixed_left;
@@ -161,7 +165,6 @@ private:
     uint32_t output_index = 0U;
     uint32_t next_grain_out_start = 0U;
     uint32_t spawned_grain_count = 0U;
-    uint32_t trigger_tick = 0U;
     float pitch_ratio = 1.f;
     Grain grains[kGrainsPerVoice];
   };
@@ -171,7 +174,7 @@ private:
     return ((counter - 1U) % kStepsPerBar) + 1U;
   }
 
-  static bool isDuckStep(uint32_t counter)
+  static bool isKickStep(uint32_t counter)
   {
     switch (stepOneBased(counter))
     {
@@ -207,32 +210,35 @@ private:
     return 4.f * phase * (1.f - phase);
   }
 
-  float shapedDuckGain() const
+  void triggerPump()
   {
-    return duck_gain_;
-  }
-
-  void triggerDuck()
-  {
-    if (curve_amount_ <= 0.f)
+    if (pump_depth_ <= 0.f)
       return;
 
-    duck_tick_ = tick_counter_;
-    duck_gain_ = 1.f - curve_amount_ * kMaxDuckDepth;
+    pump_gain_ = 1.f - pump_depth_ * kMaxPumpDepth;
   }
 
-  void advanceDuckEnvelope()
+  void advancePumpEnvelope()
   {
-    if (duck_gain_ >= 1.f)
+    if (pump_gain_ >= 1.f)
     {
-      duck_gain_ = 1.f;
+      pump_gain_ = 1.f;
       return;
     }
 
-    const float release = kDuckRelease * (1.f + curve_amount_ * 3.f);
-    duck_gain_ += release;
-    if (duck_gain_ > 1.f)
-      duck_gain_ = 1.f;
+    if (bpm_ <= 0.f)
+      return;
+
+    const float sample_rate = getSampleRate();
+    const float samples_per_16th = sample_rate * 60.f / (bpm_ * 4.f);
+    if (samples_per_16th <= 0.f)
+      return;
+
+    // Release over one 16th note so the ride swells back before the next off-beat hit.
+    const float release_step = (pump_depth_ * kMaxPumpDepth) / samples_per_16th;
+    pump_gain_ += release_step;
+    if (pump_gain_ > 1.f)
+      pump_gain_ = 1.f;
   }
 
   void updatePitchRatio()
@@ -265,8 +271,8 @@ private:
     if (!running_)
       return;
 
-    if (isDuckStep(counter))
-      triggerDuck();
+    if (isKickStep(counter))
+      triggerPump();
 
     if (isRideStep(counter))
       triggerRide();
@@ -316,7 +322,6 @@ private:
     next_voice_index_ = (next_voice_index_ + 1U) % kVoiceCount;
     resetVoiceGrains(voice);
     voice.active = true;
-    voice.trigger_tick = tick_counter_;
     voice.pitch_ratio = pitch_ratio_;
     spawnGrains(voice);
   }
@@ -388,8 +393,6 @@ private:
   float renderVoices()
   {
     float sum = 0.f;
-    const float duck_gain = shapedDuckGain();
-    const bool apply_duck = curve_amount_ > 0.f && duck_gain < 1.f;
 
     for (uint32_t voiceIndex = 0; voiceIndex < kVoiceCount; ++voiceIndex)
     {
@@ -397,11 +400,7 @@ private:
       if (!voice.active)
         continue;
 
-      float voice_gain = 1.f;
-      if (apply_duck && voice.trigger_tick < duck_tick_)
-        voice_gain = duck_gain;
-
-      sum += renderVoice(voice) * voice_gain;
+      sum += renderVoice(voice);
     }
 
     return sum;
@@ -414,9 +413,8 @@ private:
   float pitch_norm_ = 0.f;
   float pitch_ratio_ = 1.f;
   float source_rate_ratio_ = 1.f;
-  float curve_amount_ = 0.f;
-  float duck_gain_ = 1.f;
-  uint32_t duck_tick_ = 0U;
+  float pump_depth_ = 0.f;
+  float pump_gain_ = 1.f;
   float base_level_ = 0.8f;
   float mix_ = 1.f;
   float bpm_ = 120.f;
