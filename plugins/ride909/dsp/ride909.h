@@ -5,7 +5,8 @@
  *
  * Tempo-synced TR-909 ride cymbal layer for NTS-3.
  * Tap-and-hold gates a tempo-synced ride on steps 3-7-11-15 (every 4 sixteenths).
- * X controls pitch (center = normal), Y controls level.
+ * X controls pitch (center = normal) via granular overlap-add; decay length stays fixed.
+ * Y controls level.
  *
  */
 
@@ -19,10 +20,12 @@
 class Ride909 : public Processor
 {
 public:
-  static constexpr float kTwoPi = 6.283185307179586f;
   static constexpr uint32_t kVoiceCount = 4U;
   static constexpr uint32_t kStepsPerBar = 16U;
   static constexpr float kPitchRangeSemitones = 12.f;
+  static constexpr uint32_t kGrainOutputSize = 256U;
+  static constexpr uint32_t kGrainHop = 128U;
+  static constexpr uint32_t kGrainsPerVoice = 2U;
 
   uint32_t getBufferSize() const override final { return 0; }
 
@@ -74,6 +77,8 @@ public:
     use_host_clock_ = false;
     tick_counter_ = 0U;
     internal_tick_phase_ = 0.f;
+    source_rate_ratio_ = kRide909SampleRate / getSampleRate();
+    output_length_ = static_cast<uint32_t>(kRide909SampleLength / source_rate_ratio_ + 0.5f);
     updatePitchRatio();
     resetVoices();
   }
@@ -137,11 +142,21 @@ public:
   }
 
 private:
+  struct Grain
+  {
+    uint32_t out_start = 0U;
+    float src_start = 0.f;
+    bool active = false;
+  };
+
   struct Voice
   {
-    float position = 0.f;
-    float increment = 1.f;
     bool active = false;
+    uint32_t output_index = 0U;
+    uint32_t next_grain_out_start = 0U;
+    uint32_t spawned_grain_count = 0U;
+    float pitch_ratio = 1.f;
+    Grain grains[kGrainsPerVoice];
   };
 
   static uint32_t stepOneBased(uint32_t counter)
@@ -151,7 +166,6 @@ private:
 
   static bool isPatternStep(uint32_t counter)
   {
-    // Offbeat ride every 4 sixteenths: steps 3, 7, 11, 15 (1-based grid).
     switch (stepOneBased(counter))
     {
     case 3U:
@@ -164,15 +178,35 @@ private:
     }
   }
 
+  static float grainWindow(float phase)
+  {
+    if (phase <= 0.f || phase >= 1.f)
+      return 0.f;
+    // Parabolic window avoids pulling cosf into the 32 KB unit budget.
+    return 4.f * phase * (1.f - phase);
+  }
+
   void updatePitchRatio()
   {
     pitch_ratio_ = powf(2.f, pitch_norm_ * (kPitchRangeSemitones / 12.f));
   }
 
+  void resetVoiceGrains(Voice &voice)
+  {
+    for (uint32_t grainIndex = 0; grainIndex < kGrainsPerVoice; ++grainIndex)
+      voice.grains[grainIndex] = Grain{};
+    voice.next_grain_out_start = 0U;
+    voice.spawned_grain_count = 0U;
+    voice.output_index = 0U;
+  }
+
   void resetVoices()
   {
     for (uint32_t voiceIndex = 0; voiceIndex < kVoiceCount; ++voiceIndex)
+    {
       voices_[voiceIndex] = Voice{};
+      resetVoiceGrains(voices_[voiceIndex]);
+    }
     next_voice_index_ = 0U;
   }
 
@@ -203,13 +237,35 @@ private:
     }
   }
 
+  Grain &allocateGrain(Voice &voice)
+  {
+    Grain &grain = voice.grains[voice.spawned_grain_count % kGrainsPerVoice];
+    grain.active = true;
+    return grain;
+  }
+
+  void spawnGrains(Voice &voice)
+  {
+    while (voice.next_grain_out_start < voice.output_index + kGrainOutputSize &&
+           voice.next_grain_out_start < output_length_)
+    {
+      Grain &grain = allocateGrain(voice);
+      grain.out_start = voice.next_grain_out_start;
+      grain.src_start = static_cast<float>(voice.spawned_grain_count) * static_cast<float>(kGrainHop) *
+                        voice.pitch_ratio * source_rate_ratio_;
+      voice.next_grain_out_start += kGrainHop;
+      ++voice.spawned_grain_count;
+    }
+  }
+
   void triggerRide()
   {
     Voice &voice = voices_[next_voice_index_];
     next_voice_index_ = (next_voice_index_ + 1U) % kVoiceCount;
-    voice.position = 0.f;
-    voice.increment = pitch_ratio_ * (kRide909SampleRate / getSampleRate());
+    resetVoiceGrains(voice);
     voice.active = true;
+    voice.pitch_ratio = pitch_ratio_;
+    spawnGrains(voice);
   }
 
   static float decodeUlaw(uint8_t encoded)
@@ -238,6 +294,44 @@ private:
     return sample_a + (sample_b - sample_a) * fraction;
   }
 
+  float renderVoice(Voice &voice)
+  {
+    spawnGrains(voice);
+
+    float weighted_sum = 0.f;
+    float weight_sum = 0.f;
+    const float source_step = voice.pitch_ratio * source_rate_ratio_;
+
+    for (uint32_t grainIndex = 0; grainIndex < kGrainsPerVoice; ++grainIndex)
+    {
+      const Grain &grain = voice.grains[grainIndex];
+      if (!grain.active)
+        continue;
+
+      if (voice.output_index < grain.out_start)
+        continue;
+
+      const uint32_t local_output = voice.output_index - grain.out_start;
+      if (local_output >= kGrainOutputSize)
+        continue;
+
+      const float window = grainWindow(static_cast<float>(local_output) /
+                                       static_cast<float>(kGrainOutputSize - 1U));
+      const float source_position = grain.src_start + static_cast<float>(local_output) * source_step;
+      weighted_sum += window * readSampleLinear(source_position);
+      weight_sum += window;
+    }
+
+    ++voice.output_index;
+    if (voice.output_index >= output_length_)
+      voice.active = false;
+
+    if (weight_sum <= 0.f)
+      return 0.f;
+
+    return weighted_sum / weight_sum;
+  }
+
   float renderVoices()
   {
     float sum = 0.f;
@@ -248,11 +342,7 @@ private:
       if (!voice.active)
         continue;
 
-      sum += readSampleLinear(voice.position);
-      voice.position += voice.increment;
-
-      if (voice.position >= static_cast<float>(kRide909SampleLength - 1U))
-        voice.active = false;
+      sum += renderVoice(voice);
     }
 
     return sum;
@@ -261,8 +351,10 @@ private:
   Voice voices_[kVoiceCount];
   uint32_t next_voice_index_ = 0U;
   uint32_t tick_counter_ = 0U;
+  uint32_t output_length_ = 0U;
   float pitch_norm_ = 0.f;
   float pitch_ratio_ = 1.f;
+  float source_rate_ratio_ = 1.f;
   float volume_ = 0.8f;
   float mix_ = 1.f;
   float bpm_ = 120.f;
