@@ -4,7 +4,7 @@
  * File: ride909.h
  *
  * Tempo-synced TR-909 ride cymbal layer for NTS-3.
- * Tap toggles the classic 3-7-10-14 sixteenth-note pattern.
+ * Tap-and-hold gates the classic 3-7-10-14 sixteenth-note pattern.
  * X controls pitch (center = normal), Y controls level.
  *
  */
@@ -102,8 +102,18 @@ public:
     (void)x;
     (void)y;
 
-    if (phase == k_unit_touch_phase_began)
-      running_ = !running_;
+    if (phase == k_unit_touch_phase_began || phase == k_unit_touch_phase_moved ||
+        phase == k_unit_touch_phase_stationary)
+    {
+      running_ = true;
+      return;
+    }
+
+    if (phase == k_unit_touch_phase_ended || phase == k_unit_touch_phase_cancelled)
+    {
+      running_ = false;
+      resetVoices();
+    }
   }
 
   void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final
@@ -134,15 +144,20 @@ private:
     bool active = false;
   };
 
-  static bool isPatternStep(uint32_t step)
+  static uint32_t stepOneBased(uint32_t counter)
   {
-    // Classic techno ride on steps 3, 7, 10, 14 (1-based).
-    switch (step)
+    return ((counter - 1U) % kStepsPerBar) + 1U;
+  }
+
+  static bool isPatternStep(uint32_t counter)
+  {
+    // Classic techno ride on steps 3, 7, 10, 14 (1-based 16th grid).
+    switch (stepOneBased(counter))
     {
-    case 2U:
-    case 6U:
-    case 9U:
-    case 13U:
+    case 3U:
+    case 7U:
+    case 10U:
+    case 14U:
       return true;
     default:
       return false;
@@ -167,8 +182,7 @@ private:
     if (!running_)
       return;
 
-    const uint32_t step = counter % kStepsPerBar;
-    if (isPatternStep(step))
+    if (isPatternStep(counter))
       triggerRide();
   }
 
