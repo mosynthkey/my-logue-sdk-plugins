@@ -4,9 +4,10 @@
  * File: ride909.h
  *
  * Tempo-synced TR-909 ride cymbal layer for NTS-3.
- * Tap-and-hold gates a tempo-synced ride on steps 3-7-11-15 (every 4 sixteenths).
+ * Tap-and-hold gates a tempo-synced ride on steps 3-7-11-15.
+ * Steps 1-5-9-13 duck the ride (sidechain-style amp curve).
  * X controls pitch (center = normal) via granular overlap-add; decay length stays fixed.
- * Y controls level.
+ * Y controls duck curve depth.
  *
  */
 
@@ -26,13 +27,15 @@ public:
   static constexpr uint32_t kGrainOutputSize = 256U;
   static constexpr uint32_t kGrainHop = 128U;
   static constexpr uint32_t kGrainsPerVoice = 2U;
+  static constexpr float kMaxDuckDepth = 0.9f;
+  static constexpr float kDuckRelease = 0.0012f;
 
   uint32_t getBufferSize() const override final { return 0; }
 
   enum
   {
     PITCH = 0U,
-    VOL,
+    CURVE,
     MIX,
     NUM_PARAMS
   };
@@ -45,8 +48,8 @@ public:
       pitch_norm_ = (static_cast<float>(value) - 512.f) * (1.f / 512.f);
       updatePitchRatio();
       break;
-    case VOL:
-      volume_ = param_10bit_to_f32(value);
+    case CURVE:
+      curve_amount_ = param_10bit_to_f32(value);
       break;
     case MIX:
       mix_ = value / 1000.f;
@@ -70,7 +73,9 @@ public:
   void init(float *) override final
   {
     pitch_norm_ = 0.f;
-    volume_ = 0.8f;
+    curve_amount_ = 0.5f;
+    duck_gain_ = 1.f;
+    base_level_ = 0.8f;
     mix_ = 1.f;
     bpm_ = 120.f;
     running_ = false;
@@ -86,6 +91,7 @@ public:
   void reset() override final
   {
     running_ = false;
+    duck_gain_ = 1.f;
     resetVoices();
   }
 
@@ -126,14 +132,14 @@ public:
     if (!use_host_clock_)
       advanceInternalClock(frames);
 
-    const float wet_gain = volume_ * mix_;
     const float dry_gain = 1.f - mix_;
 
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
-      const float wet = renderVoices();
-      const float mixed_left = in[0] * dry_gain + wet * wet_gain;
-      const float mixed_right = in[1] * dry_gain + wet * wet_gain;
+      advanceDuckEnvelope();
+      const float wet = renderVoices() * base_level_ * mix_ * shapedDuckGain();
+      const float mixed_left = in[0] * dry_gain + wet;
+      const float mixed_right = in[1] * dry_gain + wet;
       out[0] = mixed_left;
       out[1] = mixed_right;
       in += 2;
@@ -164,6 +170,20 @@ private:
     return ((counter - 1U) % kStepsPerBar) + 1U;
   }
 
+  static bool isDuckStep(uint32_t counter)
+  {
+    switch (stepOneBased(counter))
+    {
+    case 1U:
+    case 5U:
+    case 9U:
+    case 13U:
+      return true;
+    default:
+      return false;
+    }
+  }
+
   static bool isPatternStep(uint32_t counter)
   {
     // Offbeat ride every 4 sixteenths: steps 3, 7, 11, 15 (1-based grid).
@@ -185,6 +205,36 @@ private:
       return 0.f;
     // Parabolic window avoids pulling cosf into the 32 KB unit budget.
     return 4.f * phase * (1.f - phase);
+  }
+
+  float shapedDuckGain() const
+  {
+    if (curve_amount_ <= 0.f)
+      return 1.f;
+
+    const float curve_exponent = 1.f + curve_amount_ * 3.f;
+    return powf(duck_gain_, curve_exponent);
+  }
+
+  void triggerDuck()
+  {
+    duck_gain_ = 1.f - curve_amount_ * kMaxDuckDepth;
+    if (duck_gain_ < 0.f)
+      duck_gain_ = 0.f;
+  }
+
+  void advanceDuckEnvelope()
+  {
+    if (duck_gain_ >= 1.f)
+    {
+      duck_gain_ = 1.f;
+      return;
+    }
+
+    const float release = kDuckRelease * (1.f + curve_amount_ * 8.f);
+    duck_gain_ += release;
+    if (duck_gain_ > 1.f)
+      duck_gain_ = 1.f;
   }
 
   void updatePitchRatio()
@@ -216,6 +266,9 @@ private:
     tick_counter_ = counter;
     if (!running_)
       return;
+
+    if (isDuckStep(counter))
+      triggerDuck();
 
     if (isPatternStep(counter))
       triggerRide();
@@ -356,7 +409,9 @@ private:
   float pitch_norm_ = 0.f;
   float pitch_ratio_ = 1.f;
   float source_rate_ratio_ = 1.f;
-  float volume_ = 0.8f;
+  float curve_amount_ = 0.5f;
+  float duck_gain_ = 1.f;
+  float base_level_ = 0.8f;
   float mix_ = 1.f;
   float bpm_ = 120.f;
   float internal_tick_phase_ = 0.f;
