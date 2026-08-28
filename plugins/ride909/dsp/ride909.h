@@ -166,6 +166,7 @@ private:
 
   static bool isPatternStep(uint32_t counter)
   {
+    // Offbeat ride every 4 sixteenths: steps 3, 7, 11, 15 (1-based grid).
     switch (stepOneBased(counter))
     {
     case 3U:
