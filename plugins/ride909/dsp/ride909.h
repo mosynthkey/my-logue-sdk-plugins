@@ -4,8 +4,8 @@
  * File: ride909.h
  *
  * Tempo-synced TR-909 ride cymbal layer for NTS-3.
- * Tap-and-hold gates a tempo-synced ride on steps 3-7-11-15.
- * Steps 1-5-9-13 duck the ride (sidechain-style amp curve, kick simulation).
+ * Tap-and-hold gates a tempo-synced ride on steps 1-5-9-13.
+ * The same steps duck older ride tails (sidechain-style kick simulation).
  * X controls pitch (center = normal) via granular overlap-add; decay length stays fixed.
  * Y controls duck depth (bottom = off, top = deepest).
  *
@@ -27,8 +27,8 @@ public:
   static constexpr uint32_t kGrainOutputSize = 256U;
   static constexpr uint32_t kGrainHop = 128U;
   static constexpr uint32_t kGrainsPerVoice = 2U;
-  static constexpr float kMaxDuckDepth = 0.45f;
-  static constexpr float kDuckRelease = 0.0015f;
+  static constexpr float kMaxDuckDepth = 0.35f;
+  static constexpr float kDuckRelease = 0.0025f;
 
   uint32_t getBufferSize() const override final { return 0; }
 
@@ -137,7 +137,7 @@ public:
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
       advanceDuckEnvelope();
-      const float wet = renderVoices() * base_level_ * mix_ * shapedDuckGain();
+      const float wet = renderVoices() * base_level_ * mix_;
       const float mixed_left = in[0] * dry_gain + wet;
       const float mixed_right = in[1] * dry_gain + wet;
       out[0] = mixed_left;
@@ -161,6 +161,7 @@ private:
     uint32_t output_index = 0U;
     uint32_t next_grain_out_start = 0U;
     uint32_t spawned_grain_count = 0U;
+    uint32_t trigger_tick = 0U;
     float pitch_ratio = 1.f;
     Grain grains[kGrainsPerVoice];
   };
@@ -170,7 +171,7 @@ private:
     return ((counter - 1U) % kStepsPerBar) + 1U;
   }
 
-  static bool isDuckStep(uint32_t counter)
+  static bool isAccentStep(uint32_t counter)
   {
     switch (stepOneBased(counter))
     {
@@ -178,20 +179,6 @@ private:
     case 5U:
     case 9U:
     case 13U:
-      return true;
-    default:
-      return false;
-    }
-  }
-
-  static bool isRideStep(uint32_t counter)
-  {
-    switch (stepOneBased(counter))
-    {
-    case 3U:
-    case 7U:
-    case 11U:
-    case 15U:
       return true;
     default:
       return false;
@@ -216,6 +203,7 @@ private:
     if (curve_amount_ <= 0.f)
       return;
 
+    duck_tick_ = tick_counter_;
     duck_gain_ = 1.f - curve_amount_ * kMaxDuckDepth;
   }
 
@@ -263,11 +251,11 @@ private:
     if (!running_)
       return;
 
-    if (isDuckStep(counter))
+    if (isAccentStep(counter))
+    {
       triggerDuck();
-
-    if (isRideStep(counter))
       triggerRide();
+    }
   }
 
   void advanceInternalClock(uint32_t frames)
@@ -314,6 +302,7 @@ private:
     next_voice_index_ = (next_voice_index_ + 1U) % kVoiceCount;
     resetVoiceGrains(voice);
     voice.active = true;
+    voice.trigger_tick = tick_counter_;
     voice.pitch_ratio = pitch_ratio_;
     spawnGrains(voice);
   }
@@ -385,6 +374,8 @@ private:
   float renderVoices()
   {
     float sum = 0.f;
+    const float duck_gain = shapedDuckGain();
+    const bool apply_duck = curve_amount_ > 0.f && duck_gain < 1.f;
 
     for (uint32_t voiceIndex = 0; voiceIndex < kVoiceCount; ++voiceIndex)
     {
@@ -392,7 +383,11 @@ private:
       if (!voice.active)
         continue;
 
-      sum += renderVoice(voice);
+      float voice_gain = 1.f;
+      if (apply_duck && voice.trigger_tick < duck_tick_)
+        voice_gain = duck_gain;
+
+      sum += renderVoice(voice) * voice_gain;
     }
 
     return sum;
@@ -407,6 +402,7 @@ private:
   float source_rate_ratio_ = 1.f;
   float curve_amount_ = 0.f;
   float duck_gain_ = 1.f;
+  uint32_t duck_tick_ = 0U;
   float base_level_ = 0.8f;
   float mix_ = 1.f;
   float bpm_ = 120.f;
