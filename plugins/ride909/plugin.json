@@ -3,7 +3,7 @@
   "name": "Ride909",
   "type": "drum",
   "targets": ["nts-3_kaoss"],
-  "description": "Tempo-synced TR-909 ride on steps 3-7-10-14. Tap toggles pattern. X = pitch, Y = level.",
+  "description": "Tempo-synced TR-909 ride on steps 3-7-11-15 (every 4 sixteenths). Hold pad to play. X = pitch, Y = level.",
   "params": [
     { "name": "PITCH", "role": "X", "detail": "Pitch (center = normal)" },
     { "name": "VOL", "role": "Y", "detail": "Ride level" },
