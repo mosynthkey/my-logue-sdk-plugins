@@ -48,6 +48,33 @@
         { "name": "MIX", "role": "Mix", "detail": "Dry/wet" },
         { "name": "MODE", "role": "Edit", "detail": "STEREO / PING" }
       ]
+    },
+    {
+      "id": "shaker",
+      "name": "Shaker",
+      "type": "shaker",
+      "targets": ["nts-1_mkii", "nts-3_kaoss"],
+      "builds": [
+        {
+          "target": "nts-1_mkii",
+          "module": "osc",
+          "file": "./units/shaker-nts-1_mkii.nts1mkiiunit",
+          "wasm": "./sim/shaker/nts-1_mkii/shaker.html"
+        },
+        {
+          "target": "nts-3_kaoss",
+          "module": "genericfx",
+          "file": "./units/shaker-nts-3_kaoss.nts3unit",
+          "wasm": "./sim/shaker/nts-3_kaoss/shaker.html"
+        }
+      ],
+      "description": "PhISEM shaker. Note on (mkII) or pad motion (NTS-3) injects energy.",
+      "params": [
+        { "name": "TYPE", "role": "A", "detail": "Instrument preset" },
+        { "name": "DENS", "role": "B", "detail": "Object density scale" },
+        { "name": "DECAY", "role": "Edit", "detail": "Shake energy decay" },
+        { "name": "MIX", "role": "NTS-3 Mix", "detail": "Dry/wet (NTS-3 only)" }
+      ]
     }
   ]
 }
