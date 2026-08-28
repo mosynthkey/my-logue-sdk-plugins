@@ -1,0 +1,88 @@
+name: Build and GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run SysEx packing tests
+        run: node tests/nts1-midi.test.mjs
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Init CMSIS submodule only
+        run: git -C third_party/logue-sdk submodule update --init platform/ext/CMSIS
+
+      - name: Cache ARM GNU toolchain
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/gcc-arm-none-eabi
+          key: gcc-arm-none-eabi-10.3-2021.10-x86_64-linux
+
+      - name: Install ARM GNU toolchain 10.3-2021.10
+        working-directory: ${{ runner.temp }}
+        run: |
+          TOOLCHAIN_BIN="${{ runner.temp }}/gcc-arm-none-eabi/bin"
+          if [ ! -x "$TOOLCHAIN_BIN/arm-none-eabi-gcc" ]; then
+            if curl -fL -o gcc-arm.tar.bz2 \
+              https://developer.arm.com/-/media/Files/downloads/gnu-rm/10.3-2021.10/gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2; then
+              tar -xjf gcc-arm.tar.bz2
+              mv gcc-arm-none-eabi-10.3-2021.10 gcc-arm-none-eabi
+            else
+              sudo apt-get update
+              sudo apt-get install -y gcc-arm-none-eabi
+              TOOLCHAIN_BIN=/usr/bin
+            fi
+          fi
+          echo "GCC_BIN_PATH=$TOOLCHAIN_BIN" >> "$GITHUB_ENV"
+
+      - name: Build units
+        run: make unit GCC_BIN_PATH="$GCC_BIN_PATH"
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.74
+
+      - name: Build Wasm simulator
+        continue-on-error: true
+        run: make wasm EMCC_BIN_PATH="$(dirname "$(command -v emcc)")"
+
+      - name: Assemble GitHub Pages site
+        run: bash scripts/assemble-site.sh site
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: [test, build]
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,13 @@
+{
+  "id": "echo",
+  "name": "Echo",
+  "type": "delay",
+  "targets": ["nts-1_mkii", "nts-3_kaoss"],
+  "description": "Stereo delay with optional ping-pong. Shared DSP; mkII loads it as delfx, NTS-3 as genericfx.",
+  "params": [
+    { "name": "TIME", "role": "A / pad X", "detail": "Delay time, 5 ms to 1 s" },
+    { "name": "FEED", "role": "B / pad Y", "detail": "Feedback amount" },
+    { "name": "MIX", "role": "Delay mix / Depth", "detail": "Dry/wet" },
+    { "name": "MODE", "role": "Edit", "detail": "STEREO / PING" }
+  ]
+}

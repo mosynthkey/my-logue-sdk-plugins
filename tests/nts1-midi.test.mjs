@@ -1,0 +1,59 @@
+import {
+  crc32,
+  hostToMidi,
+  midiToHost,
+  wrapUnitFile,
+  buildUserSlotDataPackets,
+  buildSysex,
+  USER_SLOT_DATA,
+} from "../web/nts1-midi.js";
+
+function assert(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+function arraysEqual(left, right) {
+  if (left.length !== right.length) {
+    return false;
+  }
+  for (let index = 0; index < left.length; index++) {
+    if (left[index] !== right[index]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+const roundtrip = [0x00, 0x80, 0xff, 0x01, 0x7f, 0xaa, 0x55, 0x10];
+const packed = hostToMidi(roundtrip);
+const unpacked = midiToHost(packed);
+assert(arraysEqual(roundtrip, unpacked), "7-bit pack/unpack roundtrip failed");
+
+const crcCheck = crc32(new TextEncoder().encode("123456789"));
+assert(crcCheck === 0xcbf43926, `CRC-32 mismatch: 0x${crcCheck.toString(16)}`);
+
+const dummyUnit = new Uint8Array([0x7f, 0x45, 0x4c, 0x46, 0x01, 0x02, 0x03]);
+const wrapped = wrapUnitFile(dummyUnit);
+assert(wrapped.length === dummyUnit.length + 8, "wrap length");
+assert(wrapped[0] === dummyUnit.length, "little-endian length");
+
+const packets = buildUserSlotDataPackets(dummyUnit, { module: "osc", slot: 3, channel: 1 });
+assert(packets.length === 1, "small unit is a single packet");
+assert(packets[0][0] === 0xf0 && packets[0][packets[0].length - 1] === 0xf7, "F0/F7 framing");
+assert(packets[0][1] === 0x42 && packets[0][5] === 0x73, "KORG exclusive header");
+assert(packets[0][6] === USER_SLOT_DATA, "USER SLOT DATA command");
+assert(packets[0][7] === 4 && packets[0][8] === 3, "osc module id and slot");
+
+const largeUnit = new Uint8Array(9000).map((_, index) => index & 0xff);
+const largePackets = buildUserSlotDataPackets(largeUnit, { module: "osc", slot: 0 });
+assert(largePackets.length > 1, "large unit is split across packets");
+for (const packet of largePackets) {
+  assert(packet.length <= 4096, `packet exceeds 4096 bytes: ${packet.length}`);
+}
+
+const identity = buildSysex(2, 0x17, []);
+assert(identity[2] === 0x31, "channel 2 encodes as 0x31");
+
+console.log("nts1-midi tests passed");

@@ -1,0 +1,13 @@
+{
+  "id": "pulsefold",
+  "name": "PulseFold",
+  "type": "osc",
+  "module": "osc",
+  "targets": ["nts-1_mkii"],
+  "description": "Band-limited pulse oscillator with PWM and a sine wavefolder.",
+  "params": [
+    { "name": "WDTH", "role": "A knob", "detail": "Pulse width" },
+    { "name": "FOLD", "role": "B knob", "detail": "Wavefold amount" },
+    { "name": "MODE", "role": "Edit", "detail": "PULSE / FOLD / MIX" }
+  ]
+}
