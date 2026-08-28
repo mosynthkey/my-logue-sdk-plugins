@@ -1,0 +1,13 @@
+{
+  "id": "airfm",
+  "name": "airFM",
+  "type": "fm",
+  "targets": ["nts-3_kaoss"],
+  "description": "Two-op phase-mod FM inspired by Alesis airSynth Program 3. Pad XY controls carrier/modulator; touch gates output.",
+  "params": [
+    { "name": "INDEX", "role": "A", "detail": "FM index (rad)" },
+    { "name": "YMAX", "role": "B", "detail": "Modulator log range top (Hz)" },
+    { "name": "DRIVE", "role": "Edit", "detail": "tanh drive" },
+    { "name": "LEVEL", "role": "Level", "detail": "Output level while touching" }
+  ]
+}

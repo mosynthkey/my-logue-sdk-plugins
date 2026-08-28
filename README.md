@@ -24,6 +24,7 @@ Plugins:
 - **PulseFold** — oscillator, `nts-1_mkii`
 - **Echo** — delay, `nts-1_mkii` (`delfx`) and `nts-3_kaoss` (`genericfx`)
 - **Shaker** — PhISEM percussion, `nts-1_mkii` (`osc`, note on = shake) and `nts-3_kaoss` (`genericfx`, pad motion = shake). Instrument constants follow STK Shakers (Cook / Scavone); not a copy of STK source.
+- **airFM** — two-op phase-mod FM, `nts-3_kaoss` (`genericfx`, pad XY = carrier/modulator, touch gate). Inspired by Alesis airSynth Program 3.
 
 ## Targets
 
