@@ -3,7 +3,7 @@
   "name": "Ride909",
   "type": "drum",
   "targets": ["nts-3_kaoss"],
-  "description": "Tempo-synced TR-909 ride on steps 1-5-9-13 with kick-style ducking on older tails. Hold pad to play. X = pitch, Y = duck depth (bottom = off, top = deep).",
+  "description": "Tempo-synced TR-909 ride on steps 3-7-11-15, ducked on kick steps 1-5-9-13. Hold pad to play. X = pitch, Y = duck depth (bottom = off, top = deep).",
   "params": [
     { "name": "PITCH", "role": "X", "detail": "Pitch (center = normal)" },
     { "name": "CURVE", "role": "Y", "detail": "Duck depth on kick steps (bottom = off, top = deep)" },
