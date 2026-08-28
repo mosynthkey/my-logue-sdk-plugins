@@ -4,8 +4,8 @@
  * File: ride909.h
  *
  * Tempo-synced TR-909 ride cymbal layer for NTS-3.
- * Tap-and-hold gates a tempo-synced ride on steps 3-7-11-15.
- * Steps 1-5-9-13 duck the ride (sidechain-style amp curve).
+ * Tap-and-hold gates a tempo-synced ride on steps 1-5-9-13.
+ * Each hit triggers ducking (sidechain-style amp curve) on the same steps.
  * X controls pitch (center = normal) via granular overlap-add; decay length stays fixed.
  * Y controls duck curve depth.
  *
@@ -170,7 +170,7 @@ private:
     return ((counter - 1U) % kStepsPerBar) + 1U;
   }
 
-  static bool isDuckStep(uint32_t counter)
+  static bool isAccentStep(uint32_t counter)
   {
     switch (stepOneBased(counter))
     {
@@ -178,21 +178,6 @@ private:
     case 5U:
     case 9U:
     case 13U:
-      return true;
-    default:
-      return false;
-    }
-  }
-
-  static bool isPatternStep(uint32_t counter)
-  {
-    // Offbeat ride every 4 sixteenths: steps 3, 7, 11, 15 (1-based grid).
-    switch (stepOneBased(counter))
-    {
-    case 3U:
-    case 7U:
-    case 11U:
-    case 15U:
       return true;
     default:
       return false;
@@ -267,11 +252,11 @@ private:
     if (!running_)
       return;
 
-    if (isDuckStep(counter))
+    if (isAccentStep(counter))
+    {
       triggerDuck();
-
-    if (isPatternStep(counter))
       triggerRide();
+    }
   }
 
   void advanceInternalClock(uint32_t frames)
