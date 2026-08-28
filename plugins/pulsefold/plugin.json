@@ -4,7 +4,7 @@
   "type": "osc",
   "module": "osc",
   "targets": ["nts-1_mkii"],
-  "description": "Band-limited pulse oscillator with PWM and a sine wavefolder.",
+  "description": "Pulse oscillator with PWM and wavefold.",
   "params": [
     { "name": "WDTH", "role": "A knob", "detail": "Pulse width" },
     { "name": "FOLD", "role": "B knob", "detail": "Wavefold amount" },

@@ -10,8 +10,6 @@
 
 #include "processor.h"
 #include "macros.h"
-#include "dsp/delayline.hpp"
-#include "utils/float_math.h"
 
 class Delay : public Processor
 {
@@ -93,17 +91,18 @@ public:
 
   void init(float *allocated_buffer) override final
   {
-    delay_line_.setMemory(reinterpret_cast<f32pair_t *>(allocated_buffer), kDelayFrames);
-    delay_line_.clear();
+    buffer_ = allocated_buffer;
+    write_index_ = 0;
+    clearBuffer();
     params_.reset();
     delay_samples_ = delaySamplesForTime(params_.time);
   }
 
-  void teardown() override final {}
+  void teardown() override final { buffer_ = nullptr; }
 
   void reset() override final
   {
-    delay_line_.clear();
+    clearBuffer();
     delay_samples_ = delaySamplesForTime(params_.time);
   }
 
@@ -120,17 +119,19 @@ public:
     {
       delay_samples_ += 0.0004f * (target_delay - delay_samples_);
 
-      const f32pair_t tap = delay_line_.readFrac(delay_samples_);
-      const float delayed_l = ping_pong ? tap.b : tap.a;
-      const float delayed_r = ping_pong ? tap.a : tap.b;
+      float delayed_l = 0.f;
+      float delayed_r = 0.f;
+      readFrac(delay_samples_, delayed_l, delayed_r);
+      if (ping_pong)
+      {
+        const float crossed_l = delayed_r;
+        delayed_r = delayed_l;
+        delayed_l = crossed_l;
+      }
 
       const float input_l = in[0];
       const float input_r = in[1];
-
-      f32pair_t written;
-      written.a = clip1m1f(input_l + delayed_l * feedback);
-      written.b = clip1m1f(input_r + delayed_r * feedback);
-      delay_line_.write(written);
+      writeFrame(clipUnit(input_l + delayed_l * feedback), clipUnit(input_r + delayed_r * feedback));
 
       out[0] = input_l * dry_amt + delayed_l * wet_amt;
       out[1] = input_r * dry_amt + delayed_r * wet_amt;
@@ -140,6 +141,15 @@ public:
   }
 
 private:
+  static float clipUnit(float x)
+  {
+    if (x > 1.f)
+      return 1.f;
+    if (x < -1.f)
+      return -1.f;
+    return x;
+  }
+
   static float delaySamplesForTime(float time_norm)
   {
     const float seconds = kMinDelaySec + time_norm * (kMaxDelaySec - kMinDelaySec);
@@ -152,7 +162,39 @@ private:
     return samples;
   }
 
-  dsp::DualDelayLine delay_line_;
+  void clearBuffer()
+  {
+    if (!buffer_)
+      return;
+    const uint32_t sample_count = getBufferSize();
+    for (uint32_t sample_index = 0; sample_index < sample_count; ++sample_index)
+      buffer_[sample_index] = 0.f;
+  }
+
+  // Same wrap as logue-sdk DelayLine: write index counts down, read is write + delay.
+  void writeFrame(float left, float right)
+  {
+    const uint32_t frame = write_index_ & (kDelayFrames - 1);
+    buffer_[frame * 2] = left;
+    buffer_[frame * 2 + 1] = right;
+    write_index_--;
+  }
+
+  void readFrac(float delay_samples, float &left, float &right) const
+  {
+    const uint32_t base = static_cast<uint32_t>(delay_samples);
+    const float frac = delay_samples - static_cast<float>(base);
+    const uint32_t mask = kDelayFrames - 1;
+    const uint32_t index0 = (write_index_ + base) & mask;
+    const uint32_t index1 = (write_index_ + base + 1) & mask;
+    const float left0 = buffer_[index0 * 2];
+    const float right0 = buffer_[index0 * 2 + 1];
+    left = left0 + frac * (buffer_[index1 * 2] - left0);
+    right = right0 + frac * (buffer_[index1 * 2 + 1] - right0);
+  }
+
+  float *buffer_ = nullptr;
+  uint32_t write_index_ = 0;
   Params params_;
   float delay_samples_ = 1.f;
 };

@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>logue SDK user units</title>
-  <meta name="description" content="Custom logue SDK units. Send NTS-1 mkII units over USB MIDI, or download files for KORG KONTROL Editor.">
+  <title>Plugins</title>
+  <meta name="description" content="logue SDK plugins.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -13,42 +13,36 @@
 <body>
   <div class="grain" aria-hidden="true"></div>
   <header class="mast">
-    <p class="kicker">logue SDK plugins</p>
-    <h1>User units, from this page to the hardware.</h1>
-    <p class="lede">
-      PulseFold is an oscillator. Echo is a delay for NTS-1 mkII and NTS-3.
-      Chrome or Edge can send mkII units over USB MIDI. Other browsers can download
-      the file for KORG KONTROL Editor. NTS-3 units are download-only for now.
-    </p>
+    <p class="kicker">logue SDK</p>
+    <h1>Plugins</h1>
+    <p class="lede">Send to NTS-1 mkII over USB, or download the unit.</p>
+    <p class="notice">Under construction. Still being tested.</p>
   </header>
 
   <main class="layout">
     <section class="panel midi" aria-labelledby="midi-heading">
-      <div class="panel__label">USB MIDI</div>
-      <h2 id="midi-heading">Send to NTS-1 mkII</h2>
-      <p id="midi-status" class="status" data-kind="idle">Connect the kit over USB-C, then enable MIDI.</p>
+      <div class="panel__label">MIDI</div>
+      <h2 id="midi-heading">NTS-1 mkII</h2>
+      <p id="midi-status" class="status" data-kind="idle">Connect over USB-C.</p>
 
       <div id="midi-unsupported" hidden>
-        <p>
-          This browser has no Web MIDI API. Use Chrome or Edge on desktop,
-          or download the unit file and send it with KORG KONTROL Editor.
-        </p>
+        <p>Chrome or Edge required for MIDI. Download the unit otherwise.</p>
       </div>
 
       <div id="midi-panel">
-        <button type="button" class="button button-primary" id="connect">Enable Web MIDI</button>
+        <button type="button" class="button button-primary" id="connect">Enable MIDI</button>
 
         <label class="field">
-          <span>MIDI output</span>
+          <span>Output</span>
           <select id="midi-output"></select>
         </label>
         <label class="field">
-          <span>MIDI input</span>
+          <span>Input</span>
           <select id="midi-input"></select>
         </label>
         <div class="field-row">
           <label class="field">
-            <span>Global channel</span>
+            <span>Channel</span>
             <input id="channel" type="number" min="1" max="16" value="1">
           </label>
           <label class="field">
@@ -56,34 +50,22 @@
             <select id="slot"></select>
           </label>
         </div>
-        <p class="hint">
-          NTS-1 mkII often exposes two USB MIDI ports. Pick the last NTS-1 port if identity fails.
-          Oscillator slot 0 usually holds factory WAVES. Echo uses delay slots.
-        </p>
-        <button type="button" class="button button-secondary" id="send">Send to selected slot</button>
+        <p class="hint">If two NTS-1 ports appear, use the last one.</p>
+        <button type="button" class="button button-secondary" id="send">Send to slot</button>
       </div>
 
       <div class="log-wrap">
-        <h3>Transfer log</h3>
+        <h3>Log</h3>
         <div id="log" class="log" role="log" aria-live="polite"></div>
       </div>
     </section>
 
     <section class="panel units" aria-labelledby="units-heading">
       <div class="panel__label">Units</div>
-      <h2 id="units-heading">Plugins</h2>
+      <h2 id="units-heading">Units</h2>
       <div id="plugin-list" class="plugin-list"></div>
     </section>
   </main>
-
-  <footer class="foot">
-    <p>
-      SysEx format is taken from the public
-      <a href="https://www.korg.com/us/support/download/manual/0/933/5210/">NTS-1 mkII MIDI Implementation</a>.
-      DSP is built with <a href="https://github.com/korginc/logue-sdk">logue-sdk</a>.
-      Unrelated to KORG.
-    </p>
-  </footer>
 
   <script src="./coi-serviceworker.js"></script>
   <script type="module" src="./app.js"></script>

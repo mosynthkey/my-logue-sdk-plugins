@@ -8,12 +8,12 @@ export EMCC_BIN_PATH
 all: unit
 
 unit:
-	@for target_dir in $(PLUGIN_TARGETS); do \
+	@set -e; for target_dir in $(PLUGIN_TARGETS); do \
 		$(MAKE) -C $$target_dir install; \
 	done
 
 wasm:
-	@for target_dir in $(PLUGIN_TARGETS); do \
+	@set -e; for target_dir in $(PLUGIN_TARGETS); do \
 		$(MAKE) -C $$target_dir wasm-ci; \
 	done
 

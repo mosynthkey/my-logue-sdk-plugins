@@ -284,11 +284,6 @@ int main()
 
   EMSCRIPTEN_WEBAUDIO_T context = emscripten_create_audio_context(&attrs);
 
-  int sample_rate = emscripten_audio_context_sample_rate(context);
-  int frame_size = emscripten_audio_context_quantum_size(context);
-  printf("Sample rate: %d\n", sample_rate);
-  printf("Frame size: %d\n", frame_size);
-
   emscripten_start_wasm_audio_worklet_thread_async(context, audioThreadStack, sizeof(audioThreadStack),
                                                    &AudioThreadInitialized, 0);
 

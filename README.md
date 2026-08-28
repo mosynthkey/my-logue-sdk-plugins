@@ -2,6 +2,8 @@
 
 Custom [logue SDK](https://github.com/korginc/logue-sdk) units.
 
+**Under construction.** Hardware transfer and wasm preview are still being tested.
+
 Each plugin lists its targets in `plugin.json`. CI cross-compiles those targets and GitHub Pages hosts the unit files. Web MIDI install is implemented for NTS-1 mkII.
 
 ## Layout

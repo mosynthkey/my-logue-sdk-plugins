@@ -25,11 +25,20 @@ let lastMkiiPluginId = null;
 const unitCache = new Map();
 
 const LOAD_HINT = {
-  osc: "Select OSC type on the NTS-1 mkII to load it.",
-  delfx: "Select DELAY type on the NTS-1 mkII to load it.",
-  revfx: "Select REVERB type on the NTS-1 mkII to load it.",
-  modfx: "Select MOD type on the NTS-1 mkII to load it.",
+  osc: "Select OSC.",
+  delfx: "Select DELAY.",
+  revfx: "Select REVERB.",
+  modfx: "Select MOD.",
 };
+
+const TARGET_LABEL = {
+  "nts-1_mkii": "mkII",
+  "nts-3_kaoss": "NTS-3",
+};
+
+function targetName(target) {
+  return TARGET_LABEL[target] || target;
+}
 
 function log(message, kind = "info") {
   const line = document.createElement("p");
@@ -50,9 +59,6 @@ function populateSlotOptions(module = "osc") {
     const option = document.createElement("option");
     option.value = String(slotIndex);
     option.textContent = `Slot ${slotIndex}`;
-    if (module === "osc" && slotIndex === 0) {
-      option.textContent += " (factory WAVES lives here)";
-    }
     slotSelect.append(option);
   }
   slotSelect.value = "1";
@@ -113,7 +119,7 @@ async function refreshPorts() {
 
 async function connectMidi() {
   if (!navigator.requestMIDIAccess) {
-    setStatus("Web MIDI is not available in this browser", "error");
+    setStatus("Use Chrome or Edge", "error");
     midiUnsupported.hidden = false;
     midiPanel.hidden = true;
     return;
@@ -131,8 +137,8 @@ async function connectMidi() {
     refreshPorts();
   };
   await refreshPorts();
-  setStatus("MIDI ready — choose the NTS-1 mkII ports", "ok");
-  log("SysEx enabled. If two NTS-1 ports appear, the last one is usually the librarian port.");
+  setStatus("MIDI ready", "ok");
+  log("SysEx enabled.");
 }
 
 async function loadCatalog() {
@@ -147,17 +153,17 @@ function renderPlugins(catalog) {
   pluginListEl.innerHTML = "";
   for (const plugin of catalog.plugins) {
     const builds = plugin.builds || [];
-    const targetLabel = builds.map((build) => build.target).join(" / ") || "unbuilt";
+    const targetLabel = builds.map((build) => targetName(build.target)).join(" / ") || "unbuilt";
     const actions = builds
       .map((build) => {
         const send =
           build.target === "nts-1_mkii"
-            ? `<button class="button button-primary" data-send="${plugin.id}" data-target="${build.target}">Send via USB MIDI</button>`
+            ? `<button class="button button-primary" data-send="${plugin.id}" data-target="${build.target}">Send</button>`
             : "";
         const wasm = build.wasm
-          ? `<a class="button button-ghost" href="${build.wasm}">Try in browser</a>`
+          ? `<a class="button button-ghost" href="${build.wasm}">Preview</a>`
           : "";
-        return `<a class="button button-secondary" href="${build.file}" download>Download ${build.target}</a>${wasm}${send}`;
+        return `<a class="button button-secondary" href="${build.file}" download>Download ${targetName(build.target)}</a>${wasm}${send}`;
       })
       .join("");
     const card = document.createElement("article");
@@ -208,7 +214,7 @@ async function sendPlugin(plugin, target = "nts-1_mkii") {
   const output = selectedPort(outputSelect, midiAccess.outputs);
   const input = selectedPort(inputSelect, midiAccess.inputs);
   if (!output || !input) {
-    setStatus("Select MIDI input and output ports", "error");
+    setStatus("Select MIDI ports", "error");
     return;
   }
 
@@ -218,7 +224,7 @@ async function sendPlugin(plugin, target = "nts-1_mkii") {
   const channel = Number(channelInput.value) || 1;
   const slot = Number(slotSelect.value);
   sendButton.disabled = true;
-  setStatus("Talking to NTS-1 mkII…", "busy");
+  setStatus("Sending…", "busy");
 
   try {
     try {
@@ -256,8 +262,8 @@ async function sendPlugin(plugin, target = "nts-1_mkii") {
       },
     });
 
-    setStatus(`Installed ${plugin.name} on ${module} slot ${slot}`, "ok");
-    log(`Success. ${LOAD_HINT[module] || "Load the unit on the device."}`, "ok");
+    setStatus(`${plugin.name} → ${module} ${slot}`, "ok");
+    log(LOAD_HINT[module] || "Load it on the device.", "ok");
   } catch (error) {
     setStatus("Transfer failed", "error");
     log(error.message, "error");
@@ -283,9 +289,9 @@ async function main() {
   midiUnsupported.hidden = webMidiSupported;
   midiPanel.hidden = !webMidiSupported;
   if (!webMidiSupported) {
-    setStatus("Use Chrome or Edge, or download the unit file", "warn");
+    setStatus("Use Chrome or Edge", "warn");
   } else {
-    setStatus("Connect NTS-1 mkII over USB-C, then enable MIDI", "idle");
+    setStatus("Connect over USB-C", "idle");
   }
 
   let catalog;

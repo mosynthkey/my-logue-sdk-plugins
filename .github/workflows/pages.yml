@@ -65,7 +65,6 @@ jobs:
           version: 3.1.74
 
       - name: Build Wasm simulator
-        continue-on-error: true
         run: make wasm EMCC_BIN_PATH="$(dirname "$(command -v emcc)")"
 
       - name: Assemble GitHub Pages site

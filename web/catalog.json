@@ -15,7 +15,7 @@
           "wasm": "./sim/pulsefold/nts-1_mkii/pulsefold.html"
         }
       ],
-      "description": "Band-limited pulse oscillator with PWM and a sine wavefolder.",
+      "description": "Pulse oscillator with PWM and wavefold.",
       "params": [
         { "name": "WDTH", "role": "A knob", "detail": "Pulse width" },
         { "name": "FOLD", "role": "B knob", "detail": "Wavefold amount" },
@@ -41,11 +41,11 @@
           "wasm": "./sim/echo/nts-3_kaoss/echo.html"
         }
       ],
-      "description": "Stereo delay with optional ping-pong. Shared DSP; mkII loads it as delfx, NTS-3 as genericfx.",
+      "description": "Stereo delay with ping-pong.",
       "params": [
-        { "name": "TIME", "role": "A / pad X", "detail": "Delay time, 5 ms to 1 s" },
-        { "name": "FEED", "role": "B / pad Y", "detail": "Feedback amount" },
-        { "name": "MIX", "role": "Delay mix / Depth", "detail": "Dry/wet" },
+        { "name": "TIME", "role": "A / X", "detail": "5 ms–1 s" },
+        { "name": "FEED", "role": "B / Y", "detail": "Feedback" },
+        { "name": "MIX", "role": "Mix", "detail": "Dry/wet" },
         { "name": "MODE", "role": "Edit", "detail": "STEREO / PING" }
       ]
     }
