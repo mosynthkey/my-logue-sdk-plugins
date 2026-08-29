@@ -7,6 +7,7 @@
  * Tap-and-hold gates a techno-style ride wash on off-beats (3-7-11-15).
  * Quarter-note kick steps (1-5-9-13) sidechain-pump the ride tail.
  * X controls pitch (center = normal) via granular overlap-add; decay length stays fixed.
+ * Analysis hop scales inversely with pitch so the full sample tail is time-stretched.
  * Y controls kick sidechain pump amount (bottom = off, top = deep).
  *
  */
@@ -26,7 +27,8 @@ public:
   static constexpr float kPitchRangeSemitones = 12.f;
   static constexpr uint32_t kGrainOutputSize = 256U;
   static constexpr uint32_t kGrainHop = 128U;
-  static constexpr uint32_t kGrainsPerVoice = 4U;
+  static constexpr uint32_t kGrainsPerVoice = 6U;
+  static constexpr uint32_t kSourceTailFadeSamples = 256U;
   static constexpr float kMaxPumpDepth = 0.92f;
   static constexpr float kPumpHoldFraction = 0.22f;
   static constexpr float kPumpReleaseSixteenths = 2.25f;
@@ -331,8 +333,9 @@ private:
     {
       Grain &grain = allocateGrain(voice);
       grain.out_start = voice.next_grain_out_start;
+      // OLA analysis hop shrinks when pitching up so output decay length stays fixed.
       grain.src_start = static_cast<float>(voice.spawned_grain_count) * static_cast<float>(kGrainHop) *
-                        voice.pitch_ratio * source_rate_ratio_;
+                        source_rate_ratio_ / voice.pitch_ratio;
       voice.next_grain_out_start += kGrainHop;
       ++voice.spawned_grain_count;
     }
@@ -365,13 +368,29 @@ private:
       return 0.f;
 
     const uint32_t sample_index = static_cast<uint32_t>(position);
-    if (sample_index + 1U >= kRide909SampleLength)
+    if (sample_index >= kRide909SampleLength)
       return 0.f;
+
+    float tail_fade = 1.f;
+    if (kSourceTailFadeSamples > 0U)
+    {
+      const uint32_t fade_start = kRide909SampleLength - kSourceTailFadeSamples;
+      if (sample_index >= fade_start)
+      {
+        tail_fade = static_cast<float>(kRide909SampleLength - sample_index) /
+                    static_cast<float>(kSourceTailFadeSamples);
+        if (tail_fade < 0.f)
+          tail_fade = 0.f;
+      }
+    }
+
+    if (sample_index + 1U >= kRide909SampleLength)
+      return decodeUlaw(kRide909SampleData[sample_index]) * tail_fade;
 
     const float fraction = position - static_cast<float>(sample_index);
     const float sample_a = decodeUlaw(kRide909SampleData[sample_index]);
     const float sample_b = decodeUlaw(kRide909SampleData[sample_index + 1U]);
-    return sample_a + (sample_b - sample_a) * fraction;
+    return (sample_a + (sample_b - sample_a) * fraction) * tail_fade;
   }
 
   float renderVoice(Voice &voice)
