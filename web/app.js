@@ -1,27 +1,30 @@
 import {
   installUnit,
   pickPreferredPort,
-  requestIdentity,
+  detectDevice,
   readSlotStatus,
   MODULE_SLOTS,
   looksLikeNts1Name,
 } from "./nts1-midi.js";
 
 const logEl = document.getElementById("log");
-const statusEl = document.getElementById("midi-status");
 const pluginListEl = document.getElementById("plugin-list");
 const outputSelect = document.getElementById("midi-output");
 const inputSelect = document.getElementById("midi-input");
 const slotSelect = document.getElementById("slot");
 const sendButton = document.getElementById("send");
-const connectButton = document.getElementById("connect");
 const channelInput = document.getElementById("channel");
 const midiPanel = document.getElementById("midi-panel");
 const midiUnsupported = document.getElementById("midi-unsupported");
 const slotLabel = document.getElementById("slot-label");
+const sendModal = document.getElementById("send-modal");
+const sendModalTitle = document.getElementById("send-modal-title");
+const deviceStatusEl = document.getElementById("device-status");
 
 let midiAccess = null;
-let lastMkiiPluginId = null;
+let pendingPlugin = null;
+let pendingTarget = "nts-1_mkii";
+let deviceInquiryToken = 0;
 const unitCache = new Map();
 
 const LOAD_HINT = {
@@ -47,9 +50,13 @@ function log(message, kind = "info") {
   logEl.prepend(line);
 }
 
-function setStatus(text, kind = "idle") {
-  statusEl.dataset.kind = kind;
-  statusEl.textContent = text;
+function clearLog() {
+  logEl.innerHTML = "";
+}
+
+function setDeviceStatus(text, kind = "idle") {
+  deviceStatusEl.dataset.kind = kind;
+  deviceStatusEl.textContent = text;
 }
 
 function populateSlotOptions(module = "osc") {
@@ -62,10 +69,6 @@ function populateSlotOptions(module = "osc") {
     slotSelect.append(option);
   }
   slotSelect.value = "1";
-}
-
-function mkiiBuild(plugin) {
-  return (plugin.builds || []).find((entry) => entry.target === "nts-1_mkii");
 }
 
 function moduleFor(plugin, target) {
@@ -109,6 +112,10 @@ function selectedPort(select, ports) {
   return ports.get(select.value) || null;
 }
 
+function hasMidiPorts() {
+  return midiAccess && midiAccess.outputs.size > 0 && midiAccess.inputs.size > 0;
+}
+
 async function refreshPorts() {
   if (!midiAccess) {
     return;
@@ -119,26 +126,113 @@ async function refreshPorts() {
 
 async function connectMidi() {
   if (!navigator.requestMIDIAccess) {
-    setStatus("Use Chrome or Edge", "error");
-    midiUnsupported.hidden = false;
-    midiPanel.hidden = true;
-    return;
+    return false;
+  }
+
+  if (midiAccess) {
+    return true;
   }
 
   try {
     midiAccess = await navigator.requestMIDIAccess({ sysex: true });
   } catch (error) {
-    setStatus("MIDI permission denied", "error");
     log(String(error), "error");
-    return;
+    return false;
   }
 
   midiAccess.onstatechange = () => {
-    refreshPorts();
+    refreshPorts().then(() => inquireDevice());
   };
   await refreshPorts();
-  setStatus("MIDI ready", "ok");
   log("SysEx enabled.");
+  return true;
+}
+
+async function inquireDevice() {
+  const inquiryToken = ++deviceInquiryToken;
+
+  if (!navigator.requestMIDIAccess) {
+    setDeviceStatus("Use Chrome or Edge for MIDI", "warn");
+    sendButton.disabled = true;
+    return;
+  }
+
+  if (!midiAccess) {
+    setDeviceStatus("Looking for NTS-1 mkII…", "busy");
+    sendButton.disabled = true;
+    const connected = await connectMidi();
+    if (!connected || inquiryToken !== deviceInquiryToken) {
+      return;
+    }
+  }
+
+  if (!hasMidiPorts()) {
+    setDeviceStatus("No MIDI device found. Connect NTS-1 mkII over USB-C.", "error");
+    sendButton.disabled = true;
+    return;
+  }
+
+  const output = selectedPort(outputSelect, midiAccess.outputs);
+  const input = selectedPort(inputSelect, midiAccess.inputs);
+  if (!output || !input) {
+    setDeviceStatus("Select MIDI ports", "error");
+    sendButton.disabled = true;
+    return;
+  }
+
+  const channel = Number(channelInput.value) || 1;
+  setDeviceStatus("Identifying device…", "busy");
+  sendButton.disabled = true;
+
+  try {
+    const identity = await detectDevice(output, input, { channel });
+    if (inquiryToken !== deviceInquiryToken) {
+      return;
+    }
+    setDeviceStatus(`${identity.label} on ${output.name}`, "ok");
+    log(`Device identified: ${identity.label}`);
+    sendButton.disabled = false;
+  } catch (error) {
+    if (inquiryToken !== deviceInquiryToken) {
+      return;
+    }
+    setDeviceStatus("No NTS-1 mkII device found. Check USB connection and channel.", "error");
+    log(`Device inquiry failed: ${error.message}`, "warn");
+    sendButton.disabled = true;
+  }
+}
+
+function openSendModal(plugin, target = "nts-1_mkii") {
+  pendingPlugin = plugin;
+  pendingTarget = target;
+  sendModalTitle.textContent = plugin.name;
+  clearLog();
+  applySlotModule(moduleFor(plugin, target));
+
+  const webMidiSupported = Boolean(navigator.requestMIDIAccess);
+  midiUnsupported.hidden = webMidiSupported;
+  midiPanel.hidden = !webMidiSupported;
+  sendButton.disabled = true;
+
+  if (!webMidiSupported) {
+    setDeviceStatus("Use Chrome or Edge for MIDI", "warn");
+  } else {
+    setDeviceStatus("Looking for NTS-1 mkII…", "busy");
+  }
+
+  sendModal.hidden = false;
+  document.body.classList.add("modal-open");
+
+  if (webMidiSupported) {
+    inquireDevice();
+  }
+}
+
+function closeSendModal() {
+  sendModal.hidden = true;
+  document.body.classList.remove("modal-open");
+  pendingPlugin = null;
+  deviceInquiryToken += 1;
 }
 
 async function loadCatalog() {
@@ -158,7 +252,7 @@ function renderPlugins(catalog) {
       .map((build) => {
         const send =
           build.target === "nts-1_mkii"
-            ? `<button class="button button-primary" data-send="${plugin.id}" data-target="${build.target}">Send</button>`
+            ? `<button class="button button-primary" data-send="${plugin.id}" data-target="${build.target}">Send to NTS-1 mkII</button>`
             : "";
         const wasm = build.wasm
           ? `<a class="button button-ghost" href="${build.wasm}">Preview</a>`
@@ -205,8 +299,9 @@ async function fetchUnit(plugin, target) {
 
 async function sendPlugin(plugin, target = "nts-1_mkii") {
   if (!midiAccess) {
-    await connectMidi();
-    if (!midiAccess) {
+    const connected = await connectMidi();
+    if (!connected) {
+      setDeviceStatus("MIDI permission denied", "error");
       return;
     }
   }
@@ -214,7 +309,7 @@ async function sendPlugin(plugin, target = "nts-1_mkii") {
   const output = selectedPort(outputSelect, midiAccess.outputs);
   const input = selectedPort(inputSelect, midiAccess.inputs);
   if (!output || !input) {
-    setStatus("Select MIDI ports", "error");
+    setDeviceStatus("Select MIDI ports", "error");
     return;
   }
 
@@ -224,14 +319,17 @@ async function sendPlugin(plugin, target = "nts-1_mkii") {
   const channel = Number(channelInput.value) || 1;
   const slot = Number(slotSelect.value);
   sendButton.disabled = true;
-  setStatus("Sending…", "busy");
+  setDeviceStatus("Sending…", "busy");
 
   try {
     try {
-      await requestIdentity(output, input, { channel });
-      log(`Identity OK on ${output.name}`);
+      const identity = await detectDevice(output, input, { channel });
+      log(`Device identified: ${identity.label}`);
+      setDeviceStatus(`${identity.label} on ${output.name}`, "ok");
     } catch (error) {
-      log(`Identity request failed (${error.message}). Sending anyway.`, "warn");
+      setDeviceStatus("No NTS-1 mkII device found. Check USB connection and channel.", "error");
+      log(`Device inquiry failed: ${error.message}`, "error");
+      return;
     }
 
     const unitBytes = await fetchUnit(plugin, target);
@@ -257,59 +355,35 @@ async function sendPlugin(plugin, target = "nts-1_mkii") {
           log(`Sending ${packetCount} SysEx packet(s) to ${module} slot ${slot}`);
         }
         if (phase === "packet") {
-          setStatus(`Sent packet ${packetIndex} / ${packetCount}`, "busy");
+          setDeviceStatus(`Sent packet ${packetIndex} / ${packetCount}`, "busy");
         }
       },
     });
 
-    setStatus(`${plugin.name} → ${module} ${slot}`, "ok");
+    setDeviceStatus(`${plugin.name} → ${module} ${slot}`, "ok");
     log(LOAD_HINT[module] || "Load it on the device.", "ok");
   } catch (error) {
-    setStatus("Transfer failed", "error");
+    setDeviceStatus("Transfer failed", "error");
     log(error.message, "error");
   } finally {
     sendButton.disabled = false;
   }
 }
 
-function currentMkiiPlugin(catalog) {
-  if (lastMkiiPluginId) {
-    const remembered = catalog.plugins.find((entry) => entry.id === lastMkiiPluginId);
-    if (remembered && mkiiBuild(remembered)) {
-      return remembered;
-    }
-  }
-  return catalog.plugins.find((entry) => mkiiBuild(entry)) || catalog.plugins[0];
-}
-
 async function main() {
   applySlotModule("osc");
-
-  const webMidiSupported = Boolean(navigator.requestMIDIAccess);
-  midiUnsupported.hidden = webMidiSupported;
-  midiPanel.hidden = !webMidiSupported;
-  if (!webMidiSupported) {
-    setStatus("Use Chrome or Edge", "warn");
-  } else {
-    setStatus("Connect over USB-C", "idle");
-  }
 
   let catalog;
   try {
     catalog = await loadCatalog();
   } catch (error) {
-    log(error.message, "error");
     pluginListEl.innerHTML = `<p class="empty">${error.message}</p>`;
     return;
   }
 
   renderPlugins(catalog);
 
-  connectButton.addEventListener("click", () => {
-    connectMidi();
-  });
-
-  pluginListEl.addEventListener("click", async (event) => {
+  pluginListEl.addEventListener("click", (event) => {
     const button = event.target.closest("[data-send]");
     if (!button) {
       return;
@@ -317,15 +391,36 @@ async function main() {
     const plugin = catalog.plugins.find((entry) => entry.id === button.dataset.send);
     if (plugin) {
       const target = button.dataset.target || "nts-1_mkii";
-      if (target === "nts-1_mkii") {
-        lastMkiiPluginId = plugin.id;
-      }
-      await sendPlugin(plugin, target);
+      openSendModal(plugin, target);
     }
   });
 
   sendButton.addEventListener("click", async () => {
-    await sendPlugin(currentMkiiPlugin(catalog));
+    if (pendingPlugin) {
+      await sendPlugin(pendingPlugin, pendingTarget);
+    }
+  });
+
+  outputSelect.addEventListener("change", () => {
+    inquireDevice();
+  });
+  inputSelect.addEventListener("change", () => {
+    inquireDevice();
+  });
+  channelInput.addEventListener("change", () => {
+    inquireDevice();
+  });
+
+  sendModal.addEventListener("click", (event) => {
+    if (event.target.closest("[data-close-modal]")) {
+      closeSendModal();
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !sendModal.hidden) {
+      closeSendModal();
+    }
   });
 }
 

@@ -6,6 +6,8 @@ import {
   buildUserSlotDataPackets,
   buildSysex,
   USER_SLOT_DATA,
+  parseIdentityReply,
+  isInquiryReply,
 } from "../web/nts1-midi.js";
 
 function assert(condition, message) {
@@ -55,5 +57,14 @@ for (const packet of largePackets) {
 
 const identity = buildSysex(2, 0x17, []);
 assert(identity[2] === 0x31, "channel 2 encodes as 0x31");
+
+const inquiryReply = Uint8Array.from([
+  0xf0, 0x7e, 0x00, 0x06, 0x02, 0x42, 0x73, 0x01, 0x34, 0x12, 0x02, 0x01, 0x00, 0x00, 0xf7,
+]);
+assert(isInquiryReply(inquiryReply), "inquiry reply shape");
+const parsed = parseIdentityReply(inquiryReply);
+assert(parsed.modelNumber === 0x1234, "model number");
+assert(parsed.softwareVersion === 0x0102, "software version");
+assert(parsed.label.includes("NTS-1 mkII"), "device label");
 
 console.log("nts1-midi tests passed");
