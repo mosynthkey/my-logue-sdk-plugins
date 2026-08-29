@@ -111,25 +111,46 @@ export function isNts1Mk2Exclusive(data) {
   );
 }
 
+function identityFamilyOffset(data) {
+  if (
+    data.length >= 15 &&
+    data[5] === 0x00 &&
+    data[6] === 0x00 &&
+    data[7] === KORG_ID &&
+    data[8] === FAMILY_LSB &&
+    data[9] === FAMILY_MSB
+  ) {
+    return 8;
+  }
+  if (data.length >= 13 && data[5] === KORG_ID && data[6] === FAMILY_LSB && data[7] === FAMILY_MSB) {
+    return 6;
+  }
+  return -1;
+}
+
 export function isInquiryReply(data) {
   return (
-    data.length >= 15 &&
+    data.length >= 13 &&
     data[0] === 0xf0 &&
     data[1] === 0x7e &&
     data[3] === 0x06 &&
     data[4] === 0x02 &&
-    data[5] === KORG_ID &&
-    data[6] === FAMILY_LSB &&
-    data[7] === FAMILY_MSB
+    data[data.length - 1] === 0xf7 &&
+    identityFamilyOffset(data) >= 0
   );
 }
 
 export function parseIdentityReply(data) {
-  if (!isInquiryReply(data)) {
+  const familyOffset = identityFamilyOffset(data);
+  if (familyOffset < 0) {
     return null;
   }
-  const modelNumber = data[8] | (data[9] << 8);
-  const softwareVersion = data[10] | (data[11] << 8);
+  const modelOffset = familyOffset + 2;
+  if (modelOffset + 3 >= data.length) {
+    return null;
+  }
+  const modelNumber = data[modelOffset] | (data[modelOffset + 1] << 8);
+  const softwareVersion = data[modelOffset + 2] | (data[modelOffset + 3] << 8);
   return {
     manufacturer: "KORG",
     family: "NTS-1 digital kit mkII",
@@ -234,7 +255,11 @@ export async function requestIdentity(output, input, { channel = 1, timeoutMs = 
   const pending = waitForSysex(input, isInquiryReply, timeoutMs);
   output.send(identityRequest);
   const reply = await pending;
-  return parseIdentityReply(reply);
+  const identity = parseIdentityReply(reply);
+  if (!identity) {
+    throw new Error("Unrecognized device identity reply");
+  }
+  return identity;
 }
 
 export async function detectDevice(output, input, { channel = 1, timeoutMs = 1500 } = {}) {
@@ -304,8 +329,22 @@ export function looksLikeNts1Name(name) {
   return /nts-?1/i.test(name || "");
 }
 
+export function listMidiPorts(ports) {
+  if (ports && typeof ports.values === "function") {
+    return Array.from(ports.values());
+  }
+  return Array.from(ports || []);
+}
+
+export function portLabel(port) {
+  if (!port) {
+    return "Unknown MIDI port";
+  }
+  return port.name || port.id || "Unknown MIDI port";
+}
+
 export function pickPreferredPort(ports) {
-  const listed = Array.from(ports);
+  const listed = listMidiPorts(ports);
   const ntsPorts = listed.filter((port) => looksLikeNts1Name(port.name));
   if (ntsPorts.length >= 2) {
     return ntsPorts[ntsPorts.length - 1];
