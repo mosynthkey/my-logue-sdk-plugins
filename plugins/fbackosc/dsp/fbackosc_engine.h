@@ -21,6 +21,7 @@ public:
   static constexpr float kTwoPi = 6.283185307179586f;
   static constexpr float kOutputTrim = 0.55f;
   static constexpr float kMaxFeedback = 0.93f;
+  static constexpr float kParameterSmoothing = 0.002f;
 
   struct Params
   {
@@ -33,6 +34,8 @@ public:
     saw_phase_ = 0.f;
     clearDelayLine();
     dc_state_ = 0.f;
+    feedback_coeff_ = target_feedback_coeff_;
+    delay_samples_ = target_delay_samples_;
   }
 
   void randomizePhase()
@@ -57,6 +60,9 @@ public:
 
   float render()
   {
+    feedback_coeff_ += (target_feedback_coeff_ - feedback_coeff_) * kParameterSmoothing;
+    delay_samples_ += (target_delay_samples_ - delay_samples_) * kParameterSmoothing;
+
     const float saw_sample = osc_bl2_sawf(saw_phase_, bl_idx_);
 
     saw_phase_ += base_w0_;
@@ -107,7 +113,7 @@ private:
 
   void updateDerived()
   {
-    feedback_coeff_ = params_.feedback * kMaxFeedback;
+    target_feedback_coeff_ = params_.feedback * kMaxFeedback;
 
     const float ratio = harmonicRatio(params_.harmonics);
     if (base_w0_ > 1e-8f)
@@ -117,7 +123,7 @@ private:
         delay = 2.f;
       if (delay > static_cast<float>(kMaxDelaySamples - 2U))
         delay = static_cast<float>(kMaxDelaySamples - 2U);
-      delay_samples_ = delay;
+      target_delay_samples_ = delay;
     }
   }
 
@@ -150,7 +156,9 @@ private:
   float base_w0_ = 0.f;
   float bl_idx_ = 0.f;
   float feedback_coeff_ = 0.f;
+  float target_feedback_coeff_ = 0.f;
   float delay_samples_ = 64.f;
+  float target_delay_samples_ = 64.f;
   float saw_phase_ = 0.f;
   float dc_state_ = 0.f;
   float delay_line_[kMaxDelaySamples] = {};
