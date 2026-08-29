@@ -22,6 +22,7 @@ You do not duplicate the DSP per device. You do add a thin target adapter (`head
 Plugins:
 
 - **HyperSaw** — Virus TI-inspired 9-voice detuned saw stack with Density, Spread, HyperSub, and stereo width. Targets `nts-1_mkii` and `microkorg2`.
+- **Ride909** — NTS-3 techno ride wash (off-beats 3-7-11-15, kick pump). Voice is the TR-909 Ride ROM (6-bit PCM) through variable-rate playback, resistor DAC, and analog reconstruction, not a WAV sampler.
 - **Shaker** — PhISEM percussion, `nts-1_mkii` (`osc`, note on = shake) and `nts-3_kaoss` (`genericfx`, pad motion = shake). Instrument constants follow STK Shakers (Cook / Scavone); not a copy of STK source.
 - **airFM** — two-op phase-mod FM, `nts-3_kaoss` (`genericfx`, pad XY = carrier/modulator, touch gate). Inspired by Alesis airSynth Program 3.
 

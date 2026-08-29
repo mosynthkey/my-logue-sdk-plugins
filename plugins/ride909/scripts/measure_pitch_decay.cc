@@ -22,7 +22,8 @@ TailMetrics measureTail(Ride909 &ride, int32_t pitch_value, uint32_t sample_rate
   ride.setParameter(Ride909::MIX, 1000);
   ride.setParameter(Ride909::PUMP, 0);
   ride.setParameter(Ride909::PITCH, pitch_value);
-  ride.setTempo(120.f);
+  // Slow enough that 3-7-11-15 does not retrigger during one ROM playthrough.
+  ride.setTempo(21.f);
   ride.touchEvent(0, k_unit_touch_phase_began, 512, 0);
 
   constexpr uint32_t kBlockSize = 128U;
@@ -41,10 +42,17 @@ TailMetrics measureTail(Ride909 &ride, int32_t pitch_value, uint32_t sample_rate
   for (float sample : mono)
     metrics.peak = std::fmax(metrics.peak, std::fabs(sample));
 
+  uint32_t peak_index = 0U;
+  for (uint32_t sampleIndex = 0; sampleIndex < mono.size(); ++sampleIndex)
+  {
+    if (std::fabs(mono[sampleIndex]) >= metrics.peak)
+      peak_index = sampleIndex;
+  }
+
   const float threshold_40db = metrics.peak * 0.01f;
   uint32_t hold_below = 0U;
   const uint32_t hold_required = sample_rate / 100U;
-  for (uint32_t sampleIndex = 0; sampleIndex < mono.size(); ++sampleIndex)
+  for (uint32_t sampleIndex = peak_index; sampleIndex < mono.size(); ++sampleIndex)
   {
     if (std::fabs(mono[sampleIndex]) < threshold_40db)
     {
@@ -62,10 +70,10 @@ TailMetrics measureTail(Ride909 &ride, int32_t pitch_value, uint32_t sample_rate
     }
   }
 
-  const uint32_t tail_start = static_cast<uint32_t>(0.55f * static_cast<float>(sample_rate));
-  const uint32_t tail_end = static_cast<uint32_t>(0.85f * static_cast<float>(sample_rate));
-  const uint32_t late_start = static_cast<uint32_t>(0.85f * static_cast<float>(sample_rate));
-  const uint32_t late_end = static_cast<uint32_t>(0.95f * static_cast<float>(sample_rate));
+  const uint32_t tail_start = static_cast<uint32_t>(0.45f * static_cast<float>(sample_rate));
+  const uint32_t tail_end = static_cast<uint32_t>(0.70f * static_cast<float>(sample_rate));
+  const uint32_t late_start = static_cast<uint32_t>(0.70f * static_cast<float>(sample_rate));
+  const uint32_t late_end = static_cast<uint32_t>(0.90f * static_cast<float>(sample_rate));
 
   auto window_rms = [&](uint32_t start, uint32_t end) {
     double sum_squares = 0.0;
@@ -90,15 +98,24 @@ int main()
   constexpr uint32_t kSampleRate = 48000U;
   const int32_t pitch_values[] = {512, 768, 1023};
   const char *pitch_labels[] = {"0 st", "+6 st", "+12 st"};
+  TailMetrics metrics[3];
 
-  std::printf("Ride909 tail energy by pitch\n");
+  std::printf("Ride909 tail energy by tune\n");
   for (uint32_t pitchIndex = 0; pitchIndex < 3U; ++pitchIndex)
   {
     Ride909 ride;
-    const TailMetrics metrics = measureTail(ride, pitch_values[pitchIndex], kSampleRate);
+    metrics[pitchIndex] = measureTail(ride, pitch_values[pitchIndex], kSampleRate);
     std::printf("  %s: decay_40db=%.3fs tail_rms=%.6f late_rms=%.6f peak=%.4f\n", pitch_labels[pitchIndex],
-                metrics.decay_40db_sec, metrics.tail_rms, metrics.late_rms, metrics.peak);
+                metrics[pitchIndex].decay_40db_sec, metrics[pitchIndex].tail_rms, metrics[pitchIndex].late_rms,
+                metrics[pitchIndex].peak);
   }
 
+  // Variable-rate Tune shortens the hit. +12 st should be close to half duration.
+  if (metrics[2].decay_40db_sec <= 0.f || metrics[0].decay_40db_sec <= 0.f)
+    return 1;
+  if (metrics[2].decay_40db_sec > metrics[0].decay_40db_sec * 0.70f)
+    return 1;
+  if (metrics[2].peak < 0.02f)
+    return 1;
   return 0;
 }
