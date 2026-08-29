@@ -188,12 +188,11 @@ void AudioWorkletProcessorCreated(EMSCRIPTEN_WEBAUDIO_T audioContext, bool succe
   ram.resize(processor.getBufferSize());
   processor.init(ram.data());
 
-  int inputChannelCounts[1] = {2};
+  // osc.html does not connect a source; ProcessAudio synthesizes a test tone.
   int outputChannelCounts[1] = {1};
   EmscriptenAudioWorkletNodeCreateOptions options = {
-      .numberOfInputs = 1,
+      .numberOfInputs = 0,
       .numberOfOutputs = 1,
-      .inputChannelCounts = inputChannelCounts,
       .outputChannelCounts = outputChannelCounts};
 
   EMSCRIPTEN_AUDIO_WORKLET_NODE_T wasmAudioWorklet = emscripten_create_wasm_audio_worklet_node(audioContext,

@@ -245,7 +245,7 @@ public:
     updatePlaybackRate();
   }
 
-  void aftertouch(uint8_t note, uint8_t press)
+  void aftertouch(uint8_t note, uint8_t press) override
   {
     (void)note;
     pressure_boost_ = static_cast<float>(press) * (1.f / 127.f);
