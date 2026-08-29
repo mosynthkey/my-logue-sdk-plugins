@@ -6,7 +6,7 @@
  * microKORG2 multi-voice AirHorn oscillator adapter.
  */
 
-#include "airhorn.h"
+#include "airhorn_engine.h"
 #include "macros.h"
 #include "runtime.h"
 #include "unit_osc.h"
@@ -38,7 +38,7 @@ public:
       return k_unit_err_samplerate;
 
     runtime_desc_ = *desc;
-    engine_.init(nullptr);
+    engine_.init();
 
     for (uint8_t paramIndex = 0; paramIndex < kNumParams; ++paramIndex)
       cached_values_[paramIndex] = static_cast<int32_t>(unit_header.params[paramIndex].init);
@@ -55,10 +55,7 @@ public:
   {
     engine_.reset();
     for (uint32_t voiceIndex = 0; voiceIndex < kMk2MaxVoices; ++voiceIndex)
-    {
       voices_[voiceIndex].reset();
-      last_gate_[voiceIndex] = false;
-    }
   }
 
   void Resume() { Reset(); }
@@ -71,7 +68,15 @@ public:
         static_cast<const unit_runtime_osc_context_t *>(runtime_desc_.hooks.runtime_context);
 
     for (uint32_t voiceIndex = 0; voiceIndex < context->voiceLimit; ++voiceIndex)
+    {
+      if (context->trigger & (1U << voiceIndex))
+      {
+        (void)context->pitch[voiceIndex];
+        voices_[voiceIndex].trigger(engine_.hornIndex(), 127);
+      }
+
       ProcessVoice(out, voiceIndex, frames, context);
+    }
   }
 
   void setParameter(uint8_t index, int32_t value)
@@ -96,32 +101,20 @@ public:
   }
 
 private:
-  static constexpr uint32_t kMk2MaxVoices = 16U;
-
   void ProcessVoice(float *out, uint32_t voiceIndex, uint32_t frames,
                     const unit_runtime_osc_context_t *context)
   {
     const int offset = GetBufferOffset(context, voiceIndex, frames);
-    const uint8_t gate = context->gate[voiceIndex];
-
-    if (gate && !last_gate_[voiceIndex])
-    {
-      (void)context->pitch[voiceIndex];
-      voices_[voiceIndex].trigger(engine_.hornIndex(), context->velocity[voiceIndex]);
-    }
-
-    last_gate_[voiceIndex] = gate;
 
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
-      const float mono = voices_[voiceIndex].render(AirHorn::kPlaybackRate) * engine_.outputLevel();
+      const float mono = voices_[voiceIndex].render(AirHornEngine::kPlaybackRate) * engine_.outputLevel();
       write_oscillator_output_x1(out, mono, offset, context->outputStride, sampleIndex, voiceIndex);
     }
   }
 
   unit_runtime_desc_t runtime_desc_;
-  AirHorn engine_;
+  AirHornEngine engine_;
   AirHornVoice voices_[kMk2MaxVoices];
   int32_t cached_values_[kNumParams] = {};
-  bool last_gate_[kMk2MaxVoices] = {};
 };
