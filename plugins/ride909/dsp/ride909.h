@@ -7,7 +7,7 @@
  * Tap-and-hold gates a techno-style ride wash on off-beats (3-7-11-15).
  * Quarter-note kick steps (1-5-9-13) sidechain-pump the ride tail.
  * X controls pitch (center = normal) via granular overlap-add; decay length stays fixed.
- * Y controls pump depth (bottom = off, top = deepest).
+ * Y controls kick sidechain pump amount (bottom = off, top = deep).
  *
  */
 
@@ -26,15 +26,17 @@ public:
   static constexpr float kPitchRangeSemitones = 12.f;
   static constexpr uint32_t kGrainOutputSize = 256U;
   static constexpr uint32_t kGrainHop = 128U;
-  static constexpr uint32_t kGrainsPerVoice = 2U;
-  static constexpr float kMaxPumpDepth = 0.5f;
+  static constexpr uint32_t kGrainsPerVoice = 4U;
+  static constexpr float kMaxPumpDepth = 0.92f;
+  static constexpr float kPumpHoldFraction = 0.22f;
+  static constexpr float kPumpReleaseSixteenths = 2.25f;
 
   uint32_t getBufferSize() const override final { return 0; }
 
   enum
   {
     PITCH = 0U,
-    CURVE,
+    PUMP,
     MIX,
     NUM_PARAMS
   };
@@ -47,8 +49,8 @@ public:
       pitch_norm_ = (static_cast<float>(value) - 512.f) * (1.f / 512.f);
       updatePitchRatio();
       break;
-    case CURVE:
-      pump_depth_ = param_10bit_to_f32(value);
+    case PUMP:
+      pump_amount_ = param_10bit_to_f32(value);
       break;
     case MIX:
       mix_ = value / 1000.f;
@@ -72,7 +74,9 @@ public:
   void init(float *) override final
   {
     pitch_norm_ = 0.f;
-    pump_depth_ = 0.f;
+    pump_amount_ = 0.f;
+    pump_floor_gain_ = 1.f;
+    pump_hold_samples_ = 0U;
     pump_gain_ = 1.f;
     base_level_ = 0.8f;
     mix_ = 1.f;
@@ -141,7 +145,8 @@ public:
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
       advancePumpEnvelope();
-      const float wet = renderVoices() * base_level_ * mix_ * pump_gain_;
+      const float shaped_pump = pump_gain_ * (1.f - pump_amount_ * 0.35f + pump_amount_ * 0.35f * pump_gain_);
+      const float wet = renderVoices() * base_level_ * mix_ * shaped_pump;
       const float mixed_left = in[0] * dry_gain + wet;
       const float mixed_right = in[1] * dry_gain + wet;
       out[0] = mixed_left;
@@ -212,15 +217,23 @@ private:
 
   void triggerPump()
   {
-    if (pump_depth_ <= 0.f)
+    if (pump_amount_ <= 0.f)
       return;
 
-    pump_gain_ = 1.f - pump_depth_ * kMaxPumpDepth;
+    pump_floor_gain_ = 1.f - pump_amount_ * kMaxPumpDepth;
+    pump_gain_ = pump_floor_gain_;
+
+    if (bpm_ <= 0.f)
+      return;
+
+    const float sample_rate = getSampleRate();
+    const float samples_per_16th = sample_rate * 60.f / (bpm_ * 4.f);
+    pump_hold_samples_ = static_cast<uint32_t>(samples_per_16th * kPumpHoldFraction);
   }
 
   void advancePumpEnvelope()
   {
-    if (pump_gain_ >= 1.f)
+    if (pump_gain_ >= 1.f && pump_hold_samples_ == 0U)
     {
       pump_gain_ = 1.f;
       return;
@@ -234,9 +247,18 @@ private:
     if (samples_per_16th <= 0.f)
       return;
 
-    // Release over one 16th note so the ride swells back before the next off-beat hit.
-    const float release_step = (pump_depth_ * kMaxPumpDepth) / samples_per_16th;
-    pump_gain_ += release_step;
+    if (pump_hold_samples_ > 0U)
+    {
+      --pump_hold_samples_;
+      pump_gain_ = pump_floor_gain_;
+      return;
+    }
+
+    const float release_samples = samples_per_16th * kPumpReleaseSixteenths;
+    float step = 3.f / release_samples;
+    if (step > 1.f)
+      step = 1.f;
+    pump_gain_ += (1.f - pump_gain_) * step;
     if (pump_gain_ > 1.f)
       pump_gain_ = 1.f;
   }
@@ -304,7 +326,7 @@ private:
 
   void spawnGrains(Voice &voice)
   {
-    while (voice.next_grain_out_start < voice.output_index + kGrainOutputSize &&
+    while (voice.next_grain_out_start <= voice.output_index + kGrainHop &&
            voice.next_grain_out_start < output_length_)
     {
       Grain &grain = allocateGrain(voice);
@@ -413,8 +435,10 @@ private:
   float pitch_norm_ = 0.f;
   float pitch_ratio_ = 1.f;
   float source_rate_ratio_ = 1.f;
-  float pump_depth_ = 0.f;
+  float pump_amount_ = 0.f;
+  float pump_floor_gain_ = 1.f;
   float pump_gain_ = 1.f;
+  uint32_t pump_hold_samples_ = 0U;
   float base_level_ = 0.8f;
   float mix_ = 1.f;
   float bpm_ = 120.f;
