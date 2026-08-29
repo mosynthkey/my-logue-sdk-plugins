@@ -39,4 +39,5 @@ ULIBS = -lm
 # Macros
 #
 
-UDEFS =
+UDEFS = -Dwt_saw_lut_f=osc_wt_saw_lut_f \
+        -Dwt_sqr_lut_f=osc_wt_sqr_lut_f
