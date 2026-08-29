@@ -124,6 +124,22 @@ export function isInquiryReply(data) {
   );
 }
 
+export function parseIdentityReply(data) {
+  if (!isInquiryReply(data)) {
+    return null;
+  }
+  const modelNumber = data[8] | (data[9] << 8);
+  const softwareVersion = data[10] | (data[11] << 8);
+  return {
+    manufacturer: "KORG",
+    family: "NTS-1 digital kit mkII",
+    modelNumber,
+    softwareVersion,
+    label: `NTS-1 mkII · model ${modelNumber} · v${softwareVersion >> 8}.${softwareVersion & 0xff}`,
+    raw: data,
+  };
+}
+
 export function buildSysex(channel, commandId, payload = []) {
   return Uint8Array.from([0xf0, ...exclusiveHeader(channel), commandId, ...payload, 0xf7]);
 }
@@ -217,7 +233,15 @@ export async function requestIdentity(output, input, { channel = 1, timeoutMs = 
   const identityRequest = Uint8Array.from([0xf0, 0x7e, channel - 1, 0x06, 0x01, 0xf7]);
   const pending = waitForSysex(input, isInquiryReply, timeoutMs);
   output.send(identityRequest);
-  return pending;
+  const reply = await pending;
+  return parseIdentityReply(reply);
+}
+
+export async function detectDevice(output, input, { channel = 1, timeoutMs = 1500 } = {}) {
+  if (!output || !input) {
+    throw new Error("Select MIDI ports");
+  }
+  return requestIdentity(output, input, { channel, timeoutMs });
 }
 
 export async function readSlotStatus(output, input, { module = "osc", slot = 0, channel = 1, timeoutMs = 2000 } = {}) {

@@ -20,17 +20,30 @@
   </header>
 
   <main class="layout">
-    <section class="panel midi" aria-labelledby="midi-heading">
-      <div class="panel__label">MIDI</div>
-      <h2 id="midi-heading">NTS-1 mkII</h2>
-      <p id="midi-status" class="status" data-kind="idle">Connect over USB-C.</p>
+    <section class="panel units" aria-labelledby="units-heading">
+      <div class="panel__label">Units</div>
+      <h2 id="units-heading" class="visually-hidden">Units</h2>
+      <div id="plugin-list" class="plugin-list"></div>
+    </section>
+  </main>
 
-      <div id="midi-unsupported" hidden>
+  <div id="send-modal" class="modal" hidden>
+    <div class="modal__backdrop" data-close-modal></div>
+    <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="send-modal-title">
+      <header class="modal__header">
+        <div>
+          <p class="kicker">Send to NTS-1 mkII</p>
+          <h2 id="send-modal-title">Plugin</h2>
+        </div>
+        <button type="button" class="modal__close" data-close-modal aria-label="Close">×</button>
+      </header>
+
+      <div id="midi-unsupported" class="modal__notice" hidden>
         <p>Chrome or Edge required for MIDI. Download the unit otherwise.</p>
       </div>
 
       <div id="midi-panel">
-        <button type="button" class="button button-primary" id="connect">Enable MIDI</button>
+        <p id="device-status" class="status" data-kind="idle">Looking for NTS-1 mkII…</p>
 
         <label class="field">
           <span>Output</span>
@@ -51,21 +64,19 @@
           </label>
         </div>
         <p class="hint">If two NTS-1 ports appear, use the last one.</p>
-        <button type="button" class="button button-secondary" id="send">Send to slot</button>
+
+        <div class="modal__actions">
+          <button type="button" class="button button-secondary" data-close-modal>Cancel</button>
+          <button type="button" class="button button-primary" id="send">Send to slot</button>
+        </div>
       </div>
 
       <div class="log-wrap">
         <h3>Log</h3>
         <div id="log" class="log" role="log" aria-live="polite"></div>
       </div>
-    </section>
-
-    <section class="panel units" aria-labelledby="units-heading">
-      <div class="panel__label">Units</div>
-      <h2 id="units-heading">Units</h2>
-      <div id="plugin-list" class="plugin-list"></div>
-    </section>
-  </main>
+    </div>
+  </div>
 
   <script src="./coi-serviceworker.js"></script>
   <script type="module" src="./app.js"></script>
