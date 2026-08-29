@@ -65,12 +65,7 @@ public:
   void setPitch(float w0, float note)
   {
     base_w0_ = w0;
-#if HYPERSAW_DIAGNOSTIC >= 1
-    (void)note;
-    bl_idx_ = 0.f;
-#else
-    bl_idx_ = osc_bl_saw_idx(note);
-#endif
+    bl_idx_ = bandLimitedSawIndex(note);
     updateDerived();
   }
 
@@ -142,6 +137,19 @@ public:
     if (voice_level >= 1.f)
       return 1.f;
     return voice_level;
+  }
+
+  static float bandLimitedSawIndex(float note)
+  {
+    uint32_t index = 0U;
+    while (index < k_wt_saw_notes_cnt - 1U && static_cast<float>(wt_saw_notes[index]) < note)
+      ++index;
+
+    const uint8_t previous = index > 0U ? wt_saw_notes[index - 1U] : 0U;
+    const float interval = static_cast<float>(wt_saw_notes[index] - previous);
+    const float fractional = static_cast<float>(index) + (note - static_cast<float>(previous)) / interval;
+    const float maximum = static_cast<float>(k_wt_saw_notes_cnt - 1U);
+    return fractional < maximum ? fractional : maximum;
   }
 
   void updateDerived()

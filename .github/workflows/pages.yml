@@ -88,7 +88,7 @@ jobs:
             make -C plugins/hypersaw/targets/microkorg2 all \
               CROSS_COMPILE="$MK2_PREFIX" \
               PROJECT="hypersaw-diag${level}" \
-              UDEFS="-Dwt_saw_lut_f=osc_wt_saw_lut_f -Dwt_sqr_lut_f=osc_wt_sqr_lut_f -DHYPERSAW_DIAGNOSTIC=${level}"
+              UDEFS="-Dwt_saw_notes=osc_wt_saw_notes -Dwt_saw_lut_f=osc_wt_saw_lut_f -Dwt_sqr_lut_f=osc_wt_sqr_lut_f -DHYPERSAW_DIAGNOSTIC=${level}"
             cp "plugins/hypersaw/targets/microkorg2/build/hypersaw-diag${level}.mk2unit" \
               microkorg2-diagnostics/
           done
