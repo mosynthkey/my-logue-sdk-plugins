@@ -73,7 +73,8 @@ jobs:
       - name: Build microKORG2 waves reference
         run: |
           MK2_PREFIX="$PWD/third_party/logue-sdk/tools/microkorg2-toolchain/arm-unknown-linux-gnueabihf/bin/arm-unknown-linux-gnueabihf-"
-          make -C third_party/logue-sdk/platform/microkorg2/waves clean all \
+          make -C third_party/logue-sdk/platform/microkorg2/waves clean
+          make -C third_party/logue-sdk/platform/microkorg2/waves all \
             CROSS_COMPILE="$MK2_PREFIX"
 
       - name: Compare microKORG2 ELF binaries
