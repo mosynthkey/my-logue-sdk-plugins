@@ -53,7 +53,7 @@ const __unit_header genericfx_unit_header_t unit_header = {
         .num_params = 3,
         .params = {
             {0, 1023, 512, 512, k_unit_param_type_none, 0, 0, 0, {"PITCH"}},
-            {0, 1023, 0, 0, k_unit_param_type_none, 0, 0, 0, {"CURVE"}},
+            {0, 1023, 0, 0, k_unit_param_type_none, 0, 0, 0, {"PUMP"}},
             {0, 1000, 0, 1000, k_unit_param_type_percent, 1, 1, 0, {"MIX"}},
             {0, 0, 0, 0, k_unit_param_type_none, 0, 0, 0, {""}},
             {0, 0, 0, 0, k_unit_param_type_none, 0, 0, 0, {""}},
