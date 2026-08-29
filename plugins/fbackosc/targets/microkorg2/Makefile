@@ -26,7 +26,7 @@ endif
 
 include config.mk
 
-PROJECT ?= hypersaw
+PROJECT ?= fbackosc
 TARGET_ARCH := armv7a
 VERBOSE_COMPILE := no
 

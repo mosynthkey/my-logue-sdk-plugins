@@ -21,7 +21,7 @@ ASMXSRC =
 # Include Paths
 #
 
-UINCDIR = ../../dsp
+UINCDIR = ../../dsp ../../../common
 
 ##############################################################################
 # Library Paths

@@ -36,7 +36,16 @@ Plugins:
 | `nts-1` | `.ntkdigunit` | yes (gcc 5.4 / M4) | yes | v1 API. logue-cli + published MIDI spec. |
 | `minilogue-xd` | `.mnlgxdunit` | yes (gcc 5.4 / M4) | yes | v1 API. Same as NTS-1 mkI at binary level. |
 | `prologue` | `.prlgunit` | yes (gcc 5.4 / M4) | yes | v1 API. Header `F0 42 3g 00 01 4B`. |
-| `microkorg2` | `.mk2unit` | yes (Docker / A7) | no | USB mass storage. |
+| `microkorg2` | `.mk2unit` | yes (Docker / A7) | no | USB mass storage → `Units/Oscs/SLOTxx/`. FW >= 2.0. |
+
+### microKORG2 install (HyperSaw / FbOsc)
+
+1. Download the **`microkorg2`** build (`.mk2unit`), not **mkII** (`.nts1mkiiunit`).
+2. Power off, hold **FUNCTION 1**, power on → USB mass storage mode.
+3. Copy the file into an empty folder under **`Units/Oscs/`** (one unit per SLOT).
+4. Eject, press **FUNCTION 5**, then pick the unit on an **OSC1/2/3** page.
+
+Web SysEx send does **not** work on microKORG2.
 | `drumlogue` | `.drmlgunit` | yes (Docker / A7) | no | USB mass storage. |
 
 \*NTS-3 SysEx uses the same USER SLOT DATA style as mkII. Family ID must be taken from its MIDI Implementation; not wired in `web/` yet.
