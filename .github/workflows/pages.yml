@@ -77,12 +77,26 @@ jobs:
           make -C third_party/logue-sdk/platform/microkorg2/waves all \
             CROSS_COMPILE="$MK2_PREFIX"
 
+      - name: Build HyperSaw dependency diagnostics
+        run: |
+          MK2_PREFIX="$PWD/third_party/logue-sdk/tools/microkorg2-toolchain/arm-unknown-linux-gnueabihf/bin/arm-unknown-linux-gnueabihf-"
+          for level in 1 2 3; do
+            make -C plugins/hypersaw/targets/microkorg2 clean
+            make -C plugins/hypersaw/targets/microkorg2 all \
+              CROSS_COMPILE="$MK2_PREFIX" \
+              PROJECT="hypersaw-diag${level}" \
+              UDEFS="-Dwt_saw_lut_f=osc_wt_saw_lut_f -Dwt_sqr_lut_f=osc_wt_sqr_lut_f -DHYPERSAW_DIAGNOSTIC=${level}"
+            cp "plugins/hypersaw/targets/microkorg2/build/hypersaw-diag${level}.mk2unit" \
+              "plugins/hypersaw/targets/microkorg2/hypersaw-diag${level}.mk2unit"
+          done
+
       - name: Compare microKORG2 ELF binaries
         run: |
           MK2_READELF="$PWD/third_party/logue-sdk/tools/microkorg2-toolchain/arm-unknown-linux-gnueabihf/bin/arm-unknown-linux-gnueabihf-readelf"
           mkdir -p microkorg2-diagnostics
           cp plugins/hypersaw/targets/microkorg2/hypersaw.mk2unit microkorg2-diagnostics/
           cp plugins/fbackosc/targets/microkorg2/fbackosc.mk2unit microkorg2-diagnostics/
+          cp plugins/hypersaw/targets/microkorg2/hypersaw-diag*.mk2unit microkorg2-diagnostics/
           cp third_party/logue-sdk/platform/microkorg2/waves/build/waves.mk2unit \
             microkorg2-diagnostics/
           for unit in microkorg2-diagnostics/*.mk2unit; do

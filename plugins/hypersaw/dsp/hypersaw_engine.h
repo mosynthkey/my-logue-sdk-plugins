@@ -12,6 +12,10 @@
 #include <math.h>
 #include <stdint.h>
 
+#ifndef HYPERSAW_DIAGNOSTIC
+#define HYPERSAW_DIAGNOSTIC 0
+#endif
+
 class HyperSawEngine
 {
 public:
@@ -40,8 +44,13 @@ public:
   {
     for (uint32_t voiceIndex = 0; voiceIndex < kVoiceCount; ++voiceIndex)
     {
+#if HYPERSAW_DIAGNOSTIC >= 3
+      saw_phase_[voiceIndex] = static_cast<float>(voiceIndex + 1U) / static_cast<float>(kVoiceCount + 1U);
+      sub_phase_[voiceIndex] = static_cast<float>(kVoiceCount - voiceIndex) / static_cast<float>(kVoiceCount + 1U);
+#else
       saw_phase_[voiceIndex] = osc_white();
       sub_phase_[voiceIndex] = osc_white();
+#endif
     }
   }
 
@@ -56,7 +65,12 @@ public:
   void setPitch(float w0, float note)
   {
     base_w0_ = w0;
+#if HYPERSAW_DIAGNOSTIC >= 1
+    (void)note;
+    bl_idx_ = 0.f;
+#else
     bl_idx_ = osc_bl_saw_idx(note);
+#endif
     updateDerived();
   }
 
@@ -81,8 +95,13 @@ public:
       if (voice_gain <= 0.f)
         continue;
 
+#if HYPERSAW_DIAGNOSTIC >= 2
+      const float saw_sample = (2.f * saw_phase_[voiceIndex] - 1.f) * voice_gain;
+      const float sub_sample = (sub_phase_[voiceIndex] < 0.5f ? 1.f : -1.f) * voice_gain;
+#else
       const float saw_sample = osc_bl2_sawf(saw_phase_[voiceIndex], bl_idx_) * voice_gain;
       const float sub_sample = osc_bl2_sqrf(sub_phase_[voiceIndex], bl_idx_) * voice_gain;
+#endif
 
       main_left += saw_sample * pan_left_[voiceIndex];
       main_right += saw_sample * pan_right_[voiceIndex];
