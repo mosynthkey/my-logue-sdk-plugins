@@ -1,0 +1,14 @@
+{
+  "id": "loopkey",
+  "name": "LoopKey",
+  "type": "loopkey",
+  "targets": ["nts-1_mkii"],
+  "description": "Keyboard-controlled micro-looper osc. External audio input is looped; MIDI note sets loop length. Tempo sync, gate mode, and evolution.",
+  "params": [
+    { "name": "MODE", "role": "A", "detail": "SYNC / GATE / FREE recording" },
+    { "name": "DIV", "role": "B", "detail": "Base tempo division (SYNC mode)" },
+    { "name": "MIX", "role": "Edit", "detail": "Dry/wet mix" },
+    { "name": "FEED", "role": "Shift+A", "detail": "Loop feedback / overdub" },
+    { "name": "EVOL", "role": "Shift+B", "detail": "Tempo-driven evolution amount" }
+  ]
+}
