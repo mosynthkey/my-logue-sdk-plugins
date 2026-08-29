@@ -51,7 +51,7 @@ public:
   void setPitch(float w0, float note)
   {
     base_w0_ = w0;
-    bl_idx_ = osc_bl_saw_idx(note);
+    bl_idx_ = bandLimitedSawIndex(note);
     updateDerived();
   }
 
@@ -87,7 +87,22 @@ private:
   static float harmonicRatio(float harmonics_0_1)
   {
     const float clamped = (harmonics_0_1 < 0.f) ? 0.f : ((harmonics_0_1 > 1.f) ? 1.f : harmonics_0_1);
-    return powf(2.f, (clamped - 0.5f) * 2.f);
+    const float exponent = (clamped - 0.5f) * 2.f;
+    const float x = exponent * 0.6931471805599453f;
+    return 1.f + x * (1.f + x * (0.5f + x * (0.1666666667f + x * (0.0416666667f + x * 0.0083333333f))));
+  }
+
+  static float bandLimitedSawIndex(float note)
+  {
+    uint32_t index = 0U;
+    while (index < k_wt_saw_notes_cnt - 1U && static_cast<float>(wt_saw_notes[index]) < note)
+      ++index;
+
+    const uint8_t previous = index > 0U ? wt_saw_notes[index - 1U] : 0U;
+    const float interval = static_cast<float>(wt_saw_notes[index] - previous);
+    const float fractional = static_cast<float>(index) + (note - static_cast<float>(previous)) / interval;
+    const float maximum = static_cast<float>(k_wt_saw_notes_cnt - 1U);
+    return fractional < maximum ? fractional : maximum;
   }
 
   void updateDerived()
