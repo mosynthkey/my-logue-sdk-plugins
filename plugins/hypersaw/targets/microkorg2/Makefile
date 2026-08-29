@@ -69,7 +69,7 @@ endif
 
 USE_LDOPT ?=
 USE_LINK_GC := no
-USE_LTO ?= no
+USE_LTO ?= yes
 
 CC      := $(CROSS_COMPILE)gcc
 CXXC    := $(CROSS_COMPILE)g++
