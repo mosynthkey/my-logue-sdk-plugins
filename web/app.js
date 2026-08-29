@@ -5,6 +5,8 @@ import {
   readSlotStatus,
   MODULE_SLOTS,
   looksLikeNts1Name,
+  listMidiPorts,
+  portLabel,
 } from "./nts1-midi.js";
 
 const logEl = document.getElementById("log");
@@ -59,6 +61,11 @@ function setDeviceStatus(text, kind = "idle") {
   deviceStatusEl.textContent = text;
 }
 
+function formatDeviceStatus(identity, output) {
+  const deviceName = identity?.label || "NTS-1 mkII";
+  return `${deviceName} on ${portLabel(output)}`;
+}
+
 function populateSlotOptions(module = "osc") {
   const count = MODULE_SLOTS[module] || 16;
   slotSelect.innerHTML = "";
@@ -89,7 +96,7 @@ function applySlotModule(module) {
 
 function fillPortSelect(select, ports, preferred) {
   select.innerHTML = "";
-  const listed = Array.from(ports);
+  const listed = listMidiPorts(ports);
   if (listed.length === 0) {
     const option = document.createElement("option");
     option.value = "";
@@ -100,7 +107,7 @@ function fillPortSelect(select, ports, preferred) {
   for (const port of listed) {
     const option = document.createElement("option");
     option.value = port.id;
-    option.textContent = port.name + (looksLikeNts1Name(port.name) ? "  · NTS-1" : "");
+    option.textContent = portLabel(port) + (looksLikeNts1Name(port.name) ? "  · NTS-1" : "");
     select.append(option);
   }
   if (preferred) {
@@ -120,8 +127,8 @@ async function refreshPorts() {
   if (!midiAccess) {
     return;
   }
-  fillPortSelect(outputSelect, midiAccess.outputs, pickPreferredPort(midiAccess.outputs.values()));
-  fillPortSelect(inputSelect, midiAccess.inputs, pickPreferredPort(midiAccess.inputs.values()));
+  fillPortSelect(outputSelect, midiAccess.outputs, pickPreferredPort(midiAccess.outputs));
+  fillPortSelect(inputSelect, midiAccess.inputs, pickPreferredPort(midiAccess.inputs));
 }
 
 async function connectMidi() {
@@ -189,7 +196,7 @@ async function inquireDevice() {
     if (inquiryToken !== deviceInquiryToken) {
       return;
     }
-    setDeviceStatus(`${identity.label} on ${output.name}`, "ok");
+    setDeviceStatus(formatDeviceStatus(identity, output), "ok");
     log(`Device identified: ${identity.label}`);
     sendButton.disabled = false;
   } catch (error) {
@@ -325,7 +332,7 @@ async function sendPlugin(plugin, target = "nts-1_mkii") {
     try {
       const identity = await detectDevice(output, input, { channel });
       log(`Device identified: ${identity.label}`);
-      setDeviceStatus(`${identity.label} on ${output.name}`, "ok");
+      setDeviceStatus(formatDeviceStatus(identity, output), "ok");
     } catch (error) {
       setDeviceStatus("No NTS-1 mkII device found. Check USB connection and channel.", "error");
       log(`Device inquiry failed: ${error.message}`, "error");
