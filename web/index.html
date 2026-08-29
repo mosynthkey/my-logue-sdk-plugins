@@ -7,37 +7,24 @@
   <meta name="description" content="logue SDK plugins.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <div class="grain" aria-hidden="true"></div>
+  <header class="mast">
+    <p class="kicker">logue SDK</p>
+    <h1>Plugins</h1>
+    <p class="lede">Send to NTS-1 mkII over USB, or download the unit.</p>
+    <p class="notice">Under construction. Still being tested.</p>
+  </header>
 
-  <div class="shell">
-    <header class="mast">
-      <p class="kicker">logue SDK</p>
-      <h1>Plugins</h1>
-      <p class="lede">Send to NTS-1 mkII over USB, or download the unit.</p>
-      <p class="notice">Under construction. Still being tested.</p>
-    </header>
-
-    <main class="layout">
-      <section class="panel units" aria-labelledby="units-heading">
-        <div class="panel__label">Units</div>
-        <h2 id="units-heading" class="visually-hidden">Units</h2>
-        <div id="plugin-list" class="plugin-list"></div>
-      </section>
-    </main>
-
-    <aside class="rail" aria-label="Navigation">
-      <button type="button" class="rail__btn" aria-label="Units" title="Units">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/></svg>
-      </button>
-      <button type="button" class="rail__btn" aria-label="Settings" title="Settings">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M4 8h16M4 12h16M4 16h10"/></svg>
-      </button>
-    </aside>
-  </div>
+  <main class="layout">
+    <section class="panel units" aria-labelledby="units-heading">
+      <div class="panel__label">Units</div>
+      <h2 id="units-heading" class="visually-hidden">Units</h2>
+      <div id="plugin-list" class="plugin-list"></div>
+    </section>
+  </main>
 
   <div id="send-modal" class="modal" hidden>
     <div class="modal__backdrop" data-close-modal></div>

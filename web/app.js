@@ -250,55 +250,6 @@ async function loadCatalog() {
   return response.json();
 }
 
-function hashSeed(text) {
-  let seed = 0;
-  for (let charIndex = 0; charIndex < text.length; charIndex++) {
-    seed = (seed * 31 + text.charCodeAt(charIndex)) | 0;
-  }
-  return Math.abs(seed);
-}
-
-function pseudoRandom(seed) {
-  const value = Math.sin(seed) * 10000;
-  return value - Math.floor(value);
-}
-
-function buildArcViz(pluginId) {
-  const seed = hashSeed(pluginId);
-  const gradId = `arc-grad-${pluginId}`;
-  const arcs = [];
-  const arcCount = 6;
-  for (let arcIndex = 0; arcIndex < arcCount; arcIndex++) {
-    const radius = 28 + arcIndex * 14;
-    const dash = 40 + pseudoRandom(seed + arcIndex) * 80;
-    const offset = pseudoRandom(seed + arcIndex * 3) * 200;
-    arcs.push(
-      `<circle cx="50%" cy="55%" r="${radius}" fill="none" stroke="url(#${gradId})" stroke-width="0.5" stroke-dasharray="${dash} ${220 - dash}" stroke-dashoffset="${offset}" opacity="${0.25 + arcIndex * 0.12}"/>`
-    );
-  }
-  return `<svg class="plugin-card__viz-canvas" viewBox="0 0 400 220" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-    <defs>
-      <linearGradient id="${gradId}" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#4c1d95"/>
-        <stop offset="50%" stop-color="#8b5cf6"/>
-        <stop offset="100%" stop-color="#c4b5fd"/>
-      </linearGradient>
-    </defs>
-    ${arcs.join("")}
-  </svg>`;
-}
-
-function buildParamMeter(pluginId, paramIndex) {
-  const seed = hashSeed(`${pluginId}:${paramIndex}`);
-  const barCount = 12;
-  const bars = [];
-  for (let barIndex = 0; barIndex < barCount; barIndex++) {
-    const height = 20 + pseudoRandom(seed + barIndex * 7) * 80;
-    bars.push(`<span class="param-meter__bar" style="height:${height.toFixed(1)}%"></span>`);
-  }
-  return `<span class="param-meter" aria-hidden="true">${bars.join("")}</span>`;
-}
-
 function renderPlugins(catalog) {
   pluginListEl.innerHTML = "";
   for (const plugin of catalog.plugins) {
@@ -308,34 +259,26 @@ function renderPlugins(catalog) {
       .map((build) => {
         const send =
           build.target === "nts-1_mkii"
-            ? `<button class="button button-primary" data-send="${plugin.id}" data-target="${build.target}">Send</button>`
+            ? `<button class="button button-primary" data-send="${plugin.id}" data-target="${build.target}">Send to NTS-1 mkII</button>`
             : "";
         const wasm = build.wasm
           ? `<a class="button button-ghost" href="${build.wasm}">Preview</a>`
           : "";
-        return `<a class="button button-secondary" href="${build.file}" download>${targetName(build.target)}</a>${wasm}${send}`;
+        return `<a class="button button-secondary" href="${build.file}" download>Download ${targetName(build.target)}</a>${wasm}${send}`;
       })
       .join("");
     const card = document.createElement("article");
     card.className = "plugin-card";
     card.innerHTML = `
-      <div class="plugin-card__viz">
-        ${buildArcViz(plugin.id)}
-        <p class="plugin-card__viz-label">${plugin.type} · ${targetLabel}</p>
-        <h2>${plugin.name}</h2>
-        <p class="plugin-card__desc">${plugin.description}</p>
-      </div>
-      <div class="plugin-card__controls">
-        <ul class="params">
-          ${plugin.params
-            .map(
-              (param, paramIndex) =>
-                `<li>${buildParamMeter(plugin.id, paramIndex)}<span>${param.name}</span><em>${param.role}</em> ${param.detail}</li>`
-            )
-            .join("")}
-        </ul>
-        <div class="plugin-card__actions">${actions}</div>
-      </div>
+      <p class="kicker">${plugin.type} · ${targetLabel}</p>
+      <h2>${plugin.name}</h2>
+      <p class="plugin-card__desc">${plugin.description}</p>
+      <ul class="params">
+        ${plugin.params
+          .map((param) => `<li><span>${param.name}</span><em>${param.role}</em> ${param.detail}</li>`)
+          .join("")}
+      </ul>
+      <div class="plugin-card__actions">${actions}</div>
     `;
     pluginListEl.append(card);
   }
