@@ -22,6 +22,7 @@ public:
   static constexpr uint32_t kVoiceCount = 9U;
   static constexpr float kTwoPi = 6.283185307179586f;
   static constexpr float kOutputTrim = 0.34f;
+  static constexpr float kGainSmoothing = 0.002f;
 
   struct Params
   {
@@ -37,7 +38,9 @@ public:
     {
       saw_phase_[voiceIndex] = 0.f;
       sub_phase_[voiceIndex] = 0.f;
+      voice_gain_[voiceIndex] = target_voice_gain_[voiceIndex];
     }
+    norm_gain_ = target_norm_gain_;
   }
 
   void randomizePhases()
@@ -84,11 +87,15 @@ public:
     float sub_left = 0.f;
     float sub_right = 0.f;
 
+    norm_gain_ += (target_norm_gain_ - norm_gain_) * kGainSmoothing;
+
     for (uint32_t voiceIndex = 0; voiceIndex < kVoiceCount; ++voiceIndex)
     {
-      const float voice_gain = voice_gain_[voiceIndex];
-      if (voice_gain <= 0.f)
-        continue;
+      float &smoothed_gain = voice_gain_[voiceIndex];
+      smoothed_gain += (target_voice_gain_[voiceIndex] - smoothed_gain) * kGainSmoothing;
+      if (target_voice_gain_[voiceIndex] == 0.f && smoothed_gain < 1e-5f)
+        smoothed_gain = 0.f;
+      const float voice_gain = smoothed_gain;
 
 #if HYPERSAW_DIAGNOSTIC >= 2
       const float saw_sample = (2.f * saw_phase_[voiceIndex] - 1.f) * voice_gain;
@@ -174,7 +181,7 @@ public:
     float energy = 0.f;
     for (uint32_t voiceIndex = 0; voiceIndex < kVoiceCount; ++voiceIndex)
     {
-      voice_gain_[voiceIndex] = densityGain(params_.density, voiceIndex);
+      target_voice_gain_[voiceIndex] = densityGain(params_.density, voiceIndex);
 
       const float detune_ratio = 1.f + (kDetuneCoeff[voiceIndex] * spread_amount) * (1.f / 720.f);
       const float voice_w0 = base_w0_ * detune_ratio;
@@ -185,24 +192,26 @@ public:
       pan_left_[voiceIndex] = 1.f - pan;
       pan_right_[voiceIndex] = pan;
 
-      energy += voice_gain_[voiceIndex] * voice_gain_[voiceIndex];
+      energy += target_voice_gain_[voiceIndex] * target_voice_gain_[voiceIndex];
     }
 
     if (energy < 1e-6f)
-      norm_gain_ = 0.f;
+      target_norm_gain_ = 0.f;
     else
-      norm_gain_ = kOutputTrim / sqrtf(energy);
+      target_norm_gain_ = kOutputTrim / sqrtf(energy);
   }
 
   Params params_;
   float base_w0_ = 0.f;
   float bl_idx_ = 0.f;
   float norm_gain_ = kOutputTrim;
+  float target_norm_gain_ = kOutputTrim;
   float w0_[kVoiceCount] = {};
   float sub_w0_[kVoiceCount] = {};
   float saw_phase_[kVoiceCount] = {};
   float sub_phase_[kVoiceCount] = {};
   float voice_gain_[kVoiceCount] = {};
+  float target_voice_gain_[kVoiceCount] = {};
   float pan_left_[kVoiceCount] = {};
   float pan_right_[kVoiceCount] = {};
 };
