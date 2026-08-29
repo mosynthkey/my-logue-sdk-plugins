@@ -1,0 +1,15 @@
+{
+  "id": "tapeosc",
+  "name": "TapeOsc",
+  "type": "osc",
+  "targets": ["nts-1_mkii"],
+  "description": "Varispeed oscillator with tape motor start/stop. Band-limited synth waveforms slow down and freeze like a tape deck, not a pitch envelope.",
+  "params": [
+    { "name": "WAVE", "role": "A", "detail": "Waveform: saw, square, sine, triangle" },
+    { "name": "START", "role": "B", "detail": "Tape motor spin-up time" },
+    { "name": "STOP", "role": "Edit", "detail": "Tape motor spin-down time" },
+    { "name": "GRIT", "role": "Shift+A", "detail": "Zero-order hold vs linear interpolation" },
+    { "name": "WEAR", "role": "Shift+B", "detail": "Lo-fi wear: hiss, saturation, droop, dropouts" },
+    { "name": "WOW", "role": "Shift+Edit", "detail": "Wow and flutter pitch wobble" }
+  ]
+}
