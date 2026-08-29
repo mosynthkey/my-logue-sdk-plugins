@@ -1,0 +1,12 @@
+{
+  "id": "specwarp",
+  "name": "SpecWarp",
+  "type": "fx",
+  "targets": ["nts-1_mkii", "nts-3_kaoss"],
+  "description": "Vital-inspired spectral stretch and smear FX. Input is FFT'd, warped in the frequency domain, then resynthesized. X = Stretch (frequency-axis warp for metallic/ambient textures), Y = Smear (magnitude blur and phase diffusion), Depth/MIX = dry/wet. Feed drum loops for instant otherworldly ambience.",
+  "params": [
+    { "name": "STRCH", "role": "X", "detail": "Spectral stretch: remaps the frequency axis (0.2x–8x)" },
+    { "name": "SMEAR", "role": "Y", "detail": "Spectral smear: blurs magnitudes and diffuses phase" },
+    { "name": "MIX", "role": "Depth", "detail": "Dry/wet mix" }
+  ]
+}
