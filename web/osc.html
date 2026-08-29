@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>logue-sdk osc</title>
+  <script src="./coi-serviceworker.js"></script>
+  <script src="scripts/qwerty-hancock.js"></script>
+  <link rel="icon" type="image/x-icon" href="images/favicon.ico">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Space Grotesk', sans-serif;
+      -webkit-font-smoothing: subpixel-antialiased;
+    }
+  </style>
+</head>
+
+<body>
+  <button id="TogglePlaybackButton">Start audio</button>
+  <h2>Master Volume</h2>
+  <input type="range" min="0" max="1" value="0.5" step="0.01" id="VolumeSlider">
+  <span id="VolumeLabel"></span>
+
+  <h2>Keyboard</h2>
+  <p>Play with QWERTY keys. Z and X change octave.</p>
+  <button id="OscLatchButton">Latch Off</button>
+  <div id="keyboard"></div>
+
+  <h2>Scope</h2>
+  <canvas id="TimeDomain" width="512" height="128"></canvas><br />
+  <canvas id="FrequencyDomain" width="512" height="128"></canvas>
+
+  <h2>Parameters</h2>
+  <div id="Parameters"></div>
+
+  <script>
+    window.setupWebAudioAndUI = function (context, wasmProcessor) {
+      const AHREnvelopeTime = 0.1;
+
+      function approximatelyEqual(a, b, epsilon = 1e-4) {
+        return Math.abs(a - b) < epsilon;
+      }
+
+      function createSlider(wasmProcessor, param, index) {
+        let container = document.createElement("div");
+
+        let label = document.createElement("label");
+        label.textContent = param.name.toLowerCase();
+        label.style.display = "inline-block";
+        label.style.width = "100px";
+        label.style.marginRight = "10px";
+        container.appendChild(label);
+
+        let input = document.createElement("input");
+        input.type = "range";
+        input.min = param.min;
+        input.max = param.max;
+        input.step = 1;
+        input.value = param.init;
+        input.id = param.name;
+        input.style.width = "200px";
+        input.style.marginRight = "10px";
+        container.appendChild(input);
+
+        let valueString = document.createElement("span");
+        valueString.textContent = Module.getParameterValueString(index, input.value);
+        container.appendChild(valueString);
+
+        let audioParameter = wasmProcessor.parameters.get(`${index}`);
+
+        input.oninput = () => {
+          valueString.textContent = Module.getParameterValueString(index, input.value);
+          audioParameter.value = input.value;
+        };
+
+        document.getElementById("Parameters").appendChild(container);
+      }
+
+      let envelope = new GainNode(context, { gain: 0.0 });
+      let volume = new GainNode(context, { gain: 0.1 });
+      let analyser = new AnalyserNode(context, { fftSize: 4096 });
+      let data = new Float32Array(analyser.frequencyBinCount);
+
+      wasmProcessor.connect(envelope).connect(volume);
+      volume.connect(analyser);
+      volume.connect(context.destination);
+
+      let togglePlaybackButton = document.getElementById("TogglePlaybackButton");
+
+      function ensureAudioRunning() {
+        if (context.state !== "running") {
+          context.resume();
+        }
+        togglePlaybackButton.innerText = "Suspend audio";
+      }
+
+      togglePlaybackButton.onclick = () => {
+        if (context.state !== "running") {
+          ensureAudioRunning();
+        } else {
+          context.suspend();
+          togglePlaybackButton.innerText = "Start audio";
+        }
+      };
+
+      let volumeSlider = document.getElementById("VolumeSlider");
+      let volumeLabel = document.getElementById("VolumeLabel");
+      volume.gain.value = volumeSlider.value;
+      volumeLabel.innerText = volumeSlider.value;
+      volumeSlider.oninput = function () {
+        volume.gain.value = this.value;
+        volumeLabel.innerText = this.value;
+      };
+
+      let currentOctave = 3;
+      let keyboard = new QwertyHancock({
+        id: "keyboard",
+        width: 512,
+        height: 64,
+        octaves: currentOctave,
+        startNote: "A2",
+        whiteNotesColour: "white",
+        blackNotesColour: "black",
+        hoverColour: "#f3e939"
+      });
+
+      let oscFrequency = 440.0;
+
+      let latchEnabled = false;
+      let latchButton = document.getElementById("OscLatchButton");
+      latchButton.onclick = function () {
+        latchEnabled = !latchEnabled;
+        this.innerText = `Latch ${latchEnabled ? "On" : "Off"}`;
+
+        if (!latchEnabled && (!window.frequencyStack || window.frequencyStack.length === 0)) {
+          envelope.gain.cancelAndHoldAtTime(context.currentTime);
+          envelope.gain.linearRampToValueAtTime(0.0, context.currentTime + AHREnvelopeTime);
+        }
+      };
+
+      keyboard.keyDown = function (note, frequency) {
+        ensureAudioRunning();
+        if (!window.frequencyStack) {
+          window.frequencyStack = [];
+        }
+        window.frequencyStack.push(frequency);
+        oscFrequency = frequency;
+        Module.setOscPitch(oscFrequency);
+        Module.noteOn(note, 100);
+        envelope.gain.cancelAndHoldAtTime(context.currentTime);
+        envelope.gain.linearRampToValueAtTime(1.0, context.currentTime + AHREnvelopeTime);
+      };
+
+      keyboard.keyUp = function (note, frequency) {
+        if (!window.frequencyStack) {
+          return;
+        }
+
+        for (let stackIndex = window.frequencyStack.length - 1; stackIndex >= 0; --stackIndex) {
+          if (approximatelyEqual(window.frequencyStack[stackIndex], frequency)) {
+            window.frequencyStack.splice(stackIndex, 1);
+            break;
+          }
+        }
+
+        if (window.frequencyStack.length > 0) {
+          oscFrequency = window.frequencyStack[window.frequencyStack.length - 1];
+          Module.setOscPitch(oscFrequency);
+        } else if (!latchEnabled) {
+          envelope.gain.cancelAndHoldAtTime(context.currentTime);
+          envelope.gain.linearRampToValueAtTime(0.0, context.currentTime + AHREnvelopeTime);
+        }
+
+        Module.noteOff(note);
+      };
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "z") {
+          currentOctave = Math.max(0, currentOctave - 1);
+          keyboard.setKeyOctave(currentOctave);
+        } else if (event.key === "x") {
+          currentOctave = Math.min(7, currentOctave + 1);
+          keyboard.setKeyOctave(currentOctave);
+        }
+      });
+
+      let canvasWave = document.getElementById("TimeDomain");
+      let canvasFFT = document.getElementById("FrequencyDomain");
+      let canvasWaveContext = canvasWave.getContext("2d");
+      let canvasFFTContext = canvasFFT.getContext("2d");
+
+      function draw() {
+        analyser.getFloatTimeDomainData(data);
+
+        canvasWaveContext.fillStyle = "rgb(255, 255, 255)";
+        canvasWaveContext.fillRect(0, 0, canvasWave.width, canvasWave.height);
+        canvasWaveContext.lineWidth = 1;
+        canvasWaveContext.strokeStyle = "rgb(0, 0, 0)";
+        canvasWaveContext.beginPath();
+
+        let startIndex = 0;
+        let scoreMax = 0.0;
+        let dx = Math.floor(400 / oscFrequency) + 1;
+
+        for (let sampleIndex = dx; sampleIndex < data.length / 2; ++sampleIndex) {
+          if ((data[sampleIndex - 1] > 0) && (data[sampleIndex + 1] < 0)) {
+            let score = (data[sampleIndex - dx] - data[sampleIndex + dx]) - data[sampleIndex + 5 * dx];
+            if (score > scoreMax) {
+              scoreMax = score;
+              startIndex = sampleIndex;
+            }
+          }
+        }
+
+        let numHalfCycles = Math.floor(analyser.fftSize * oscFrequency / context.sampleRate) - 1;
+        let endIndex = data.length - 1;
+        if (numHalfCycles > 0) {
+          endIndex = Math.round(startIndex + numHalfCycles * context.sampleRate / oscFrequency / 2);
+        }
+
+        let deltaX = canvasWave.width / (endIndex - startIndex);
+        let x = 0;
+
+        for (let sampleIndex = startIndex; sampleIndex <= endIndex; sampleIndex++) {
+          let value = data[sampleIndex];
+          let y = (value * 0.5 + 1.0) * canvasWave.height / 2;
+
+          if (sampleIndex === startIndex) {
+            canvasWaveContext.moveTo(x, y);
+          } else {
+            canvasWaveContext.lineTo(x, y);
+          }
+
+          x += deltaX;
+        }
+        canvasWaveContext.stroke();
+
+        analyser.getFloatFrequencyData(data);
+        canvasFFTContext.clearRect(0, 0, canvasFFT.width, canvasFFT.height);
+
+        let fftDeltaX = canvasFFT.width / data.length;
+        let posX = 0;
+        for (let binIndex = 0; binIndex < data.length; binIndex++) {
+          let barHeight = data[binIndex] + canvasFFT.height;
+          canvasFFTContext.fillStyle = "rgb(0, 0, 0)";
+          canvasFFTContext.fillRect(
+            posX,
+            canvasFFT.height - barHeight,
+            fftDeltaX,
+            barHeight,
+          );
+          posX += fftDeltaX;
+        }
+        requestAnimationFrame(draw);
+      }
+      draw();
+
+      let parameters = Module.getValidParameters();
+      for (let paramIndex = 0; paramIndex < parameters.size(); ++paramIndex) {
+        createSlider(wasmProcessor, parameters.get(paramIndex), paramIndex);
+      }
+    };
+  </script>
+
+  {{{ SCRIPT }}}
+</body>
+
+</html>
