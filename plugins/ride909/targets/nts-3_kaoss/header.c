@@ -36,6 +36,7 @@
  * File: header.c
  *
  * NTS-3 generic effect unit header for Ride909
+ * Voice: TR-909 Ride 6-bit ROM + analog reconstruction.
  *
  */
 
@@ -48,7 +49,7 @@ const __unit_header genericfx_unit_header_t unit_header = {
         .api = UNIT_API_VERSION,
         .dev_id = 0x0U,
         .unit_id = 0x00000005U,
-        .version = 0x00010000U,
+        .version = 0x00020000U,
         .name = "Ride909",
         .num_params = 3,
         .params = {

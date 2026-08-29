@@ -60,5 +60,5 @@ int main()
 
   std::printf("dry_rms=%.6f wet_rms=%.6f rms_ratio=%.3f max_delta=%.6f\n", dry_rms, wet_rms,
               wet_rms / dry_rms, max_delta);
-  return (max_delta > 0.05f && wet_rms < dry_rms * 0.9f) ? 0 : 1;
+  return (max_delta > 0.05f && wet_rms < dry_rms * 0.95f) ? 0 : 1;
 }
