@@ -56,6 +56,17 @@ jobs:
           fi
           echo "GCC_BIN_PATH=$TOOLCHAIN_BIN" >> "$GITHUB_ENV"
 
+      - name: Install microKORG2 toolchain (when needed)
+        if: hashFiles('plugins/*/targets/microkorg2/Makefile') != ''
+        run: |
+          MK2_ROOT="third_party/logue-sdk/tools/microkorg2-toolchain"
+          if [ ! -x "$MK2_ROOT/arm-unknown-linux-gnueabihf/bin/arm-unknown-linux-gnueabihf-gcc" ]; then
+            mkdir -p "$MK2_ROOT"
+            curl -fL -o /tmp/mk2-toolchain.tar.bz2 \
+              https://www.dropbox.com/s/3curhjx9yip29os/drumlogue-toolchain-amd64.tar.bz2
+            tar -xjf /tmp/mk2-toolchain.tar.bz2 -C "$MK2_ROOT" --strip-components=1
+          fi
+
       - name: Build units
         run: make unit GCC_BIN_PATH="$GCC_BIN_PATH"
 
