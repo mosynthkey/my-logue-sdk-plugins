@@ -52,25 +52,10 @@ int main()
   {
     setup(synth);
     synth.touchEvent(0, k_unit_touch_phase_began, 80U + seedIndex * 90U, 200U + seedIndex * 70U);
-
-    const uint32_t active_count = synth.debugActiveStepCount();
-    const uint32_t legato_pairs = synth.debugLegatoPairCount();
-    const uint32_t glide_count = synth.debugGlideCount();
-
-    if (active_count < Kaocid::kMinActiveStepsPerPhrase)
+    if (synth.debugGlideCount() < Kaocid::kMinGlidesPerPhrase)
     {
-      std::printf("seed %u too sparse: active=%u\n", seedIndex, active_count);
+      std::printf("seed %u too few glides: %u\n", seedIndex, synth.debugGlideCount());
       return 10;
-    }
-    if (legato_pairs < 10U)
-    {
-      std::printf("seed %u not legato enough: pairs=%u\n", seedIndex, legato_pairs);
-      return 11;
-    }
-    if (glide_count < Kaocid::kMinGlidesPerPhrase)
-    {
-      std::printf("seed %u too few glides: %u\n", seedIndex, glide_count);
-      return 12;
     }
   }
 
@@ -78,10 +63,7 @@ int main()
   synth.touchEvent(0, k_unit_touch_phase_began, 512, 512);
 
   const uint32_t glide_count = synth.debugGlideCount();
-  const uint32_t active_count = synth.debugActiveStepCount();
-  const uint32_t legato_pairs = synth.debugLegatoPairCount();
-  std::printf("active=%u legato_pairs=%u glide_count=%u phrase=", active_count, legato_pairs,
-              glide_count);
+  std::printf("glide_count=%u phrase=", glide_count);
   for (uint32_t stepIndex = 0; stepIndex < Kaocid::kStepsPerBar; ++stepIndex)
   {
     const int degree = static_cast<int>(synth.debugDegree(stepIndex));
@@ -101,7 +83,7 @@ int main()
     }
   }
   if (slide_source >= Kaocid::kStepsPerBar)
-    return 13;
+    return 11;
 
   const uint32_t slide_dest = (slide_source + 1U) % Kaocid::kStepsPerBar;
   const float source_pitch = 36.f + static_cast<float>(synth.debugDegree(slide_source));
@@ -116,7 +98,6 @@ int main()
   mono.reserve(slide_start + 4000U);
 
   bool saw_slide_flag = false;
-  float pitch_at_30ms = 0.f;
   float max_progress = 0.f;
 
   uint32_t sample_count = 0U;
@@ -126,8 +107,6 @@ int main()
     sample_count += 64U;
     if (sample_count >= slide_start && sample_count < slide_start + 64U)
       saw_slide_flag = synth.debugSlideActive();
-    if (sample_count >= slide_start + 1440U && pitch_at_30ms == 0.f)
-      pitch_at_30ms = synth.debugPitch();
 
     if (sample_count >= slide_start && interval > 0.1f)
     {
