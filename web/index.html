@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Logue SDK Plugins</title>
   <meta name="description" content="logue SDK plugins — preview and send to NTS-1 mkII or NTS-3.">
+  <script>
+    window.coi = {
+      coepCredentialless: () => true,
+      coepDegrade: () => false,
+      quiet: true,
+    };
+  </script>
   <script src="./coi-serviceworker.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

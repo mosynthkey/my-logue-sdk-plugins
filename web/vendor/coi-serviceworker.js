@@ -126,6 +126,9 @@ if (typeof window === 'undefined') {
                 !coi.quiet && console.log("COOP/COEP Service Worker registered", registration.scope);
 
                 registration.addEventListener("updatefound", () => {
+                    if (window.crossOriginIsolated) {
+                        return;
+                    }
                     !coi.quiet && console.log("Reloading page to make use of updated COOP/COEP Service Worker.");
                     window.sessionStorage.setItem("coiReloadedBySelf", "updatefound");
                     coi.doReload();
