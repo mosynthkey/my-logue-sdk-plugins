@@ -11,11 +11,11 @@
  * Panel knobs follow the TB-303: waveform, cutoff, resonance, env mod, decay,
  * accent. Distortion/delay/reverb are left to other NTS-3 slots.
  *
- * NTS-3 genericfx cannot resolve libm (expf/cosf/powf). Pitch and envelopes
- * use logue-sdk float_math.h. The voice is a naive saw/square into a
- * saturating Chamberlin SVF, then VCA — analog 303 order (VCF then VCA),
- * not gsynth's VCA-into-filter path which collapses to filter pings after
- * the envelope dies.
+ * Filter coefficients follow gsynth TB-303 (Andy Sloane, 2001), adapted for
+ * 48 kHz. NTS-3 genericfx cannot resolve libm, so pitch/env/filter use
+ * logue-sdk float_math.h. VCA is after the VCF (analog 303 order) so the
+ * note body remains after the envelope; gsynth fed the VCA into the filter
+ * which collapsed to attack pings on device.
  */
 
 #include "macros.h"
@@ -28,17 +28,15 @@ class Kaocid : public Processor
 {
 public:
   static constexpr uint32_t kStepsPerBar = 16U;
-  static constexpr uint32_t kSvfRecalcInterval = 32U;
+  static constexpr uint32_t kFilterEnvRecalcInterval = 64U;
   static constexpr float kOutputGain = 0.45f;
   static constexpr uint32_t kMinGlidesPerPhrase = 3U;
   static constexpr float kAccentVcaRange = 0.7f;
-  static constexpr float kAccentEnvOctaves = 1.15f;
+  static constexpr float kAccentCutoffRange = 0.42f;
   static constexpr float kSlideTauSec = 100000.f * 0.00000022f;
   static constexpr float kSlideSettleSemitones = 0.01f;
   static constexpr float kVcaAttackSec = 0.004f;
   static constexpr float kVcaReleaseSec = 0.045f;
-  static constexpr float kMinCutoffHz = 40.f;
-  static constexpr float kMaxCutoffHz = 7200.f;
 
   uint32_t getBufferSize() const override final { return 0; }
 
@@ -199,7 +197,6 @@ public:
       return;
 
     // Firmware may re-send began/stationary while the finger is down.
-    // Retriggering here turns every 16th into an attack click.
     if (running_)
       return;
 
@@ -228,6 +225,23 @@ public:
       out += 2;
     }
   }
+
+#ifdef KAOCID_OFFLINE_TEST
+  float debugPitch() const { return vco_pitch_; }
+  bool debugSlideActive() const { return slide_active_; }
+  uint32_t debugGlideCount() const
+  {
+    uint32_t glide_count = 0U;
+    for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
+    {
+      if (phrase_[stepIndex].slide)
+        ++glide_count;
+    }
+    return glide_count;
+  }
+  int8_t debugDegree(uint32_t step_index) const { return phrase_[step_index].degree; }
+  bool debugSlide(uint32_t step_index) const { return phrase_[step_index].slide; }
+#endif
 
 private:
   struct Step
@@ -279,12 +293,20 @@ private:
     vco_pitch_ = 36.f;
     vco_pitch_target_ = 36.f;
     vco_phase_ = 0.f;
-    svf_low_ = 0.f;
-    svf_band_ = 0.f;
-    svf_f_ = 0.2f;
-    svf_q_ = 1.f;
-    svf_pos_ = kSvfRecalcInterval;
+    vcf_cutoff_ = 0.f;
+    vcf_env_mod_ = 0.58f;
+    vcf_reso_ = 0.f;
+    vcf_res_coeff_ = 0.f;
+    vcf_env_decay_ = 0.f;
+    vcf_env_pos_ = kFilterEnvRecalcInterval;
+    vcf_a_ = 0.f;
+    vcf_b_ = 0.f;
+    vcf_c_ = 1.f;
+    vcf_delay1_ = 0.f;
+    vcf_delay2_ = 0.f;
     vcf_env_level_ = 0.f;
+    vcf_env_end0_ = 0.f;
+    vcf_env_span_ = 0.f;
     vca_mode_ = 2;
     vca_level_ = 0.f;
     vca_target_ = 0.5f;
@@ -300,15 +322,32 @@ private:
 
   void updateFilterTargets()
   {
-    cutoff_hz_ = kMinCutoffHz * fasterpow2f(cutoff_norm_ * 7.4f);
-    env_octaves_ = 0.35f + env_mod_norm_ * 4.1f;
-    svf_q_ = 2.f - resonance_norm_ * 1.82f;
-    if (svf_q_ < 0.18f)
-      svf_q_ = 0.18f;
+    vcf_cutoff_ = 0.12f + cutoff_norm_ * 0.78f;
+    if (vcf_cutoff_ > 1.f)
+      vcf_cutoff_ = 1.f;
+    vcf_reso_ = 0.05f + resonance_norm_ * 0.9f;
+    if (vcf_reso_ > 1.f)
+      vcf_reso_ = 1.f;
+    vcf_env_mod_ = 0.08f + env_mod_norm_ * 0.92f;
+
+    vcf_res_coeff_ = fasterexpf(-1.20f + 3.455f * vcf_reso_);
+    recalcFilterEnvelope();
+  }
+
+  void recalcFilterEnvelope()
+  {
+    const float res_comp = 1.f - vcf_reso_;
+    const float env_end1 = fasterexpf(6.109f + 1.5876f * vcf_env_mod_ + 2.1553f * vcf_cutoff_ - 1.2f * res_comp);
+    const float env_end0 = fasterexpf(5.613f - 0.8f * vcf_env_mod_ + 2.1553f * vcf_cutoff_ - 0.7696f * res_comp);
+    const float sample_rate_scale = 3.141592653589793f / getSampleRate();
+
+    vcf_env_end0_ = env_end0 * sample_rate_scale;
+    vcf_env_span_ = (env_end1 - env_end0) * sample_rate_scale;
 
     const float decay_seconds = 0.2f + 2.3f * decay_norm_;
-    vcf_env_decay_ = fasterexpf(-2.3025851f / (decay_seconds * getSampleRate()));
-    svf_pos_ = kSvfRecalcInterval;
+    const float decay_samples = decay_seconds * getSampleRate();
+    vcf_env_decay_ = fasterexpf(-2.3025851f * static_cast<float>(kFilterEnvRecalcInterval) / decay_samples);
+    vcf_env_pos_ = kFilterEnvRecalcInterval;
   }
 
   void generatePhrase(uint32_t seed)
@@ -450,10 +489,11 @@ private:
     vca_target_ = 0.5f;
     if (step.accent)
       vca_target_ = 0.5f * (1.f + accent_norm_ * kAccentVcaRange);
-    vca_level_ = 0.f;
     vca_mode_ = 0;
-    vcf_env_level_ = 1.f;
-    svf_pos_ = kSvfRecalcInterval;
+    vcf_env_level_ = vcf_env_span_;
+    if (accent_active_)
+      vcf_env_level_ += vcf_env_span_ * (0.08f + accent_norm_ * kAccentCutoffRange);
+    vcf_env_pos_ = kFilterEnvRecalcInterval;
   }
 
   void advanceClockOneSample()
@@ -467,21 +507,22 @@ private:
     }
   }
 
-  void updateSvfCoeffs()
+  void updateFilterCoefficients()
   {
-    float env_oct = vcf_env_level_ * env_octaves_;
-    if (accent_active_)
-      env_oct += vcf_env_level_ * accent_norm_ * kAccentEnvOctaves;
+    float w = vcf_env_end0_ + vcf_env_level_;
+    w = clipRange(w, 0.0002f, 1.2f);
 
-    float cutoff_hz = cutoff_hz_ * fasterpow2f(env_oct);
-    cutoff_hz = clipRange(cutoff_hz, kMinCutoffHz, kMaxCutoffHz);
+    float res_coeff = vcf_res_coeff_;
+    if (res_coeff < 0.05f)
+      res_coeff = 0.05f;
 
-    svf_f_ = cutoff_hz * (6.2831853f / getSampleRate());
-    if (svf_f_ > 0.85f)
-      svf_f_ = 0.85f;
-    if (svf_f_ > svf_q_)
-      svf_f_ = svf_q_;
-    svf_pos_ = 0U;
+    float k = fasterexpf(-w / res_coeff);
+    k = clipRange(k, 0.05f, 0.98f);
+    vcf_env_level_ *= vcf_env_decay_;
+    vcf_a_ = 2.f * fastercosfullf(2.f * w) * k;
+    vcf_b_ = -k * k;
+    vcf_c_ = 1.f - vcf_a_ - vcf_b_;
+    vcf_env_pos_ = 0U;
   }
 
   void retuneCurrentNote()
@@ -520,25 +561,21 @@ private:
     if (gate_off_requested_ && vca_mode_ == 2 && vca_level_ <= 0.f)
       return 0.f;
 
-    if (svf_pos_ >= kSvfRecalcInterval)
-      updateSvfCoeffs();
+    if (vcf_env_pos_ >= kFilterEnvRecalcInterval)
+      updateFilterCoefficients();
 
     advanceSlide();
 
     const float oscillator = square_wave_ ? ((vco_phase_ >= 0.f) ? 0.5f : -0.5f) : vco_phase_;
-
-    svf_low_ += svf_f_ * svf_band_;
-    const float high = oscillator - svf_low_ - svf_q_ * svf_band_;
-    svf_band_ += svf_f_ * high;
-    svf_low_ = clipRange(svf_low_, -1.8f, 1.8f);
-    svf_band_ = clipRange(svf_band_, -1.8f, 1.8f);
-    ++svf_pos_;
+    float filtered = vcf_a_ * vcf_delay1_ + vcf_b_ * vcf_delay2_ + vcf_c_ * oscillator;
+    filtered = clipRange(filtered, -2.f, 2.f);
+    vcf_delay2_ = vcf_delay1_;
+    vcf_delay1_ = filtered;
+    ++vcf_env_pos_;
 
     vco_phase_ += vco_phase_inc_;
     if (vco_phase_ > 0.5f)
       vco_phase_ -= 1.f;
-
-    vcf_env_level_ *= vcf_env_decay_;
 
     if (vca_mode_ == 0)
       vca_level_ += (vca_target_ - vca_level_) * vca_attack_;
@@ -558,7 +595,7 @@ private:
       gate_off_requested_ = false;
     }
 
-    const float voiced = svf_low_ * vca_level_;
+    const float voiced = filtered * vca_level_;
     const float blocked = voiced - dc_prev_in_ + 0.99608f * dc_prev_out_;
     dc_prev_in_ = voiced;
     dc_prev_out_ = blocked;
@@ -581,25 +618,30 @@ private:
   float samples_per_tick_ = 6000.f;
   float samples_until_tick_ = 6000.f;
   float slide_coeff_ = 0.00095f;
-  float cutoff_hz_ = 400.f;
-  float env_octaves_ = 2.8f;
   float vco_phase_inc_ = 0.f;
   float vco_pitch_ = 36.f;
   float vco_pitch_target_ = 36.f;
   float vco_phase_ = 0.f;
-  float svf_f_ = 0.2f;
-  float svf_q_ = 1.f;
-  float svf_low_ = 0.f;
-  float svf_band_ = 0.f;
-  float vcf_env_decay_ = 0.999f;
+  float vcf_cutoff_ = 0.f;
+  float vcf_env_mod_ = 0.f;
+  float vcf_reso_ = 0.f;
+  float vcf_res_coeff_ = 0.f;
+  float vcf_env_decay_ = 0.f;
+  float vcf_a_ = 0.f;
+  float vcf_b_ = 0.f;
+  float vcf_c_ = 1.f;
+  float vcf_delay1_ = 0.f;
+  float vcf_delay2_ = 0.f;
   float vcf_env_level_ = 0.f;
+  float vcf_env_end0_ = 0.f;
+  float vcf_env_span_ = 0.f;
   float vca_level_ = 0.f;
   float vca_attack_ = 0.05f;
   float vca_decay_ = 0.999f;
   float vca_target_ = 0.5f;
   float dc_prev_in_ = 0.f;
   float dc_prev_out_ = 0.f;
-  uint32_t svf_pos_ = kSvfRecalcInterval;
+  uint32_t vcf_env_pos_ = kFilterEnvRecalcInterval;
   int vca_mode_ = 2;
   bool running_ = false;
   bool gate_off_requested_ = false;
