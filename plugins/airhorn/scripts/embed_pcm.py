@@ -124,6 +124,16 @@ def stable_region(track: list[tuple[int, float, float]], sample_count: int) -> t
     return region_start, region_end, median
 
 
+def seam_cost(samples: list[float], loop_length: int) -> float:
+    if loop_length < 2:
+        return 1.0
+    head = samples[0]
+    tail = samples[loop_length - 1]
+    head_slope = samples[1] - samples[0]
+    tail_slope = samples[loop_length - 1] - samples[loop_length - 2]
+    return abs(head - tail) + 0.35 * abs(head_slope - tail_slope)
+
+
 def best_loop(samples: list[float], period: float, min_periods: int, max_periods: int) -> tuple[int, int]:
     period_samples = max(8, int(round(period)))
     best_score = -1.0
@@ -134,10 +144,10 @@ def best_loop(samples: list[float], period: float, min_periods: int, max_periods
 
     for period_count in range(min_periods, max_periods + 1):
         loop_length = period_samples * period_count
-        compare_count = min(period_samples, 128)
+        compare_count = min(period_samples * 2, 256, loop_length // 2)
         if loop_length + compare_count > len(samples):
             break
-        step = max(1, period_samples // 4)
+        step = max(1, period_samples // 8)
         last_start = len(samples) - loop_length - compare_count
         start = 0
         while start <= last_start:
@@ -145,8 +155,7 @@ def best_loop(samples: list[float], period: float, min_periods: int, max_periods
             for sample_index in range(compare_count):
                 acc += samples[start + sample_index] * samples[start + loop_length + sample_index]
             score = acc / float(compare_count)
-            seam = abs(samples[start] - samples[start + loop_length])
-            score -= seam * 2.0
+            score -= seam_cost(samples[start : start + loop_length], loop_length) * 3.0
             if score > best_score:
                 best_score = score
                 best_start = start
@@ -158,16 +167,42 @@ def best_loop(samples: list[float], period: float, min_periods: int, max_periods
     return best_start, best_length
 
 
+def rotate_to_best_seam(samples: list[float], period_samples: int) -> list[float]:
+    if len(samples) < period_samples * 2:
+        return samples
+    best_offset = 0
+    best_cost = seam_cost(samples, len(samples))
+    for offset in range(period_samples, len(samples) - period_samples, period_samples):
+        rotated = samples[offset:] + samples[:offset]
+        cost = seam_cost(rotated, len(rotated))
+        if cost < best_cost:
+            best_cost = cost
+            best_offset = offset
+    if best_offset == 0:
+        return samples
+    return samples[best_offset:] + samples[:best_offset]
+
+
 def crossfade_loop(samples: list[float], xfade: int) -> list[float]:
     if xfade < 4 or len(samples) <= xfade * 2:
         return samples
-    out = list(samples)
+    body_length = len(samples) - xfade
+    out = samples[:body_length]
     for fade_index in range(xfade):
-        fade = (fade_index + 1) / float(xfade + 1)
-        head = samples[fade_index]
-        tail = samples[len(samples) - xfade + fade_index]
-        out[fade_index] = head * fade + tail * (1.0 - fade)
-    return out[: len(samples) - xfade]
+        fade = fade_index / float(xfade)
+        tail = samples[body_length + fade_index]
+        out[fade_index] = out[fade_index] * (1.0 - fade) + tail * fade
+    return out
+
+
+def gentle_lowpass(samples: list[float], sample_rate: int, cutoff_hz: float) -> list[float]:
+    coeff = math.exp((-2.0 * math.pi * cutoff_hz) / sample_rate)
+    state = samples[0] if samples else 0.0
+    out: list[float] = []
+    for sample in samples:
+        state = coeff * state + (1.0 - coeff) * sample
+        out.append(state)
+    return out
 
 
 def fade_edges(samples: list[float], fade_in: int, fade_out: int) -> list[float]:
@@ -238,13 +273,17 @@ def extract_horn(path: pathlib.Path, sample_rate: int, looping: bool, start_rati
         measured = yin_period(region[: min(len(region), int(sample_rate * 0.08))], sample_rate, 80.0, 1600.0)
         if measured:
             period = measured
-        min_periods = max(12, int(round(0.08 * sample_rate / period)))
-        max_periods = max(min_periods + 4, int(round(0.12 * sample_rate / period)))
+        period_samples = max(8, int(round(period)))
+        min_periods = max(16, int(math.ceil(0.15 * sample_rate / period_samples)))
+        max_periods = max(min_periods + 4, int(math.floor(0.22 * sample_rate / period_samples)))
         loop_start, loop_length = best_loop(region, period, min_periods, max_periods)
-        loop_end = min(len(region), loop_start + loop_length + 48)
-        loop = crossfade_loop(region[loop_start:loop_end], 48)
+        loop = list(region[loop_start : loop_start + loop_length])
+        loop = rotate_to_best_seam(loop, period_samples)
+        if seam_cost(loop, len(loop)) > 0.02:
+            loop = crossfade_loop(loop, 96)
+        loop = gentle_lowpass(loop, sample_rate, 9000.0)
         if len(loop) < 64:
-            loop = region[: min(len(region), int(period * 16))]
+            loop = region[: min(len(region), period_samples * 16)]
         pcm = to_pcm16(loop)
         attack_hz = track[0][1] if track else settled_hz
         ratio = start_ratio if start_ratio > 0.0 else attack_hz / settled_hz
