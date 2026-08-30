@@ -3,7 +3,8 @@
 /*
  * File: airhorn_engine.h
  *
- * Platform-agnostic fixed-pitch air horn sample engine.
+ * Fixed-pitch air horn: 16-bit loop (or one-shot) plus a pitch envelope
+ * that recreates the initial pitch drop, then holds the settled tone.
  */
 
 #include "airhorn_pcm.h"
@@ -12,60 +13,171 @@
 struct AirHornVoice
 {
   bool active = false;
-  float pos = 0.f;
+  bool gated = false;
+  bool releasing = false;
   uint8_t horn_index = 0U;
+  uint8_t note = 0xFF;
+  float pos = 0.f;
   float gain = 1.f;
+  float amp = 0.f;
+  float pitch_ratio = 1.f;
+  uint32_t age = 0U;
 
-  static float pcmToFloat(uint8_t code)
+  static constexpr float kAttackInc = 1.f / (48000.f * 0.004f);
+  static constexpr float kReleaseCoeff = 0.999792f; // ~100 ms
+  static constexpr float kMinAmp = 0.0005f;
+  static constexpr uint32_t kMinHold = 19200U; // 400 ms at 48 kHz
+  static constexpr float kBaseRate = static_cast<float>(kAirhornSampleRate) / 48000.f;
+
+  static float pcmToFloat(int16_t sample)
   {
-    return (static_cast<float>(code) - 128.f) * (1.f / 128.f);
+    return static_cast<float>(sample) * (1.f / 32768.f);
   }
 
-  static float sampleAt(uint8_t horn, float position)
+  static float hermite(float y0, float y1, float y2, float y3, float frac)
   {
-    const AirhornSample &horn_sample = kAirhornSamples[horn];
-    if (position < 0.f)
-      return 0.f;
-
-    const uint32_t last_index = horn_sample.length - 1U;
-    const uint32_t index_a = static_cast<uint32_t>(position);
-    if (index_a >= last_index)
-      return pcmToFloat(kAirhornPcm8[horn_sample.offset + last_index]);
-
-    const float frac = position - static_cast<float>(index_a);
-    const uint32_t offset = horn_sample.offset;
-    const float sample_a = pcmToFloat(kAirhornPcm8[offset + index_a]);
-    const float sample_b = pcmToFloat(kAirhornPcm8[offset + index_a + 1U]);
-    return sample_a + (sample_b - sample_a) * frac;
+    const float c1 = 0.5f * (y2 - y0);
+    const float c2 = y0 - 2.5f * y1 + 2.f * y2 - 0.5f * y3;
+    const float c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
+    return ((c3 * frac + c2) * frac + c1) * frac + y1;
   }
 
-  void trigger(uint8_t horn, uint8_t velocity)
+  static uint32_t wrapIndex(int32_t index, uint32_t length)
+  {
+    int32_t wrapped = index % static_cast<int32_t>(length);
+    if (wrapped < 0)
+      wrapped += static_cast<int32_t>(length);
+    return static_cast<uint32_t>(wrapped);
+  }
+
+  static uint32_t clampIndex(int32_t index, uint32_t length)
+  {
+    if (index < 0)
+      return 0U;
+    if (index >= static_cast<int32_t>(length))
+      return length - 1U;
+    return static_cast<uint32_t>(index);
+  }
+
+  static float sampleAt(const AirhornSample &horn, float position)
+  {
+    const int32_t index = static_cast<int32_t>(position);
+    const float frac = position - static_cast<float>(index);
+    uint32_t i0;
+    uint32_t i1;
+    uint32_t i2;
+    uint32_t i3;
+    if (horn.looping)
+    {
+      i0 = wrapIndex(index - 1, horn.length);
+      i1 = wrapIndex(index, horn.length);
+      i2 = wrapIndex(index + 1, horn.length);
+      i3 = wrapIndex(index + 2, horn.length);
+    }
+    else
+    {
+      i0 = clampIndex(index - 1, horn.length);
+      i1 = clampIndex(index, horn.length);
+      i2 = clampIndex(index + 1, horn.length);
+      i3 = clampIndex(index + 2, horn.length);
+    }
+
+    const uint32_t offset = horn.offset;
+    return hermite(
+        pcmToFloat(kAirhornPcm16[offset + i0]),
+        pcmToFloat(kAirhornPcm16[offset + i1]),
+        pcmToFloat(kAirhornPcm16[offset + i2]),
+        pcmToFloat(kAirhornPcm16[offset + i3]),
+        frac);
+  }
+
+  void trigger(uint8_t horn, uint8_t velocity, uint8_t midi_note)
   {
     if (horn >= kAirhornCount)
       horn = static_cast<uint8_t>(kAirhornCount - 1U);
 
     active = true;
-    pos = 0.f;
+    gated = true;
+    releasing = false;
     horn_index = horn;
+    note = midi_note;
+    pos = 0.f;
+    amp = 0.f;
+    age = 0U;
     gain = (static_cast<float>(velocity) + 1.f) * (1.f / 128.f);
+    pitch_ratio = kAirhornSamples[horn].start_ratio;
+    if (pitch_ratio < 0.5f)
+      pitch_ratio = 0.5f;
+    if (pitch_ratio > 2.f)
+      pitch_ratio = 2.f;
   }
 
-  float render(float playback_rate)
+  void releaseGate()
+  {
+    gated = false;
+  }
+
+  float render()
   {
     if (!active)
       return 0.f;
 
-    const AirhornSample &horn_sample = kAirhornSamples[horn_index];
-    const float output = sampleAt(horn_index, pos) * gain;
-    pos += playback_rate;
+    const AirhornSample &horn = kAirhornSamples[horn_index];
 
-    if (pos >= static_cast<float>(horn_sample.length - 1U))
-      active = false;
+    ++age;
+    if (!gated && !releasing && horn.looping && age >= kMinHold)
+      releasing = true;
+
+    if (releasing)
+    {
+      amp *= kReleaseCoeff;
+      if (amp < kMinAmp)
+      {
+        active = false;
+        amp = 0.f;
+        return 0.f;
+      }
+    }
+    else
+    {
+      amp += kAttackInc;
+      if (amp > 1.f)
+        amp = 1.f;
+    }
+
+    float output = sampleAt(horn, pos) * gain * amp;
+
+    pos += kBaseRate * pitch_ratio;
+    if (horn.looping)
+    {
+      const float loop_length = static_cast<float>(horn.length);
+      while (pos >= loop_length)
+        pos -= loop_length;
+    }
+    else if (pos >= static_cast<float>(horn.length - 2U))
+    {
+      pos = static_cast<float>(horn.length - 2U);
+      releasing = true;
+    }
+
+    if (horn.env_coeff > 0.f)
+      pitch_ratio = 1.f + (pitch_ratio - 1.f) * horn.env_coeff;
+
+    if (output > 1.f)
+      output = 1.f;
+    if (output < -1.f)
+      output = -1.f;
 
     return output;
   }
 
-  void reset() { active = false; }
+  void reset()
+  {
+    active = false;
+    gated = false;
+    releasing = false;
+    amp = 0.f;
+  }
 };
 
 class AirHornEngine
@@ -73,8 +185,8 @@ class AirHornEngine
 public:
   static constexpr uint32_t kMaxVoices = 8U;
   static constexpr float kHostSampleRate = 48000.f;
-  static constexpr float kPlaybackRate = static_cast<float>(kAirhornSampleRate) / kHostSampleRate;
-  static constexpr float kOutputGain = 0.85f;
+  static constexpr float kPlaybackRate = AirHornVoice::kBaseRate;
+  static constexpr float kOutputGain = 0.9f;
 
   enum
   {
@@ -140,17 +252,32 @@ public:
     return nullptr;
   }
 
-  void startVoice(uint8_t horn, uint8_t velocity)
+  void startVoice(uint8_t horn, uint8_t velocity, uint8_t note)
   {
-    voices_[next_voice_].trigger(horn, velocity);
+    voices_[next_voice_].trigger(horn, velocity, note);
     next_voice_ = (next_voice_ + 1U) % kMaxVoices;
+  }
+
+  void releaseNote(uint8_t note)
+  {
+    for (uint32_t voiceIndex = 0; voiceIndex < kMaxVoices; ++voiceIndex)
+    {
+      if (voices_[voiceIndex].active && voices_[voiceIndex].note == note)
+        voices_[voiceIndex].releaseGate();
+    }
+  }
+
+  void releaseAll()
+  {
+    for (uint32_t voiceIndex = 0; voiceIndex < kMaxVoices; ++voiceIndex)
+      voices_[voiceIndex].releaseGate();
   }
 
   float renderMono() const
   {
     float wet = 0.f;
     for (uint32_t voiceIndex = 0; voiceIndex < kMaxVoices; ++voiceIndex)
-      wet += voices_[voiceIndex].render(kPlaybackRate);
+      wet += voices_[voiceIndex].render();
     return wet;
   }
 

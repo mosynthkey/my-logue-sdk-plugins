@@ -72,7 +72,7 @@ public:
       if (context->trigger & (1U << voiceIndex))
       {
         (void)context->pitch[voiceIndex];
-        voices_[voiceIndex].trigger(engine_.hornIndex(), 127);
+        voices_[voiceIndex].trigger(engine_.hornIndex(), 127, 0);
       }
 
       ProcessVoice(out, voiceIndex, frames, context);
@@ -108,7 +108,7 @@ private:
 
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
-      const float mono = voices_[voiceIndex].render(AirHornEngine::kPlaybackRate) * engine_.outputLevel();
+      const float mono = voices_[voiceIndex].render() * engine_.outputLevel();
       write_oscillator_output_x1(out, mono, offset, context->outputStride, sampleIndex, voiceIndex);
     }
   }
