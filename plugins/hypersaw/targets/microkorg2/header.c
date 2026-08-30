@@ -9,12 +9,14 @@
 #include "unit.h"
 #include "runtime.h"
 
+#include "mk2_dev_id.h"
+
 const __unit_header unit_header_t unit_header = {
     .header_size = sizeof(unit_header_t),
     .target = UNIT_TARGET_PLATFORM | k_unit_module_osc,
     .api = UNIT_API_VERSION,
-    .dev_id = 0x0U,
-    .unit_id = 0x00000004U,
+    .dev_id = MK2_DEV_ID,
+    .unit_id = MK2_UNIT_ID_HYPERSAW,
     .version = 0x00010000U,
     .name = "HyperSaw",
     .num_presets = 0,
