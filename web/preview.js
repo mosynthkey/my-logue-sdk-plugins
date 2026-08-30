@@ -33,6 +33,31 @@ function wasmBaseUrl(wasmHref) {
   return jsUrl.slice(0, jsUrl.lastIndexOf("/") + 1);
 }
 
+function installWorkletModuleBase(baseUrl) {
+  const resolvedBase = new URL(baseUrl, location.href).href;
+  const audioWorkletPrototype = AudioWorklet.prototype;
+  if (audioWorkletPrototype.__previewModuleBaseUrl === resolvedBase) {
+    return;
+  }
+
+  const originalAddModule = audioWorkletPrototype.__previewOriginalAddModule
+    || audioWorkletPrototype.addModule;
+
+  audioWorkletPrototype.addModule = function previewAddModule(moduleURL, options) {
+    if (
+      typeof moduleURL === "string"
+      && !moduleURL.includes("/")
+      && !/^(?:[a-z]+:|blob:|data:)/i.test(moduleURL)
+    ) {
+      moduleURL = new URL(moduleURL, resolvedBase).href;
+    }
+    return originalAddModule.call(this, moduleURL, options);
+  };
+
+  audioWorkletPrototype.__previewOriginalAddModule = originalAddModule;
+  audioWorkletPrototype.__previewModuleBaseUrl = resolvedBase;
+}
+
 function previewLayout(build) {
   if (build.target === "nts-3_kaoss") {
     return "xypad";
@@ -655,6 +680,7 @@ export async function runPreviewHost(build, plugin) {
   };
   window.Module = moduleConfig;
   globalThis.Module = moduleConfig;
+  installWorkletModuleBase(baseUrl);
 
   try {
     const readyPromise = waitForPreviewReady(generation);
