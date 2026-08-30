@@ -44,8 +44,17 @@ public:
 
   void noteOn(uint8_t note, uint8_t velo) override final
   {
-    (void)note;
-    engine_.startVoice(engine_.hornIndex(), velo);
+    engine_.startVoice(engine_.hornIndex(), velo, note);
+  }
+
+  void noteOff(uint8_t note) override final
+  {
+    engine_.releaseNote(note);
+  }
+
+  void allNoteOff() override final
+  {
+    engine_.releaseAll();
   }
 
   void touchEvent(uint8_t id, uint8_t phase, uint32_t x, uint32_t y) override final
@@ -55,7 +64,9 @@ public:
     (void)y;
 
     if (phase == 0U)
-      engine_.startVoice(engine_.hornIndex(), 127);
+      engine_.startVoice(engine_.hornIndex(), 127, 0);
+    else if (phase == 2U || phase == 4U)
+      engine_.releaseAll();
   }
 
   void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final

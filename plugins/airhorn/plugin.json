@@ -3,7 +3,7 @@
   "name": "AirHorn",
   "type": "osc",
   "targets": ["nts-1_mkii", "nts-3_kaoss", "microkorg2"],
-  "description": "CC0 air horn samples. Any key plays the horn at its original pitch (no keyboard tracking).",
+  "description": "16-bit air horn loops. Any key plays at the original pitch: DJ/TRAIN loop a settled tone with a pitch envelope for the opening drop; BIKE is a one-shot honk.",
   "params": [
     { "name": "TYPE", "role": "A", "detail": "Horn sample: DJ / TRAIN / BIKE" },
     { "name": "LEVEL", "role": "B", "detail": "Output level" },
