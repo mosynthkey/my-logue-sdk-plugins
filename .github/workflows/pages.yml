@@ -84,7 +84,8 @@ jobs:
           cp plugins/hypersaw/targets/microkorg2/hypersaw.mk2unit microkorg2-diagnostics/
           cp plugins/fbackosc/targets/microkorg2/fbackosc.mk2unit microkorg2-diagnostics/
           for level in 1 2 3; do
-            make -C plugins/hypersaw/targets/microkorg2 clean
+            make -C plugins/hypersaw/targets/microkorg2 clean \
+              PROJECT="hypersaw-diag${level}"
             make -C plugins/hypersaw/targets/microkorg2 all \
               CROSS_COMPILE="$MK2_PREFIX" \
               PROJECT="hypersaw-diag${level}" \
