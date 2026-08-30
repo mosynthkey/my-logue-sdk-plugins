@@ -27,6 +27,10 @@ public:
   static constexpr uint32_t kMinGlidesPerPhrase = 3U;
   static constexpr float kAccentBoost = 1.35f;
   static constexpr float kAccentCutoffBoost = 0.18f;
+  // Pitch CV slide: 100 kΩ DAC into 0.22 µF (Robin Whittle / Devil Fish).
+  // tau = 22 ms; ~60 ms to 95% of the destination, independent of tempo.
+  static constexpr float kSlideTauSec = 100000.f * 0.00000022f;
+  static constexpr float kSlideSettleSemitones = 0.01f;
 
   uint32_t getBufferSize() const override final { return 0; }
 
@@ -114,7 +118,7 @@ public:
     mix_ = 1.f;
     root_note_ = 36;
     bpm_ = 120.f;
-    updateSlideCoeff();
+    slide_coeff_ = 1.f - expf(-1.f / (kSlideTauSec * getSampleRate()));
     running_ = false;
     use_host_clock_ = false;
     tick_counter_ = 0U;
@@ -134,10 +138,7 @@ public:
   void setTempo(float tempo) override final
   {
     if (tempo > 20.f && tempo < 999.f)
-    {
       bpm_ = tempo;
-      updateSlideCoeff();
-    }
   }
 
   void tempo4ppqnTick(uint32_t counter) override final
@@ -220,16 +221,17 @@ private:
     return ((stepIndex * pulses) % steps) < pulses;
   }
 
-  static float noteToPhaseInc(int8_t note)
+  static float noteToPhaseInc(float note)
   {
-    const float semitones = static_cast<float>(note - 57);
+    const float semitones = note - 57.f;
     return (440.f / getSampleRate()) * exp2f(semitones * (1.f / 12.f));
   }
 
   void resetVoice()
   {
     vco_phase_inc_ = 0.f;
-    vco_phase_inc_target_ = 0.f;
+    vco_pitch_ = 36.f;
+    vco_pitch_target_ = 36.f;
     vco_phase_ = 0.f;
     vcf_cutoff_ = 0.f;
     vcf_env_mod_ = 0.58f;
@@ -411,8 +413,7 @@ private:
     }
 
     current_degree_ = step.degree;
-    const float phase_inc = noteToPhaseInc(static_cast<int8_t>(root_note_ + step.degree));
-    vco_phase_inc_target_ = phase_inc;
+    vco_pitch_target_ = static_cast<float>(root_note_ + step.degree);
     gate_off_requested_ = false;
 
     if (arriving_via_slide && vco_phase_inc_ > 0.f)
@@ -422,7 +423,8 @@ private:
     }
 
     slide_active_ = false;
-    vco_phase_inc_ = phase_inc;
+    vco_pitch_ = vco_pitch_target_;
+    vco_phase_inc_ = noteToPhaseInc(vco_pitch_);
     accent_active_ = step.accent;
     vca_target_ = step.accent ? (0.5f * kAccentBoost) : 0.5f;
     vca_mode_ = 0;
@@ -469,33 +471,17 @@ private:
     vcf_env_pos_ = 0U;
   }
 
-  void updateSlideCoeff()
-  {
-    if (bpm_ <= 0.f)
-    {
-      slide_coeff_ = 0.002f;
-      return;
-    }
-
-    const float samples_per_16th = getSampleRate() * 60.f / (bpm_ * 4.f);
-    if (samples_per_16th < 1.f)
-    {
-      slide_coeff_ = 1.f;
-      return;
-    }
-
-    slide_coeff_ = 1.f - expf(-3.2f / samples_per_16th);
-  }
-
   void retuneCurrentNote()
   {
     if (current_degree_ < 0)
       return;
 
-    const float phase_inc = noteToPhaseInc(static_cast<int8_t>(root_note_ + current_degree_));
-    vco_phase_inc_target_ = phase_inc;
+    vco_pitch_target_ = static_cast<float>(root_note_ + current_degree_);
     if (!slide_active_)
-      vco_phase_inc_ = phase_inc;
+    {
+      vco_pitch_ = vco_pitch_target_;
+      vco_phase_inc_ = noteToPhaseInc(vco_pitch_);
+    }
   }
 
   void advanceSlide()
@@ -503,11 +489,12 @@ private:
     if (!slide_active_)
       return;
 
-    const float delta = vco_phase_inc_target_ - vco_phase_inc_;
-    vco_phase_inc_ += delta * slide_coeff_;
-    if (fabsf(vco_phase_inc_target_ - vco_phase_inc_) < 1.0e-7f)
+    vco_pitch_ += (vco_pitch_target_ - vco_pitch_) * slide_coeff_;
+    vco_phase_inc_ = noteToPhaseInc(vco_pitch_);
+    if (fabsf(vco_pitch_target_ - vco_pitch_) < kSlideSettleSemitones)
     {
-      vco_phase_inc_ = vco_phase_inc_target_;
+      vco_pitch_ = vco_pitch_target_;
+      vco_phase_inc_ = noteToPhaseInc(vco_pitch_);
       slide_active_ = false;
     }
   }
@@ -565,10 +552,11 @@ private:
   int8_t root_note_ = 36;
   int8_t current_degree_ = -1;
   float bpm_ = 120.f;
-  float slide_coeff_ = 0.002f;
+  float slide_coeff_ = 0.00095f;
   float internal_tick_phase_ = 0.f;
   float vco_phase_inc_ = 0.f;
-  float vco_phase_inc_target_ = 0.f;
+  float vco_pitch_ = 36.f;
+  float vco_pitch_target_ = 36.f;
   float vco_phase_ = 0.f;
   float vcf_cutoff_ = 0.f;
   float vcf_env_mod_ = 0.f;
