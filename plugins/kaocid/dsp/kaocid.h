@@ -5,20 +5,23 @@
  *
  * TB-303 style monophonic acid bass with automatic 16-step phrase generator
  * for NTS-3 kaoss pad. Hold the pad to run the sequencer; each new touch
- * regenerates a random acid pattern with guaranteed pitch glides. X = cutoff,
+ * regenerates a legato acid line (long tied runs, short rests, pitch glides). X = cutoff,
  * Y = resonance, Depth = mix. ROOT sets the phrase key.
  *
  * Panel knobs follow the TB-303: waveform, cutoff, resonance, env mod, decay,
  * accent. Distortion/delay/reverb are left to other NTS-3 slots.
  *
- * Filter/voice structure follows the gsynth TB-303 module (Andy Sloane, 2001),
- * adapted for 48 kHz and portamento/slide/accent behaviour.
+ * Filter coefficients follow gsynth TB-303 (Andy Sloane, 2001), adapted for
+ * 48 kHz. NTS-3 genericfx cannot resolve libm, so pitch/env/filter use
+ * logue-sdk float_math.h. VCA is after the VCF (analog 303 order) so the
+ * note body remains after the envelope; gsynth fed the VCA into the filter
+ * which collapsed to attack pings on device.
  */
 
 #include "macros.h"
 #include "processor.h"
-#include "unit_genericfx.h"
-#include <math.h>
+#include "runtime.h"
+#include "utils/float_math.h"
 #include <stdint.h>
 
 class Kaocid : public Processor
@@ -26,14 +29,16 @@ class Kaocid : public Processor
 public:
   static constexpr uint32_t kStepsPerBar = 16U;
   static constexpr uint32_t kFilterEnvRecalcInterval = 64U;
-  static constexpr float kOutputGain = 0.55f;
+  static constexpr float kOutputGain = 0.45f;
   static constexpr uint32_t kMinGlidesPerPhrase = 3U;
+  static constexpr uint32_t kMinActiveStepsPerPhrase = 13U;
+  static constexpr uint32_t kMaxRestGapSteps = 2U;
   static constexpr float kAccentVcaRange = 0.7f;
   static constexpr float kAccentCutoffRange = 0.42f;
-  // Pitch CV slide: 100 kΩ DAC into 0.22 µF (Robin Whittle / Devil Fish).
-  // tau = 22 ms; ~60 ms to 95% of the destination, independent of tempo.
   static constexpr float kSlideTauSec = 100000.f * 0.00000022f;
   static constexpr float kSlideSettleSemitones = 0.01f;
+  static constexpr float kVcaAttackSec = 0.004f;
+  static constexpr float kVcaReleaseSec = 0.045f;
 
   uint32_t getBufferSize() const override final { return 0; }
 
@@ -146,11 +151,12 @@ public:
     accent_norm_ = 0.55f;
     root_note_ = 36;
     bpm_ = 120.f;
-    slide_coeff_ = 1.f - expf(-1.f / (kSlideTauSec * getSampleRate()));
+    const float sample_rate = getSampleRate();
+    slide_coeff_ = 1.f - fasterexpf(-1.f / (kSlideTauSec * sample_rate));
+    vca_attack_ = 1.f - fasterexpf(-1.f / (kVcaAttackSec * sample_rate));
+    vca_decay_ = fasterexpf(-1.f / (kVcaReleaseSec * sample_rate));
+    samples_per_tick_ = sample_rate * 15.f / bpm_;
     running_ = false;
-    use_host_clock_ = false;
-    tick_counter_ = 0U;
-    internal_tick_phase_ = 0.f;
     phrase_seed_ = 1U;
     resetVoice();
     updateFilterTargets();
@@ -166,54 +172,99 @@ public:
   void setTempo(float tempo) override final
   {
     if (tempo > 20.f && tempo < 999.f)
+    {
       bpm_ = tempo;
+      samples_per_tick_ = getSampleRate() * 15.f / bpm_;
+    }
   }
 
   void tempo4ppqnTick(uint32_t counter) override final
   {
-    use_host_clock_ = true;
-    handleTick(counter);
+    (void)counter;
   }
 
   void touchEvent(uint8_t id, uint8_t phase, uint32_t x, uint32_t y) override final
   {
     (void)id;
 
-    if (phase == k_unit_touch_phase_began)
-    {
-      phrase_seed_ = mixSeed(tick_counter_, x, y);
-      generatePhrase(phrase_seed_);
-      running_ = true;
-      triggerStep(0U, false);
-      return;
-    }
-
-    if (phase == k_unit_touch_phase_moved || phase == k_unit_touch_phase_stationary)
-      return;
-
     if (phase == k_unit_touch_phase_ended || phase == k_unit_touch_phase_cancelled)
     {
       running_ = false;
       gate_off_requested_ = true;
+      return;
     }
+
+    if (phase != k_unit_touch_phase_began && phase != k_unit_touch_phase_moved &&
+        phase != k_unit_touch_phase_stationary)
+      return;
+
+    // Firmware may re-send began/stationary while the finger is down.
+    if (running_)
+      return;
+
+    phrase_seed_ = mixSeed(phrase_seed_, x, y);
+    generatePhrase(phrase_seed_);
+    step_index_ = 0U;
+    samples_until_tick_ = samples_per_tick_;
+    running_ = true;
+    triggerStep(0U, false);
   }
 
   void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final
   {
-    if (!use_host_clock_)
-      advanceInternalClock(frames);
-
     const float dry_gain = 1.f - mix_;
+    const float wet_gain = mix_ * kOutputGain;
 
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
-      const float wet = renderSample() * mix_ * kOutputGain;
+      if (running_)
+        advanceClockOneSample();
+
+      const float wet = renderSample() * wet_gain;
       out[0] = in[0] * dry_gain + wet;
       out[1] = in[1] * dry_gain + wet;
       in += 2;
       out += 2;
     }
   }
+
+#ifdef KAOCID_OFFLINE_TEST
+  float debugPitch() const { return vco_pitch_; }
+  bool debugSlideActive() const { return slide_active_; }
+  uint32_t debugGlideCount() const
+  {
+    uint32_t glide_count = 0U;
+    for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
+    {
+      if (phrase_[stepIndex].slide)
+        ++glide_count;
+    }
+    return glide_count;
+  }
+  int8_t debugDegree(uint32_t step_index) const { return phrase_[step_index].degree; }
+  bool debugSlide(uint32_t step_index) const { return phrase_[step_index].slide; }
+  uint32_t debugActiveStepCount() const
+  {
+    uint32_t active_count = 0U;
+    for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
+    {
+      if (phrase_[stepIndex].degree >= 0)
+        ++active_count;
+    }
+    return active_count;
+  }
+  uint32_t debugLegatoPairCount() const
+  {
+    uint32_t legato_count = 0U;
+    for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
+    {
+      const uint32_t next_index = (stepIndex + 1U) % kStepsPerBar;
+      if (phrase_[stepIndex].degree >= 0 && phrase_[next_index].degree >= 0)
+        ++legato_count;
+    }
+    return legato_count;
+  }
+#endif
 
 private:
   struct Step
@@ -222,11 +273,6 @@ private:
     bool accent = false;
     bool slide = false;
   };
-
-  static uint32_t stepOneBased(uint32_t counter)
-  {
-    return ((counter - 1U) % kStepsPerBar) + 1U;
-  }
 
   static uint32_t mixSeed(uint32_t counter, uint32_t x, uint32_t y)
   {
@@ -244,15 +290,35 @@ private:
     return static_cast<float>(nextRandom(state) >> 8) * (1.f / 16777216.f);
   }
 
-  static bool euclideanGate(uint32_t stepIndex, uint32_t pulses, uint32_t steps)
+  static int8_t clampDegree(int8_t degree)
   {
-    return ((stepIndex * pulses) % steps) < pulses;
+    if (degree < 0)
+      return 0;
+    if (degree > 17)
+      return 17;
+    return degree;
+  }
+
+  static int8_t pickWalkDegree(int8_t current_degree, uint32_t &rng)
+  {
+    static const int8_t kWalkDeltas[] = {-5, -3, -2, -1, 1, 2, 3, 5};
+    static constexpr uint32_t kWalkCount = sizeof(kWalkDeltas) / sizeof(kWalkDeltas[0]);
+    return clampDegree(static_cast<int8_t>(current_degree + kWalkDeltas[nextRandom(rng) % kWalkCount]));
+  }
+
+  static float clipRange(float value, float min_value, float max_value)
+  {
+    if (value < min_value)
+      return min_value;
+    if (value > max_value)
+      return max_value;
+    return value;
   }
 
   static float noteToPhaseInc(float note)
   {
-    const float semitones = note - 57.f;
-    return (440.f / getSampleRate()) * exp2f(semitones * (1.f / 12.f));
+    const float semitones = note - 69.f;
+    return (440.f / getSampleRate()) * fasterpow2f(semitones * (1.f / 12.f));
   }
 
   void resetVoice()
@@ -269,7 +335,7 @@ private:
     vcf_env_pos_ = kFilterEnvRecalcInterval;
     vcf_a_ = 0.f;
     vcf_b_ = 0.f;
-    vcf_c_ = 0.f;
+    vcf_c_ = 1.f;
     vcf_delay1_ = 0.f;
     vcf_delay2_ = 0.f;
     vcf_env_level_ = 0.f;
@@ -277,13 +343,13 @@ private:
     vcf_env_span_ = 0.f;
     vca_mode_ = 2;
     vca_level_ = 0.f;
-    vca_attack_ = 1.f - 0.94406088f;
-    vca_decay_ = 0.99897516f;
     vca_target_ = 0.5f;
     gate_off_requested_ = false;
     slide_active_ = false;
     accent_active_ = false;
     current_degree_ = -1;
+    step_index_ = 0U;
+    samples_until_tick_ = samples_per_tick_;
     dc_prev_in_ = 0.f;
     dc_prev_out_ = 0.f;
   }
@@ -298,24 +364,23 @@ private:
       vcf_reso_ = 1.f;
     vcf_env_mod_ = 0.08f + env_mod_norm_ * 0.92f;
 
-    vcf_res_coeff_ = expf(-1.20f + 3.455f * vcf_reso_);
+    vcf_res_coeff_ = fasterexpf(-1.20f + 3.455f * vcf_reso_);
     recalcFilterEnvelope();
   }
 
   void recalcFilterEnvelope()
   {
     const float res_comp = 1.f - vcf_reso_;
-    const float env_end1 = expf(6.109f + 1.5876f * vcf_env_mod_ + 2.1553f * vcf_cutoff_ - 1.2f * res_comp);
-    const float env_end0 = expf(5.613f - 0.8f * vcf_env_mod_ + 2.1553f * vcf_cutoff_ - 0.7696f * res_comp);
+    const float env_end1 = fasterexpf(6.109f + 1.5876f * vcf_env_mod_ + 2.1553f * vcf_cutoff_ - 1.2f * res_comp);
+    const float env_end0 = fasterexpf(5.613f - 0.8f * vcf_env_mod_ + 2.1553f * vcf_cutoff_ - 0.7696f * res_comp);
     const float sample_rate_scale = 3.141592653589793f / getSampleRate();
 
     vcf_env_end0_ = env_end0 * sample_rate_scale;
     vcf_env_span_ = (env_end1 - env_end0) * sample_rate_scale;
 
-    // TB-303 MEG decay: ~200 ms fully CCW to ~2.5 s fully CW.
     const float decay_seconds = 0.2f + 2.3f * decay_norm_;
     const float decay_samples = decay_seconds * getSampleRate();
-    vcf_env_decay_ = powf(0.1f, static_cast<float>(kFilterEnvRecalcInterval) / decay_samples);
+    vcf_env_decay_ = fasterexpf(-2.3025851f * static_cast<float>(kFilterEnvRecalcInterval) / decay_samples);
     vcf_env_pos_ = kFilterEnvRecalcInterval;
   }
 
@@ -326,7 +391,22 @@ private:
     static const int8_t kScaleDegrees[] = {0, 3, 5, 7, 10, 12, 15, 17};
     static constexpr uint32_t kScaleLength = sizeof(kScaleDegrees) / sizeof(kScaleDegrees[0]);
 
-    const uint32_t pulse_count = 7U + (nextRandom(rng) % 4U);
+    bool active[kStepsPerBar];
+    for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
+      active[stepIndex] = true;
+
+    const uint32_t gap_length = 1U + (nextRandom(rng) & 1U);
+    uint32_t gap_start = 12U + (nextRandom(rng) % 3U);
+    if (gap_start + gap_length > kStepsPerBar)
+      gap_start = kStepsPerBar - gap_length;
+
+    for (uint32_t gapOffset = 0; gapOffset < gap_length; ++gapOffset)
+      active[gap_start + gapOffset] = false;
+
+    active[0] = true;
+
+    int8_t current_degree = kScaleDegrees[nextRandom(rng) % kScaleLength];
+    bool after_rest = true;
 
     for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
     {
@@ -335,21 +415,29 @@ private:
       step.slide = false;
       step.degree = -1;
 
-      if (!euclideanGate(stepIndex, pulse_count, kStepsPerBar))
+      if (!active[stepIndex])
+      {
+        after_rest = true;
         continue;
+      }
 
-      const uint32_t degree_index = nextRandom(rng) % kScaleLength;
-      step.degree = kScaleDegrees[degree_index];
+      if (after_rest)
+        current_degree = kScaleDegrees[nextRandom(rng) % kScaleLength];
+      else if (randomFloat(rng) < 0.78f)
+        current_degree = pickWalkDegree(current_degree, rng);
+      else
+        current_degree = kScaleDegrees[nextRandom(rng) % kScaleLength];
 
-      if ((stepIndex % 4U) == 0U || randomFloat(rng) > 0.62f)
+      step.degree = current_degree;
+      after_rest = false;
+
+      if ((stepIndex % 4U) == 0U)
+        step.accent = true;
+      else if (randomFloat(rng) > 0.78f)
         step.accent = true;
     }
 
-    if (phrase_[0].degree < 0)
-    {
-      phrase_[0].degree = 0;
-      phrase_[0].accent = true;
-    }
+    phrase_[0].accent = true;
 
     uint32_t glide_count = 0U;
     for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
@@ -358,7 +446,18 @@ private:
       if (phrase_[stepIndex].degree < 0 || phrase_[next_index].degree < 0)
         continue;
 
-      if (randomFloat(rng) < 0.42f)
+      int32_t interval = phrase_[next_index].degree - phrase_[stepIndex].degree;
+      if (interval < 0)
+        interval = -interval;
+
+      if (interval >= 5)
+      {
+        phrase_[stepIndex].slide = true;
+        ++glide_count;
+        continue;
+      }
+
+      if (randomFloat(rng) < 0.55f)
         continue;
 
       applyGlideLeap(stepIndex, next_index, rng);
@@ -374,22 +473,22 @@ private:
 
       const uint32_t next_index = (search_index + 1U) % kStepsPerBar;
       if (phrase_[next_index].degree < 0)
-        phrase_[next_index].degree = 12;
+        phrase_[next_index].degree = clampDegree(static_cast<int8_t>(phrase_[search_index].degree + 7));
 
       applyGlideLeap(search_index, next_index, rng);
       phrase_[search_index].slide = true;
       ++glide_count;
     }
 
-    for (uint32_t force_index = 0; glide_count < kMinGlidesPerPhrase && force_index < kStepsPerBar;
-         force_index += 4U)
+    for (uint32_t force_index = 2; glide_count < kMinGlidesPerPhrase && force_index < kStepsPerBar;
+         force_index += 3U)
     {
       if (phrase_[force_index].degree < 0)
-        phrase_[force_index].degree = 0;
+        continue;
 
       const uint32_t next_index = (force_index + 1U) % kStepsPerBar;
       if (phrase_[next_index].degree < 0)
-        phrase_[next_index].degree = 12;
+        phrase_[next_index].degree = clampDegree(static_cast<int8_t>(phrase_[force_index].degree + 12));
 
       if (phrase_[force_index].slide)
         continue;
@@ -420,7 +519,7 @@ private:
       if (dest_degree < 0 || dest_degree > 17)
         dest_degree = (source_degree <= 5) ? static_cast<int8_t>(source_degree + 12)
                                            : static_cast<int8_t>(source_degree - 12);
-      phrase_[dest_index].degree = dest_degree;
+      phrase_[dest_index].degree = clampDegree(dest_degree);
     }
   }
 
@@ -430,6 +529,8 @@ private:
     const uint32_t prev_index = (step_index + kStepsPerBar - 1U) % kStepsPerBar;
     const bool arriving_via_slide = allow_slide_in && phrase_[prev_index].slide &&
                                     phrase_[prev_index].degree >= 0;
+    const bool arriving_legato = allow_slide_in && !arriving_via_slide &&
+                                 phrase_[prev_index].degree >= 0 && vco_phase_inc_ > 0.f;
 
     if (step.degree < 0)
     {
@@ -451,6 +552,14 @@ private:
       return;
     }
 
+    if (arriving_legato)
+    {
+      slide_active_ = false;
+      vco_pitch_ = vco_pitch_target_;
+      vco_phase_inc_ = noteToPhaseInc(vco_pitch_);
+      return;
+    }
+
     slide_active_ = false;
     vco_pitch_ = vco_pitch_target_;
     vco_phase_inc_ = noteToPhaseInc(vco_pitch_);
@@ -465,38 +574,30 @@ private:
     vcf_env_pos_ = kFilterEnvRecalcInterval;
   }
 
-  void handleTick(uint32_t counter)
+  void advanceClockOneSample()
   {
-    tick_counter_ = counter;
-    if (!running_)
-      return;
-
-    const uint32_t step_index = stepOneBased(counter) - 1U;
-    triggerStep(step_index, true);
-  }
-
-  void advanceInternalClock(uint32_t frames)
-  {
-    if (!running_ || bpm_ <= 0.f)
-      return;
-
-    const float samples_per_tick = getSampleRate() * 60.f / (bpm_ * 4.f);
-    internal_tick_phase_ += static_cast<float>(frames);
-
-    while (internal_tick_phase_ >= samples_per_tick)
+    samples_until_tick_ -= 1.f;
+    while (samples_until_tick_ <= 0.f)
     {
-      internal_tick_phase_ -= samples_per_tick;
-      ++tick_counter_;
-      handleTick(tick_counter_);
+      samples_until_tick_ += samples_per_tick_;
+      step_index_ = (step_index_ + 1U) % kStepsPerBar;
+      triggerStep(step_index_, true);
     }
   }
 
   void updateFilterCoefficients()
   {
-    const float w = vcf_env_end0_ + vcf_env_level_;
-    const float k = expf(-w / vcf_res_coeff_);
+    float w = vcf_env_end0_ + vcf_env_level_;
+    w = clipRange(w, 0.0002f, 1.2f);
+
+    float res_coeff = vcf_res_coeff_;
+    if (res_coeff < 0.05f)
+      res_coeff = 0.05f;
+
+    float k = fasterexpf(-w / res_coeff);
+    k = clipRange(k, 0.05f, 0.98f);
     vcf_env_level_ *= vcf_env_decay_;
-    vcf_a_ = 2.f * cosf(2.f * w) * k;
+    vcf_a_ = 2.f * fastercosfullf(2.f * w) * k;
     vcf_b_ = -k * k;
     vcf_c_ = 1.f - vcf_a_ - vcf_b_;
     vcf_env_pos_ = 0U;
@@ -522,7 +623,10 @@ private:
 
     vco_pitch_ += (vco_pitch_target_ - vco_pitch_) * slide_coeff_;
     vco_phase_inc_ = noteToPhaseInc(vco_pitch_);
-    if (fabsf(vco_pitch_target_ - vco_pitch_) < kSlideSettleSemitones)
+    float pitch_error = vco_pitch_target_ - vco_pitch_;
+    if (pitch_error < 0.f)
+      pitch_error = -pitch_error;
+    if (pitch_error < kSlideSettleSemitones)
     {
       vco_pitch_ = vco_pitch_target_;
       vco_phase_inc_ = noteToPhaseInc(vco_pitch_);
@@ -541,7 +645,8 @@ private:
     advanceSlide();
 
     const float oscillator = square_wave_ ? ((vco_phase_ >= 0.f) ? 0.5f : -0.5f) : vco_phase_;
-    const float filtered = vcf_a_ * vcf_delay1_ + vcf_b_ * vcf_delay2_ + vcf_c_ * oscillator * vca_level_;
+    float filtered = vcf_a_ * vcf_delay1_ + vcf_b_ * vcf_delay2_ + vcf_c_ * oscillator;
+    filtered = clipRange(filtered, -2.f, 2.f);
     vcf_delay2_ = vcf_delay1_;
     vcf_delay1_ = filtered;
     ++vcf_env_pos_;
@@ -568,15 +673,16 @@ private:
       gate_off_requested_ = false;
     }
 
-    const float blocked = filtered - dc_prev_in_ + 0.99608f * dc_prev_out_;
-    dc_prev_in_ = filtered;
+    const float voiced = filtered * vca_level_;
+    const float blocked = voiced - dc_prev_in_ + 0.99608f * dc_prev_out_;
+    dc_prev_in_ = voiced;
     dc_prev_out_ = blocked;
     return blocked;
   }
 
   Step phrase_[kStepsPerBar];
   uint32_t phrase_seed_ = 1U;
-  uint32_t tick_counter_ = 0U;
+  uint32_t step_index_ = 0U;
   float cutoff_norm_ = 0.62f;
   float resonance_norm_ = 0.55f;
   float mix_ = 1.f;
@@ -587,8 +693,9 @@ private:
   int8_t root_note_ = 36;
   int8_t current_degree_ = -1;
   float bpm_ = 120.f;
+  float samples_per_tick_ = 6000.f;
+  float samples_until_tick_ = 6000.f;
   float slide_coeff_ = 0.00095f;
-  float internal_tick_phase_ = 0.f;
   float vco_phase_inc_ = 0.f;
   float vco_pitch_ = 36.f;
   float vco_pitch_target_ = 36.f;
@@ -600,22 +707,21 @@ private:
   float vcf_env_decay_ = 0.f;
   float vcf_a_ = 0.f;
   float vcf_b_ = 0.f;
-  float vcf_c_ = 0.f;
+  float vcf_c_ = 1.f;
   float vcf_delay1_ = 0.f;
   float vcf_delay2_ = 0.f;
   float vcf_env_level_ = 0.f;
   float vcf_env_end0_ = 0.f;
   float vcf_env_span_ = 0.f;
   float vca_level_ = 0.f;
-  float vca_attack_ = 0.f;
-  float vca_decay_ = 0.f;
+  float vca_attack_ = 0.05f;
+  float vca_decay_ = 0.999f;
   float vca_target_ = 0.5f;
   float dc_prev_in_ = 0.f;
   float dc_prev_out_ = 0.f;
   uint32_t vcf_env_pos_ = kFilterEnvRecalcInterval;
   int vca_mode_ = 2;
   bool running_ = false;
-  bool use_host_clock_ = false;
   bool gate_off_requested_ = false;
   bool slide_active_ = false;
   bool accent_active_ = false;

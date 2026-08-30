@@ -206,7 +206,7 @@ $(COBJS) : $(OBJDIR)/%.o : %.c Makefile
 	@echo Compiling $(<F)
 	@$(CC) -c $(CFLAGS) -I. $(INCDIR) $< -o $@
 
-$(CXXOBJS) : $(OBJDIR)/%.o : %.cc Makefile
+$(CXXOBJS) : $(OBJDIR)/%.o : %.cc Makefile $(PLUGIN_ROOT)/dsp/kaocid.h
 	@echo Compiling $(<F)
 	@$(CXXC) -c $(CXXFLAGS) -I. $(INCDIR) $< -o $@
 
