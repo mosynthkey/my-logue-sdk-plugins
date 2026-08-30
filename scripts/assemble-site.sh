@@ -7,8 +7,8 @@ DEST="${1:-"$ROOT/site"}"
 rm -rf "$DEST"
 mkdir -p "$DEST/units" "$DEST/sim" "$DEST/vendor"
 
-cp "$ROOT/web/index.html" "$ROOT/web/styles.css" "$ROOT/web/app.js" "$ROOT/web/nts1-midi.js" "$DEST/"
-cp "$ROOT/web/vendor/coi-serviceworker.js" "$DEST/vendor/"
+cp "$ROOT/web/index.html" "$ROOT/web/styles.css" "$ROOT/web/app.js" "$ROOT/web/preview.js" "$ROOT/web/nts1-midi.js" "$DEST/"
+cp "$ROOT/web/vendor/coi-serviceworker.js" "$ROOT/web/vendor/qwerty-hancock.js" "$DEST/vendor/"
 cp "$ROOT/web/vendor/coi-serviceworker.js" "$DEST/"
 
 python3 - "$ROOT" "$DEST" <<'PY'

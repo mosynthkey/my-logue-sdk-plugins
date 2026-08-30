@@ -12,9 +12,16 @@ import {
   listMidiPorts,
   portLabel,
 } from "./nts1-midi.js";
+import { mountPreview, teardownPreview } from "./preview.js";
 
 const logEl = document.getElementById("log");
 const pluginListEl = document.getElementById("plugin-list");
+const detailPanelEl = document.getElementById("plugin-detail");
+const detailEmptyEl = document.getElementById("detail-empty");
+const detailNameEl = document.getElementById("detail-name");
+const detailDescEl = document.getElementById("detail-desc");
+const targetTabsEl = document.getElementById("target-tabs");
+const sendActionsEl = document.getElementById("send-actions");
 const outputSelect = document.getElementById("midi-output");
 const inputSelect = document.getElementById("midi-input");
 const slotSelect = document.getElementById("slot");
@@ -35,6 +42,9 @@ let pendingTarget = "nts-1_mkii";
 let deviceInquiryToken = 0;
 let slotInquiryToken = 0;
 let currentSlotModule = "osc";
+let selectedPluginId = null;
+let selectedTargetByPlugin = new Map();
+let catalog = null;
 const unitCache = new Map();
 const slotStatuses = new Map();
 
@@ -49,9 +59,11 @@ const LOAD_HINT = {
 const SENDABLE_TARGETS = new Set(["nts-1_mkii", "nts-3_kaoss"]);
 
 const TARGET_LABEL = {
-  "nts-1_mkii": "mkII",
+  "nts-1_mkii": "NTS-1",
   "nts-3_kaoss": "NTS-3",
 };
+
+const SEND_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 20.6 21 12 3.4 3.4v5.8L15 12l-11.6 2.8v5.8z"/></svg>`;
 
 function targetName(target) {
   return TARGET_LABEL[target] || target;
@@ -62,7 +74,7 @@ function deviceForTarget(target) {
 }
 
 function sendLabel(target) {
-  return `Send to ${deviceForTarget(target).shortLabel}`;
+  return `Send to ${targetName(target)}`;
 }
 
 function log(message, kind = "info") {
@@ -366,39 +378,126 @@ async function loadCatalog() {
   return response.json();
 }
 
-function renderPlugins(catalog) {
+function renderPluginList(plugins) {
   pluginListEl.innerHTML = "";
-  for (const plugin of catalog.plugins) {
-    const builds = plugin.builds || [];
-    const targetLabel = builds.map((build) => targetName(build.target)).join(" / ") || "unbuilt";
-    const actions = builds
-      .map((build) => {
-        const send = SENDABLE_TARGETS.has(build.target)
-          ? `<button class="button button-primary" data-send="${plugin.id}" data-target="${build.target}">${sendLabel(build.target)}</button>`
-          : "";
-        const wasm = build.wasm
-          ? `<a class="button button-ghost" href="${build.wasm}">Preview</a>`
-          : "";
-        return `<a class="button button-secondary" href="${build.file}" download>Download ${targetName(build.target)}</a>${wasm}${send}`;
-      })
-      .join("");
-    const card = document.createElement("article");
-    card.className = "plugin-card";
-    card.innerHTML = `
-      <header class="plugin-card__head">
-        <p class="kicker">${plugin.type.toUpperCase()} · ${targetLabel}</p>
-        <h2>${plugin.name}</h2>
-      </header>
-      <p class="plugin-card__desc">${plugin.description}</p>
-      <ul class="params">
-        ${plugin.params
-          .map((param) => `<li><span>${param.name}</span><em>${param.role}</em> ${param.detail}</li>`)
-          .join("")}
-      </ul>
-      <div class="plugin-card__actions">${actions}</div>
-    `;
-    pluginListEl.append(card);
+  for (const [pluginIndex, plugin] of plugins.entries()) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "plugin-nav__item";
+    button.dataset.pluginId = plugin.id;
+    button.innerHTML = `<span>${plugin.name}</span>`;
+    button.addEventListener("click", () => {
+      selectPlugin(plugin.id);
+    });
+    pluginListEl.append(button);
+
+    if (pluginIndex === 0 && !selectedPluginId) {
+      selectedPluginId = plugin.id;
+    }
   }
+}
+
+function sendableBuilds(plugin) {
+  return (plugin.builds || []).filter((build) => SENDABLE_TARGETS.has(build.target));
+}
+
+function buildForTarget(plugin, target) {
+  return (plugin.builds || []).find((build) => build.target === target) || null;
+}
+
+function defaultTarget(plugin) {
+  const builds = sendableBuilds(plugin);
+  return (
+    selectedTargetByPlugin.get(plugin.id) ||
+    builds.find((build) => build.target === "nts-1_mkii")?.target ||
+    builds[0]?.target ||
+    "nts-1_mkii"
+  );
+}
+
+function renderTargetTabs(plugin, activeTarget) {
+  const builds = sendableBuilds(plugin);
+  targetTabsEl.innerHTML = "";
+
+  if (builds.length <= 1) {
+    targetTabsEl.hidden = true;
+    return activeTarget;
+  }
+
+  targetTabsEl.hidden = false;
+  for (const build of builds) {
+    const tab = document.createElement("button");
+    tab.type = "button";
+    tab.role = "tab";
+    tab.className = "target-tabs__item";
+    tab.dataset.target = build.target;
+    tab.setAttribute("aria-selected", build.target === activeTarget ? "true" : "false");
+    tab.textContent = targetName(build.target);
+    tab.classList.toggle("is-active", build.target === activeTarget);
+    tab.addEventListener("click", () => {
+      selectTarget(plugin.id, build.target);
+    });
+    targetTabsEl.append(tab);
+  }
+
+  return activeTarget;
+}
+
+function renderSendActions(plugin, target) {
+  sendActionsEl.innerHTML = "";
+  const build = buildForTarget(plugin, target);
+  if (!build || !SENDABLE_TARGETS.has(build.target)) {
+    return;
+  }
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "send-button";
+  button.dataset.send = plugin.id;
+  button.dataset.target = build.target;
+  button.innerHTML = `<span class="send-button__icon">${SEND_ICON}</span>${sendLabel(build.target)}`;
+  sendActionsEl.append(button);
+}
+
+async function selectTarget(pluginId, target) {
+  selectedTargetByPlugin.set(pluginId, target);
+
+  const plugin = catalog.plugins.find((entry) => entry.id === pluginId);
+  if (!plugin) {
+    return;
+  }
+
+  renderTargetTabs(plugin, target);
+  renderSendActions(plugin, target);
+
+  const build = buildForTarget(plugin, target);
+  await mountPreview(build, plugin);
+}
+
+async function selectPlugin(pluginId) {
+  const plugin = catalog.plugins.find((entry) => entry.id === pluginId);
+  if (!plugin) {
+    return;
+  }
+
+  selectedPluginId = pluginId;
+
+  for (const item of pluginListEl.querySelectorAll(".plugin-nav__item")) {
+    item.classList.toggle("is-active", item.dataset.pluginId === pluginId);
+  }
+
+  detailEmptyEl.hidden = true;
+  detailPanelEl.hidden = false;
+  detailNameEl.textContent = plugin.name;
+  detailDescEl.textContent = plugin.description;
+
+  const target = defaultTarget(plugin);
+  selectedTargetByPlugin.set(pluginId, target);
+  renderTargetTabs(plugin, target);
+  renderSendActions(plugin, target);
+
+  const build = buildForTarget(plugin, target);
+  await mountPreview(build, plugin);
 }
 
 async function fetchUnit(plugin, target) {
@@ -509,17 +608,22 @@ async function sendPlugin(plugin, target = "nts-1_mkii") {
 async function main() {
   applySlotModule("osc");
 
-  let catalog;
   try {
     catalog = await loadCatalog();
   } catch (error) {
-    pluginListEl.innerHTML = `<p class="empty">${error.message}</p>`;
+    detailEmptyEl.hidden = false;
+    detailEmptyEl.innerHTML = `<p class="empty">${error.message}</p>`;
+    detailPanelEl.hidden = true;
     return;
   }
 
-  renderPlugins(catalog);
+  renderPluginList(catalog.plugins);
 
-  pluginListEl.addEventListener("click", (event) => {
+  if (selectedPluginId) {
+    await selectPlugin(selectedPluginId);
+  }
+
+  sendActionsEl.addEventListener("click", (event) => {
     const button = event.target.closest("[data-send]");
     if (!button) {
       return;
@@ -557,6 +661,10 @@ async function main() {
     if (event.key === "Escape" && !sendModal.hidden) {
       closeSendModal();
     }
+  });
+
+  window.addEventListener("beforeunload", () => {
+    teardownPreview();
   });
 }
 

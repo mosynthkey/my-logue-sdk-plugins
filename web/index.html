@@ -3,36 +3,53 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Plugins</title>
-  <meta name="description" content="logue SDK plugins.">
+  <title>Logue SDK Plugins</title>
+  <meta name="description" content="logue SDK plugins — preview and send to NTS-1 mkII or NTS-3.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Unbounded:wght@700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <div class="grain" aria-hidden="true"></div>
-  <header class="mast">
-    <p class="kicker">logue SDK</p>
-    <h1>Plugins</h1>
-    <p class="lede">Send to NTS-1 mkII or NTS-3 over USB, or download the unit.</p>
-    <p class="notice">Under construction. Still being tested.</p>
-  </header>
+  <div class="app">
+    <aside class="sidebar" aria-label="Plugin list">
+      <header class="sidebar__head">
+        <h1 class="sidebar__title">Logue SDK<br>Plugins List</h1>
+      </header>
+      <nav id="plugin-list" class="plugin-nav" aria-label="Plugins"></nav>
+    </aside>
 
-  <main class="layout">
-    <section class="panel units" aria-labelledby="units-heading">
-      <div class="panel__label">Units</div>
-      <h2 id="units-heading" class="visually-hidden">Units</h2>
-      <div id="plugin-list" class="plugin-list"></div>
-    </section>
-  </main>
+    <main class="detail" id="plugin-detail" hidden>
+      <header class="detail__head">
+        <h2 id="detail-name" class="detail__name"></h2>
+        <p id="detail-desc" class="detail__desc"></p>
+        <div id="target-tabs" class="target-tabs" role="tablist" hidden></div>
+      </header>
+
+      <section class="detail__stage" aria-label="Preview">
+        <div id="preview-shell" class="preview-shell">
+          <p id="preview-status" class="preview-status">Select a plugin to preview.</p>
+          <div id="preview-instrument" class="preview-instrument" hidden></div>
+          <div id="preview-knobs" class="preview-knobs" hidden></div>
+        </div>
+      </section>
+
+      <footer class="detail__foot">
+        <div id="send-actions" class="send-actions"></div>
+      </footer>
+    </main>
+
+    <div id="detail-empty" class="detail detail--empty">
+      <p>Loading plugins…</p>
+    </div>
+  </div>
 
   <div id="send-modal" class="modal" hidden>
     <div class="modal__backdrop" data-close-modal></div>
     <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="send-modal-title">
       <header class="modal__header">
         <div>
-          <p class="kicker" id="send-modal-kicker">Send to NTS-1 mkII</p>
+          <p class="modal__kicker" id="send-modal-kicker">Send to NTS-1 mkII</p>
           <h2 id="send-modal-title">Plugin</h2>
         </div>
         <button type="button" class="modal__close" data-close-modal aria-label="Close">×</button>
@@ -78,7 +95,8 @@
     </div>
   </div>
 
-  <script src="./coi-serviceworker.js"></script>
+  <script src="./vendor/coi-serviceworker.js"></script>
+  <script src="./vendor/qwerty-hancock.js"></script>
   <script type="module" src="./app.js"></script>
 </body>
 </html>
