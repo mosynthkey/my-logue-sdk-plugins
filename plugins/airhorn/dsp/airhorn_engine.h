@@ -21,6 +21,7 @@ struct AirHornVoice
   float gain = 1.f;
   float amp = 0.f;
   float pitch_ratio = 1.f;
+  float sustain_lpf = 0.f;
   uint32_t age = 0U;
 
   static constexpr float kAttackInc = 1.f / (48000.f * 0.004f);
@@ -28,6 +29,9 @@ struct AirHornVoice
   static constexpr float kMinAmp = 0.0005f;
   static constexpr uint32_t kMinHold = 19200U; // 400 ms at 48 kHz
   static constexpr float kBaseRate = static_cast<float>(kAirhornSampleRate) / 48000.f;
+  static constexpr float kLoopCrossfade = 96.f; // embedded-rate samples
+  static constexpr float kSustainLpfCoeff = 0.42f; // ~7.5 kHz at 48 kHz
+  static constexpr float kPitchSettled = 0.025f;
 
   static float pcmToFloat(int16_t sample)
   {
@@ -59,8 +63,34 @@ struct AirHornVoice
     return static_cast<uint32_t>(index);
   }
 
-  static float sampleAt(const AirhornSample &horn, float position)
+  static float linearSampleAt(const AirhornSample &horn, float position)
   {
+    const int32_t index = static_cast<int32_t>(position);
+    const float frac = position - static_cast<float>(index);
+    uint32_t i0;
+    uint32_t i1;
+    if (horn.looping)
+    {
+      i0 = wrapIndex(index, horn.length);
+      i1 = wrapIndex(index + 1, horn.length);
+    }
+    else
+    {
+      i0 = clampIndex(index, horn.length);
+      i1 = clampIndex(index + 1, horn.length);
+    }
+
+    const uint32_t offset = horn.offset;
+    const float y0 = pcmToFloat(kAirhornPcm16[offset + i0]);
+    const float y1 = pcmToFloat(kAirhornPcm16[offset + i1]);
+    return y0 + frac * (y1 - y0);
+  }
+
+  static float sampleAt(const AirhornSample &horn, float position, bool sustain_phase)
+  {
+    if (sustain_phase)
+      return linearSampleAt(horn, position);
+
     const int32_t index = static_cast<int32_t>(position);
     const float frac = position - static_cast<float>(index);
     uint32_t i0;
@@ -91,6 +121,28 @@ struct AirHornVoice
         frac);
   }
 
+  static float loopSampleWithCrossfade(const AirhornSample &horn, float position, bool sustain_phase)
+  {
+    const float loop_length = static_cast<float>(horn.length);
+    float output = sampleAt(horn, position, sustain_phase);
+
+    if (!horn.looping || kLoopCrossfade <= 1.f)
+      return output;
+
+    const float dist_to_end = loop_length - position;
+    if (dist_to_end <= 0.f || dist_to_end >= kLoopCrossfade)
+      return output;
+
+    const float blend = 1.f - dist_to_end / kLoopCrossfade;
+    const float wrapped = sampleAt(horn, position - loop_length, sustain_phase);
+    return output * (1.f - blend) + wrapped * blend;
+  }
+
+  bool pitchSettled(const AirhornSample &horn) const
+  {
+    return horn.looping && (pitch_ratio > 1.f - kPitchSettled) && (pitch_ratio < 1.f + kPitchSettled);
+  }
+
   void trigger(uint8_t horn, uint8_t velocity, uint8_t midi_note)
   {
     if (horn >= kAirhornCount)
@@ -103,6 +155,7 @@ struct AirHornVoice
     note = midi_note;
     pos = 0.f;
     amp = 0.f;
+    sustain_lpf = 0.f;
     age = 0U;
     gain = (static_cast<float>(velocity) + 1.f) * (1.f / 128.f);
     pitch_ratio = kAirhornSamples[horn].start_ratio;
@@ -145,7 +198,18 @@ struct AirHornVoice
         amp = 1.f;
     }
 
-    float output = sampleAt(horn, pos) * gain * amp;
+    const bool sustain_phase = pitchSettled(horn);
+    float output = loopSampleWithCrossfade(horn, pos, sustain_phase) * gain * amp;
+
+    if (sustain_phase)
+    {
+      sustain_lpf += kSustainLpfCoeff * (output - sustain_lpf);
+      output = sustain_lpf;
+    }
+    else
+    {
+      sustain_lpf = output;
+    }
 
     pos += kBaseRate * pitch_ratio;
     if (horn.looping)
@@ -177,6 +241,7 @@ struct AirHornVoice
     gated = false;
     releasing = false;
     amp = 0.f;
+    sustain_lpf = 0.f;
   }
 };
 
