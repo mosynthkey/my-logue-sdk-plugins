@@ -305,7 +305,13 @@ std::string getParameterValueString(int index, int value)
     }
     break;
   case k_unit_param_type_midi_note:
-    // todo
+  {
+    static const char *kPitchClasses[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+    const int midi_note = value < 0 ? 0 : (value > 127 ? 127 : value);
+    const int pitch_class = midi_note % 12;
+    const int octave = (midi_note / 12) - 1;
+    return std::string(kPitchClasses[pitch_class]) + std::to_string(octave);
+  }
   default:
     return "unimplemented";
     break;

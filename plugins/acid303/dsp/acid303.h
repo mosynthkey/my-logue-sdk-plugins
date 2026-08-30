@@ -5,7 +5,8 @@
  *
  * TB-303 style monophonic acid bass with automatic 16-step phrase generator
  * for NTS-3 kaoss pad. Hold the pad to run the sequencer; each new touch
- * regenerates a random acid pattern. X = cutoff, Y = resonance, Depth = mix.
+ * regenerates a random acid pattern with guaranteed pitch glides. X = cutoff,
+ * Y = resonance, Depth = mix. ROOT sets the phrase key.
  *
  * Filter/voice structure follows the gsynth TB-303 module (Andy Sloane, 2001),
  * adapted for 48 kHz and portamento/slide/accent behaviour.
@@ -23,7 +24,7 @@ public:
   static constexpr uint32_t kStepsPerBar = 16U;
   static constexpr uint32_t kFilterEnvRecalcInterval = 64U;
   static constexpr float kOutputGain = 0.55f;
-  static constexpr float kSlideRate = 0.0025f;
+  static constexpr uint32_t kMinGlidesPerPhrase = 3U;
   static constexpr float kAccentBoost = 1.35f;
   static constexpr float kAccentCutoffBoost = 0.18f;
 
@@ -34,6 +35,7 @@ public:
     CUT = 0U,
     RES,
     MIX,
+    ROOT,
     NUM_PARAMS
   };
 
@@ -56,6 +58,17 @@ public:
       if (mix_ > 1.f)
         mix_ = 1.f;
       break;
+    case ROOT:
+    {
+      int32_t midi_note = value;
+      if (midi_note < 24)
+        midi_note = 24;
+      if (midi_note > 48)
+        midi_note = 48;
+      root_note_ = static_cast<int8_t>(midi_note);
+      retuneCurrentNote();
+      break;
+    }
     default:
       break;
     }
@@ -63,9 +76,35 @@ public:
 
   const char *getParameterStrValue(uint8_t index, int32_t value) const override final
   {
-    (void)index;
-    (void)value;
-    return nullptr;
+    if (index != ROOT)
+      return nullptr;
+
+    static char note_label[8];
+    static const char *kPitchClasses[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+
+    int32_t midi_note = value;
+    if (midi_note < 0)
+      midi_note = 0;
+    if (midi_note > 127)
+      midi_note = 127;
+
+    const int32_t pitch_class = midi_note % 12;
+    const int32_t octave = (midi_note / 12) - 1;
+    char *out = note_label;
+    const char *pitch_name = kPitchClasses[pitch_class];
+    while (*pitch_name != '\0')
+      *out++ = *pitch_name++;
+    if (octave < 0)
+    {
+      *out++ = '-';
+      *out++ = static_cast<char>('0' - octave);
+    }
+    else
+    {
+      *out++ = static_cast<char>('0' + octave);
+    }
+    *out = '\0';
+    return note_label;
   }
 
   void init(float *) override final
@@ -73,7 +112,9 @@ public:
     cutoff_norm_ = 0.62f;
     resonance_norm_ = 0.55f;
     mix_ = 1.f;
+    root_note_ = 36;
     bpm_ = 120.f;
+    updateSlideCoeff();
     running_ = false;
     use_host_clock_ = false;
     tick_counter_ = 0U;
@@ -93,7 +134,10 @@ public:
   void setTempo(float tempo) override final
   {
     if (tempo > 20.f && tempo < 999.f)
+    {
       bpm_ = tempo;
+      updateSlideCoeff();
+    }
   }
 
   void tempo4ppqnTick(uint32_t counter) override final
@@ -111,7 +155,7 @@ public:
       phrase_seed_ = mixSeed(tick_counter_, x, y);
       generatePhrase(phrase_seed_);
       running_ = true;
-      triggerStep(phrase_[0]);
+      triggerStep(0U, false);
       return;
     }
 
@@ -145,7 +189,7 @@ public:
 private:
   struct Step
   {
-    int8_t note = -1;
+    int8_t degree = -1;
     bool accent = false;
     bool slide = false;
   };
@@ -209,6 +253,7 @@ private:
     gate_off_requested_ = false;
     slide_active_ = false;
     accent_active_ = false;
+    current_degree_ = -1;
     dc_prev_in_ = 0.f;
     dc_prev_out_ = 0.f;
   }
@@ -247,74 +292,144 @@ private:
   {
     uint32_t rng = seed;
 
-    const int8_t root_note = static_cast<int8_t>(36 + static_cast<int32_t>(randomFloat(rng) * 8.f));
     static const int8_t kScaleDegrees[] = {0, 3, 5, 7, 10, 12, 15, 17};
     static constexpr uint32_t kScaleLength = sizeof(kScaleDegrees) / sizeof(kScaleDegrees[0]);
 
-    const uint32_t pulse_count = 4U + (nextRandom(rng) % 5U);
-    int8_t previous_note = -1;
+    const uint32_t pulse_count = 7U + (nextRandom(rng) % 4U);
 
     for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
     {
       Step &step = phrase_[stepIndex];
       step.accent = false;
       step.slide = false;
-      step.note = -1;
+      step.degree = -1;
 
       if (!euclideanGate(stepIndex, pulse_count, kStepsPerBar))
         continue;
 
       const uint32_t degree_index = nextRandom(rng) % kScaleLength;
-      step.note = static_cast<int8_t>(root_note + kScaleDegrees[degree_index]);
+      step.degree = kScaleDegrees[degree_index];
 
       if ((stepIndex % 4U) == 0U || randomFloat(rng) > 0.62f)
         step.accent = true;
-
-      if (previous_note >= 0 && step.note == previous_note)
-        step.slide = true;
-      else if (randomFloat(rng) > 0.58f && previous_note >= 0)
-        step.slide = true;
-
-      previous_note = step.note;
     }
 
-    if (phrase_[0].note < 0)
+    if (phrase_[0].degree < 0)
     {
-      phrase_[0].note = root_note;
+      phrase_[0].degree = 0;
       phrase_[0].accent = true;
+    }
+
+    uint32_t glide_count = 0U;
+    for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
+    {
+      const uint32_t next_index = (stepIndex + 1U) % kStepsPerBar;
+      if (phrase_[stepIndex].degree < 0 || phrase_[next_index].degree < 0)
+        continue;
+
+      if (randomFloat(rng) < 0.42f)
+        continue;
+
+      applyGlideLeap(stepIndex, next_index, rng);
+      phrase_[stepIndex].slide = true;
+      ++glide_count;
+    }
+
+    for (uint32_t search_index = 0; glide_count < kMinGlidesPerPhrase && search_index < kStepsPerBar;
+         ++search_index)
+    {
+      if (phrase_[search_index].slide || phrase_[search_index].degree < 0)
+        continue;
+
+      const uint32_t next_index = (search_index + 1U) % kStepsPerBar;
+      if (phrase_[next_index].degree < 0)
+        phrase_[next_index].degree = 12;
+
+      applyGlideLeap(search_index, next_index, rng);
+      phrase_[search_index].slide = true;
+      ++glide_count;
+    }
+
+    for (uint32_t force_index = 0; glide_count < kMinGlidesPerPhrase && force_index < kStepsPerBar;
+         force_index += 4U)
+    {
+      if (phrase_[force_index].degree < 0)
+        phrase_[force_index].degree = 0;
+
+      const uint32_t next_index = (force_index + 1U) % kStepsPerBar;
+      if (phrase_[next_index].degree < 0)
+        phrase_[next_index].degree = 12;
+
+      if (phrase_[force_index].slide)
+        continue;
+
+      applyGlideLeap(force_index, next_index, rng);
+      phrase_[force_index].slide = true;
+      ++glide_count;
     }
   }
 
-  void triggerStep(const Step &step)
+  void applyGlideLeap(uint32_t source_index, uint32_t dest_index, uint32_t &rng)
   {
-    if (step.note < 0)
+    static const int8_t kGlideLeaps[] = {5, 7, 10, 12, -5, -7, -12};
+    static constexpr uint32_t kLeapCount = sizeof(kGlideLeaps) / sizeof(kGlideLeaps[0]);
+
+    const int8_t source_degree = phrase_[source_index].degree;
+    int8_t dest_degree = phrase_[dest_index].degree;
+    int32_t interval = dest_degree - source_degree;
+    if (interval < 0)
+      interval = -interval;
+
+    if (interval < 5)
     {
-      gate_off_requested_ = true;
+      const int8_t leap = kGlideLeaps[nextRandom(rng) % kLeapCount];
+      dest_degree = static_cast<int8_t>(source_degree + leap);
+      if (dest_degree < 0 || dest_degree > 17)
+        dest_degree = static_cast<int8_t>(source_degree - leap);
+      if (dest_degree < 0 || dest_degree > 17)
+        dest_degree = (source_degree <= 5) ? static_cast<int8_t>(source_degree + 12)
+                                           : static_cast<int8_t>(source_degree - 12);
+      phrase_[dest_index].degree = dest_degree;
+    }
+  }
+
+  void triggerStep(uint32_t step_index, bool allow_slide_in)
+  {
+    const Step &step = phrase_[step_index];
+    const uint32_t prev_index = (step_index + kStepsPerBar - 1U) % kStepsPerBar;
+    const bool arriving_via_slide = allow_slide_in && phrase_[prev_index].slide &&
+                                    phrase_[prev_index].degree >= 0;
+
+    if (step.degree < 0)
+    {
+      if (!arriving_via_slide)
+      {
+        gate_off_requested_ = true;
+        current_degree_ = -1;
+      }
       return;
     }
 
-    accent_active_ = step.accent;
-    vca_target_ = step.accent ? (0.5f * kAccentBoost) : 0.5f;
-
-    const float phase_inc = noteToPhaseInc(step.note);
+    current_degree_ = step.degree;
+    const float phase_inc = noteToPhaseInc(static_cast<int8_t>(root_note_ + step.degree));
     vco_phase_inc_target_ = phase_inc;
+    gate_off_requested_ = false;
 
-    if (step.slide && vco_phase_inc_ > 0.f)
+    if (arriving_via_slide && vco_phase_inc_ > 0.f)
     {
       slide_active_ = true;
-    }
-    else
-    {
-      slide_active_ = false;
-      vco_phase_inc_ = phase_inc;
+      return;
     }
 
+    slide_active_ = false;
+    vco_phase_inc_ = phase_inc;
+    accent_active_ = step.accent;
+    vca_target_ = step.accent ? (0.5f * kAccentBoost) : 0.5f;
     vca_mode_ = 0;
     vcf_env_level_ = vcf_env_span_;
     if (accent_active_)
       vcf_env_level_ += vcf_env_span_ * kAccentCutoffBoost;
     vcf_env_pos_ = kFilterEnvRecalcInterval;
-    gate_off_requested_ = false;
   }
 
   void handleTick(uint32_t counter)
@@ -324,7 +439,7 @@ private:
       return;
 
     const uint32_t step_index = stepOneBased(counter) - 1U;
-    triggerStep(phrase_[step_index]);
+    triggerStep(step_index, true);
   }
 
   void advanceInternalClock(uint32_t frames)
@@ -354,20 +469,47 @@ private:
     vcf_env_pos_ = 0U;
   }
 
+  void updateSlideCoeff()
+  {
+    if (bpm_ <= 0.f)
+    {
+      slide_coeff_ = 0.002f;
+      return;
+    }
+
+    const float samples_per_16th = getSampleRate() * 60.f / (bpm_ * 4.f);
+    if (samples_per_16th < 1.f)
+    {
+      slide_coeff_ = 1.f;
+      return;
+    }
+
+    slide_coeff_ = 1.f - expf(-3.2f / samples_per_16th);
+  }
+
+  void retuneCurrentNote()
+  {
+    if (current_degree_ < 0)
+      return;
+
+    const float phase_inc = noteToPhaseInc(static_cast<int8_t>(root_note_ + current_degree_));
+    vco_phase_inc_target_ = phase_inc;
+    if (!slide_active_)
+      vco_phase_inc_ = phase_inc;
+  }
+
   void advanceSlide()
   {
     if (!slide_active_)
       return;
 
     const float delta = vco_phase_inc_target_ - vco_phase_inc_;
-    if (fabsf(delta) <= kSlideRate)
+    vco_phase_inc_ += delta * slide_coeff_;
+    if (fabsf(vco_phase_inc_target_ - vco_phase_inc_) < 1.0e-7f)
     {
       vco_phase_inc_ = vco_phase_inc_target_;
       slide_active_ = false;
-      return;
     }
-
-    vco_phase_inc_ += (delta > 0.f) ? kSlideRate : -kSlideRate;
   }
 
   float renderSample()
@@ -420,7 +562,10 @@ private:
   float cutoff_norm_ = 0.62f;
   float resonance_norm_ = 0.55f;
   float mix_ = 1.f;
+  int8_t root_note_ = 36;
+  int8_t current_degree_ = -1;
   float bpm_ = 120.f;
+  float slide_coeff_ = 0.002f;
   float internal_tick_phase_ = 0.f;
   float vco_phase_inc_ = 0.f;
   float vco_phase_inc_target_ = 0.f;
