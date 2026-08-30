@@ -15,4 +15,6 @@ plugins/*/targets/*/*.mk2unit
 *.bin
 *.dmp
 *.list
-.dep/
+plugins/airhorn/assets/*.wav
+plugins/airhorn/assets/*.ogg
+plugins/airhorn/assets/*.mp3

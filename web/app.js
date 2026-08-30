@@ -3,6 +3,7 @@ import {
   pickPreferredPort,
   detectDevice,
   readSlotStatus,
+  readModuleSlots,
   MODULE_SLOTS,
   looksLikeNts1Name,
   listMidiPorts,
@@ -27,7 +28,9 @@ let midiAccess = null;
 let pendingPlugin = null;
 let pendingTarget = "nts-1_mkii";
 let deviceInquiryToken = 0;
+let currentSlotModule = "osc";
 const unitCache = new Map();
+const slotStatuses = new Map();
 
 const LOAD_HINT = {
   osc: "Select OSC.",
@@ -66,16 +69,35 @@ function formatDeviceStatus(identity, output) {
   return `${deviceName} on ${portLabel(output)}`;
 }
 
+function slotOptionLabel(slotIndex, status) {
+  if (!status) {
+    return `Slot ${slotIndex}`;
+  }
+  if (status.empty) {
+    return `Slot ${slotIndex} · empty`;
+  }
+  return `Slot ${slotIndex} · ${status.name || "occupied"}`;
+}
+
 function populateSlotOptions(module = "osc") {
   const count = MODULE_SLOTS[module] || 16;
+  const previous = slotSelect.value;
   slotSelect.innerHTML = "";
   for (let slotIndex = 0; slotIndex < count; slotIndex++) {
     const option = document.createElement("option");
     option.value = String(slotIndex);
-    option.textContent = `Slot ${slotIndex}`;
+    option.textContent = slotOptionLabel(slotIndex, slotStatuses.get(slotIndex));
     slotSelect.append(option);
   }
-  slotSelect.value = "1";
+  if ([...slotSelect.options].some((option) => option.value === previous)) {
+    slotSelect.value = previous;
+  } else {
+    slotSelect.value = "1";
+  }
+}
+
+function resetSlotStatuses() {
+  slotStatuses.clear();
 }
 
 function moduleFor(plugin, target) {
@@ -85,12 +107,49 @@ function moduleFor(plugin, target) {
 
 function applySlotModule(module) {
   const previous = Number(slotSelect.value);
+  if (module !== currentSlotModule) {
+    resetSlotStatuses();
+    currentSlotModule = module;
+  }
   populateSlotOptions(module);
   const maxSlot = (MODULE_SLOTS[module] || 16) - 1;
   const nextSlot = Number.isFinite(previous) ? Math.min(Math.max(previous, 0), maxSlot) : 1;
   slotSelect.value = String(nextSlot);
   if (slotLabel) {
     slotLabel.textContent = `${module} slot`;
+  }
+}
+
+async function inquireSlotOccupancy(module) {
+  const inquiryToken = ++slotInquiryToken;
+  if (!midiAccess || !hasMidiPorts()) {
+    resetSlotStatuses();
+    populateSlotOptions(module);
+    return;
+  }
+
+  const output = selectedPort(outputSelect, midiAccess.outputs);
+  const input = selectedPort(inputSelect, midiAccess.inputs);
+  if (!output || !input) {
+    return;
+  }
+
+  const channel = Number(channelInput.value) || 1;
+  try {
+    const slots = await readModuleSlots(output, input, { module, channel });
+    if (inquiryToken !== slotInquiryToken) {
+      return;
+    }
+    slotStatuses.clear();
+    for (const status of slots) {
+      slotStatuses.set(status.slot, status);
+    }
+    populateSlotOptions(module);
+  } catch (error) {
+    if (inquiryToken !== slotInquiryToken) {
+      return;
+    }
+    log(`Slot occupancy inquiry failed: ${error.message}`, "warn");
   }
 }
 
@@ -198,6 +257,15 @@ async function inquireDevice() {
     }
     setDeviceStatus(formatDeviceStatus(identity, output), "ok");
     log(`Device identified: ${identity.label}`);
+    if (pendingPlugin) {
+      const module = moduleFor(pendingPlugin, pendingTarget);
+      setDeviceStatus("Reading slot occupancy…", "busy");
+      await inquireSlotOccupancy(module);
+      if (inquiryToken !== deviceInquiryToken) {
+        return;
+      }
+      setDeviceStatus(formatDeviceStatus(identity, output), "ok");
+    }
     sendButton.disabled = false;
   } catch (error) {
     if (inquiryToken !== deviceInquiryToken) {
@@ -214,6 +282,8 @@ function openSendModal(plugin, target = "nts-1_mkii") {
   pendingTarget = target;
   sendModalTitle.textContent = plugin.name;
   clearLog();
+  resetSlotStatuses();
+  currentSlotModule = "";
   applySlotModule(moduleFor(plugin, target));
 
   const webMidiSupported = Boolean(navigator.requestMIDIAccess);
@@ -240,6 +310,7 @@ function closeSendModal() {
   document.body.classList.remove("modal-open");
   pendingPlugin = null;
   deviceInquiryToken += 1;
+  slotInquiryToken += 1;
 }
 
 async function loadCatalog() {
@@ -348,7 +419,12 @@ async function sendPlugin(plugin, target = "nts-1_mkii") {
         slot,
         channel,
       });
-      log(slotInfo.empty ? `${module} slot ${slot} is empty` : `${module} slot ${slot} is occupied and will be overwritten`);
+      if (slotInfo.empty) {
+        log(`${module} slot ${slot} is empty`);
+      } else {
+        const loadedName = slotInfo.name || "occupied";
+        log(`${module} slot ${slot} currently has ${loadedName} and will be overwritten`);
+      }
     } catch (error) {
       log(`Slot inquiry skipped: ${error.message}`, "warn");
     }
@@ -369,6 +445,7 @@ async function sendPlugin(plugin, target = "nts-1_mkii") {
 
     setDeviceStatus(`${plugin.name} → ${module} ${slot}`, "ok");
     log(LOAD_HINT[module] || "Load it on the device.", "ok");
+    await inquireSlotOccupancy(module);
   } catch (error) {
     setDeviceStatus("Transfer failed", "error");
     log(error.message, "error");

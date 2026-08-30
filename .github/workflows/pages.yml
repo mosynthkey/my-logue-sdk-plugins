@@ -70,6 +70,52 @@ jobs:
       - name: Build units
         run: make unit GCC_BIN_PATH="$GCC_BIN_PATH"
 
+      - name: Build microKORG2 waves reference
+        run: |
+          MK2_PREFIX="$PWD/third_party/logue-sdk/tools/microkorg2-toolchain/arm-unknown-linux-gnueabihf/bin/arm-unknown-linux-gnueabihf-"
+          make -C third_party/logue-sdk/platform/microkorg2/waves clean
+          make -C third_party/logue-sdk/platform/microkorg2/waves all \
+            CROSS_COMPILE="$MK2_PREFIX"
+
+      - name: Build HyperSaw dependency diagnostics
+        run: |
+          MK2_PREFIX="$PWD/third_party/logue-sdk/tools/microkorg2-toolchain/arm-unknown-linux-gnueabihf/bin/arm-unknown-linux-gnueabihf-"
+          mkdir -p microkorg2-diagnostics
+          cp plugins/hypersaw/targets/microkorg2/hypersaw.mk2unit microkorg2-diagnostics/
+          cp plugins/fbackosc/targets/microkorg2/fbackosc.mk2unit microkorg2-diagnostics/
+          for level in 1 2 3; do
+            make -C plugins/hypersaw/targets/microkorg2 clean \
+              PROJECT="hypersaw-diag${level}"
+            make -C plugins/hypersaw/targets/microkorg2 all \
+              CROSS_COMPILE="$MK2_PREFIX" \
+              PROJECT="hypersaw-diag${level}" \
+              UDEFS="-Dwt_saw_notes=osc_wt_saw_notes -Dwt_saw_lut_f=osc_wt_saw_lut_f -Dwt_sqr_lut_f=osc_wt_sqr_lut_f -DHYPERSAW_DIAGNOSTIC=${level}"
+            cp "plugins/hypersaw/targets/microkorg2/build/hypersaw-diag${level}.mk2unit" \
+              microkorg2-diagnostics/
+          done
+
+      - name: Compare microKORG2 ELF binaries
+        run: |
+          MK2_READELF="$PWD/third_party/logue-sdk/tools/microkorg2-toolchain/arm-unknown-linux-gnueabihf/bin/arm-unknown-linux-gnueabihf-readelf"
+          cp third_party/logue-sdk/platform/microkorg2/waves/build/waves.mk2unit \
+            microkorg2-diagnostics/
+          for unit in microkorg2-diagnostics/*.mk2unit; do
+            report="microkorg2-diagnostics/$(basename "$unit").readelf.txt"
+            {
+              echo "===== $unit ====="
+              "$MK2_READELF" -h -l -S -d -A -r --dyn-syms "$unit"
+            } > "$report"
+          done
+          sha256sum microkorg2-diagnostics/*.mk2unit \
+            > microkorg2-diagnostics/SHA256SUMS
+
+      - name: Upload microKORG2 diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: microkorg2-diagnostics
+          path: microkorg2-diagnostics/
+          if-no-files-found: error
+
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with:

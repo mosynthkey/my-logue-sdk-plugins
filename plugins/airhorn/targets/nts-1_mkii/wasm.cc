@@ -5,9 +5,8 @@
 #include <emscripten/webaudio.h>
 #include <emscripten/em_math.h>
 using namespace emscripten;
-
-#include "unit_delfx.h"
-#include "spectralwarp.h"
+#include "unit_osc.h"
+#include "airhorn.h"
 
 // this needs to be big enough for the stereo output, inputs, params and the worker stack
 uint8_t audioThreadStack[4096];
@@ -15,10 +14,9 @@ uint8_t audioThreadStack[4096];
 constexpr int SAMPLE_RATE = 48000;
 constexpr int WEB_AUDIO_FRAME_SIZE = 128;
 std::vector<float> ram;
-std::array<float, WEB_AUDIO_FRAME_SIZE * 2> interleavedIn;
-std::array<float, WEB_AUDIO_FRAME_SIZE * 2> interleavedOut;
+std::array<float, WEB_AUDIO_FRAME_SIZE> interleavedOut;
 
-SpectralWarp processor; // dsp processor instance
+AirHorn processor;
 extern const unit_header_t unit_header;
 
 static float BPM_WASM = 120.f;
@@ -165,6 +163,24 @@ std::vector<AudioWorkletParameter> getValidParameters()
   return result;
 }
 
+void setOscPitch(float f0)
+{
+  processor.setPitch(f0 / static_cast<float>(SAMPLE_RATE));
+}
+
+void noteOn(uint8_t note, uint8_t velocity)
+{
+  processor.noteOn(note, velocity);
+  // printf("Note On: %d, velocity %d\n", note, velocity);
+}
+
+// note off velocity is not supported by logue-sdk
+void noteOff(uint8_t note)
+{
+  processor.noteOff(note);
+  // printf("Note Off: %d\n", note);
+}
+
 // bind unit parameters
 EMSCRIPTEN_BINDINGS(my_module)
 {
@@ -183,6 +199,12 @@ EMSCRIPTEN_BINDINGS(my_module)
   function("getParameterValueString", &getParameterValueString);
 
   function("fx_set_bpm", &fx_set_bpm);
+
+  function("setOscPitch", &setOscPitch);
+
+  function("noteOn", &noteOn);
+
+  function("noteOff", &noteOff);
 }
 
 bool ProcessAudio(int numInputs, const AudioSampleFrame *inputs,
@@ -190,20 +212,18 @@ bool ProcessAudio(int numInputs, const AudioSampleFrame *inputs,
                   int numParams, const AudioParamFrame *params,
                   void *userData)
 {
-  assert(numInputs == 1);
+  assert(numInputs == 0);
   assert(numOutputs == 1);
-  // assert(inputs->numberOfChannels == 1); // this is not true when plug in a stereo output node (e.g MediaElementPlayer) into this node
-  assert(outputs->numberOfChannels == 2);
+  assert(outputs->numberOfChannels == 1);
   assert(outputs->samplesPerChannel == WEB_AUDIO_FRAME_SIZE);
-  auto &input = inputs[0];
   auto &output = outputs[0];
 
-  // interleave input buffer (mono -> stereo)
-  for (int i = 0; i < WEB_AUDIO_FRAME_SIZE; ++i)
-  {
-    interleavedIn[2 * i] = input.data[i];
-    interleavedIn[2 * i + 1] = (inputs->numberOfChannels == 1) ? input.data[i] : input.data[i + WEB_AUDIO_FRAME_SIZE];
-  }
+  // // interleave input buffer (mono -> stereo)
+  // for (int i = 0; i < WEB_AUDIO_FRAME_SIZE; ++i)
+  // {
+  //   interleavedIn[2 * i] = input.data[i];
+  //   interleavedIn[2 * i + 1] = (inputs->numberOfChannels == 1) ? input.data[i] : input.data[i + WEB_AUDIO_FRAME_SIZE];
+  // }
 
   for (int i = 0; i < numParams; ++i)
   {
@@ -212,14 +232,13 @@ bool ProcessAudio(int numInputs, const AudioSampleFrame *inputs,
     processor.setParameter(i, value);
   }
 
-  // emscripten_log(EM_LOG_CONSOLE, "bpm=%d", fx_get_bpm());
-  processor.process(interleavedIn.data(), interleavedOut.data(), WEB_AUDIO_FRAME_SIZE);
+  // emscripten_log(EM_LOG_CONSOLE, "bpm=%d", fx_get_bpmf());
+  processor.process(nullptr, interleavedOut.data(), WEB_AUDIO_FRAME_SIZE);
 
   // de-interleave output buffer
   for (int i = 0; i < WEB_AUDIO_FRAME_SIZE; ++i)
   {
-    output.data[i] = interleavedOut[2 * i];
-    output.data[WEB_AUDIO_FRAME_SIZE + i] = interleavedOut[2 * i + 1];
+    output.data[i] = interleavedOut[i];
   }
   return true; // Keep the graph output going
 }
@@ -229,25 +248,18 @@ void AudioWorkletProcessorCreated(EMSCRIPTEN_WEBAUDIO_T audioContext, bool succe
   if (!success)
     return; // Check browser console in a debug build for detailed errors
 
-  if (processor.getBufferSize() > 0)
-  {
-    ram.resize(processor.getBufferSize());
-    processor.init(ram.data());
-  }
-  else
-  {
-    processor.init(nullptr);
-  }
+  ram.resize(processor.getBufferSize());
+  processor.init(ram.data());
 
-  // single mono input, single stereo output
-  int outputChannelCounts[1] = {2};
+  // no input, single mono output
+  int outputChannelCounts[1] = {1};
   EmscriptenAudioWorkletNodeCreateOptions options = {
-      .numberOfInputs = 1,
+      .numberOfInputs = 0,
       .numberOfOutputs = 1,
       .outputChannelCounts = outputChannelCounts};
 
   EMSCRIPTEN_AUDIO_WORKLET_NODE_T wasmAudioWorklet = emscripten_create_wasm_audio_worklet_node(audioContext,
-                                                                                               "logue-fx", &options, &ProcessAudio, 0);
+                                                                                               "logue-osc", &options, &ProcessAudio, 0);
 
   EM_ASM({ setupWebAudioAndUI(emscriptenGetAudioObject($0), emscriptenGetAudioObject($1)); }, audioContext, wasmAudioWorklet);
 }
@@ -257,7 +269,6 @@ void AudioThreadInitialized(EMSCRIPTEN_WEBAUDIO_T audioContext, bool success, vo
   if (!success)
     return; // Check browser console in a debug build for detailed errors
 
-  // todo: use parameterlist
   auto valid_parameters = getValidParameters();
 
   WebAudioParamDescriptor params[valid_parameters.size()];
@@ -270,7 +281,7 @@ void AudioThreadInitialized(EMSCRIPTEN_WEBAUDIO_T audioContext, bool success, vo
   }
 
   WebAudioWorkletProcessorCreateOptions opts = {
-      .name = "logue-fx",
+      .name = "logue-osc",
       .numAudioParams = static_cast<int>(valid_parameters.size()),
       .audioParamDescriptors = params};
 

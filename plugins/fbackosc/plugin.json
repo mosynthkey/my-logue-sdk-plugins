@@ -1,0 +1,11 @@
+{
+  "id": "fbackosc",
+  "name": "FbOsc",
+  "type": "osc",
+  "targets": ["nts-1_mkii", "microkorg2"],
+  "description": "JP-8080-inspired Feedback oscillator: band-limited saw through a key-tracked resonant comb filter.",
+  "params": [
+    { "name": "HARM", "role": "A", "detail": "Harmonic spacing of the comb resonator" },
+    { "name": "FEED", "role": "B", "detail": "Feedback amount / resonance level" }
+  ]
+}

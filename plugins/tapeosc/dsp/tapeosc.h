@@ -1,0 +1,157 @@
+#pragma once
+
+/*
+ * File: tapeosc.h
+ *
+ * NTS-1 mkII Processor wrapper for the tape-style varispeed oscillator.
+ *
+ */
+
+#include "tapeosc_engine.h"
+#include "processor.h"
+#include "macros.h"
+#include <stdint.h>
+
+class TapeOsc : public Processor
+{
+public:
+  enum
+  {
+    WAVEFORM = 0U,
+    START,
+    STOP,
+    GRIT,
+    WEAR,
+    WOW,
+    NUM_PARAMS
+  };
+
+  uint32_t getBufferSize() const override final { return 0; }
+
+  void setParameter(uint8_t index, int32_t value) override final
+  {
+    TapeOscEngine::Params params = engine_.getParams();
+
+    switch (index)
+    {
+    case WAVEFORM:
+    {
+      uint32_t waveform = static_cast<uint32_t>(value);
+      if (waveform >= TapeOscEngine::NUM_WAVEFORMS)
+        waveform = TapeOscEngine::NUM_WAVEFORMS - 1U;
+      params.waveform = static_cast<TapeOscEngine::Waveform>(waveform);
+      break;
+    }
+    case START:
+      params.start_norm = param_10bit_to_f32(value);
+      break;
+    case STOP:
+      params.stop_norm = param_10bit_to_f32(value);
+      break;
+    case GRIT:
+      params.grit = param_10bit_to_f32(value);
+      break;
+    case WEAR:
+      params.wear = param_10bit_to_f32(value);
+      break;
+    case WOW:
+      params.wow = param_10bit_to_f32(value);
+      break;
+    default:
+      return;
+    }
+
+    engine_.setParams(params);
+  }
+
+  const char *getParameterStrValue(uint8_t index, int32_t value) const override final
+  {
+    static const char *waveform_names[TapeOscEngine::NUM_WAVEFORMS] = {
+        "SAW",
+        "SQR",
+        "SINE",
+        "TRI",
+    };
+
+    if (index == WAVEFORM && value >= 0 && value < TapeOscEngine::NUM_WAVEFORMS)
+      return waveform_names[value];
+
+    return nullptr;
+  }
+
+  void init(float *) override final
+  {
+    TapeOscEngine::Params params;
+    params.waveform = TapeOscEngine::WAVEFORM_SAW;
+    params.start_norm = 0.42f;
+    params.stop_norm = 0.55f;
+    params.grit = 0.35f;
+    params.wear = 0.f;
+    params.wow = 0.f;
+    engine_.setParams(params);
+    engine_.reset();
+    engine_.randomizePhase();
+    base_note_ = 60.f;
+    base_w0_ = 261.625565f * (1.f / getSampleRate());
+    engine_.setPitch(base_w0_, base_note_);
+    active_note_ = 0xFF;
+  }
+
+  void reset() override final
+  {
+    engine_.reset();
+    engine_.randomizePhase();
+    active_note_ = 0xFF;
+  }
+
+  void setPitch(float w0)
+  {
+    base_w0_ = w0;
+    engine_.setPitch(base_w0_, base_note_);
+  }
+
+  void setNote(float note)
+  {
+    base_note_ = note;
+    engine_.setPitch(base_w0_, base_note_);
+  }
+
+  void noteOn(uint8_t note, uint8_t velo) override final
+  {
+    (void)velo;
+    active_note_ = note;
+    base_note_ = static_cast<float>(note);
+    engine_.setPitch(base_w0_, base_note_);
+    engine_.randomizePhase();
+    engine_.beginStart();
+  }
+
+  void noteOff(uint8_t note) override final
+  {
+    if (active_note_ != 0xFF && note != active_note_ && note != 0xFF)
+      return;
+
+    engine_.beginStop();
+    active_note_ = 0xFF;
+  }
+
+  void allNoteOff() override final
+  {
+    engine_.beginStop();
+    active_note_ = 0xFF;
+  }
+
+  void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final
+  {
+    (void)in;
+
+    for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
+      out[sampleIndex] = engine_.render();
+  }
+
+private:
+  TapeOscEngine engine_;
+  float base_w0_ = 0.f;
+  float base_note_ = 60.f;
+  uint8_t active_note_ = 0xFF;
+};

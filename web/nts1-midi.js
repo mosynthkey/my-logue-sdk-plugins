@@ -35,6 +35,8 @@ export const STATUS = {
 
 export const MODULE_IDS = { modfx: 1, delfx: 2, revfx: 3, osc: 4 };
 export const MODULE_SLOTS = { modfx: 16, osc: 16, delfx: 8, revfx: 8 };
+export const UNIT_NAME_SIZE = 20;
+export const UNIT_HEADER_NAME_OFFSET = 24;
 
 // Exclusive message must stay within 4096 bytes including F0/F7.
 const MAX_MSG_SIZE = 4096;
@@ -269,24 +271,96 @@ export async function detectDevice(output, input, { channel = 1, timeoutMs = 150
   return requestIdentity(output, input, { channel, timeoutMs });
 }
 
-export async function readSlotStatus(output, input, { module = "osc", slot = 0, channel = 1, timeoutMs = 2000 } = {}) {
-  const moduleId = MODULE_IDS[module];
-  const request = buildSysex(channel, USER_SLOT_STATUS_REQUEST, [moduleId, slot]);
-  const pending = waitForSysex(
-    input,
-    (data) => commandIdFrom(data) === USER_SLOT_STATUS,
-    timeoutMs,
+function moduleNameFromId(moduleId) {
+  for (const [name, id] of Object.entries(MODULE_IDS)) {
+    if (id === moduleId) {
+      return name;
+    }
+  }
+  return String(moduleId);
+}
+
+function readUint32LE(bytes, offset) {
+  return (
+    (bytes[offset] |
+      (bytes[offset + 1] << 8) |
+      (bytes[offset + 2] << 16) |
+      (bytes[offset + 3] << 24)) >>>
+    0
   );
-  output.send(request);
-  const reply = await pending;
-  const payload = Array.from(reply.slice(7, reply.length - 1));
-  const occupied = payload.length > 2;
+}
+
+export function decodeUnitName(bytes) {
+  const chars = [];
+  const source = bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes);
+  for (let byteIndex = 0; byteIndex < source.length; byteIndex++) {
+    const code = source[byteIndex];
+    if (code === 0) {
+      break;
+    }
+    if (code >= 32 && code < 127) {
+      chars.push(String.fromCharCode(code));
+    }
+  }
+  return chars.join("").trim();
+}
+
+export function parseSlotStatusReply(data) {
+  if (commandIdFrom(data) !== USER_SLOT_STATUS) {
+    throw new Error("Not a USER SLOT STATUS reply");
+  }
+  const payload = Array.from(data.slice(7, data.length - 1));
+  const moduleId = payload[0];
+  const slot = payload[1];
+  const module = moduleNameFromId(moduleId);
+  if (payload.length <= 2) {
+    return { module, slot, empty: true, name: "", raw: payload };
+  }
+
+  const headerBytes = midiToHost(payload.slice(3));
+  const nameStart = UNIT_HEADER_NAME_OFFSET;
+  const nameEnd = nameStart + UNIT_NAME_SIZE;
+  const name =
+    headerBytes.length >= nameEnd ? decodeUnitName(headerBytes.slice(nameStart, nameEnd)) : "";
+  const headerSize = headerBytes.length >= 4 ? readUint32LE(headerBytes, 0) : 0;
   return {
     module,
     slot,
-    empty: !occupied,
+    empty: false,
+    name,
+    headerSize,
     raw: payload,
   };
+}
+
+export async function readSlotStatus(output, input, { module = "osc", slot = 0, channel = 1, timeoutMs = 2000 } = {}) {
+  const moduleId = MODULE_IDS[module];
+  if (moduleId === undefined) {
+    throw new Error(`Unknown module "${module}"`);
+  }
+  const request = buildSysex(channel, USER_SLOT_STATUS_REQUEST, [moduleId, slot]);
+  const pending = waitForSysex(
+    input,
+    (data) => {
+      if (commandIdFrom(data) !== USER_SLOT_STATUS) {
+        return false;
+      }
+      const payload = data.slice(7, data.length - 1);
+      return payload.length >= 2 && payload[0] === moduleId && payload[1] === slot;
+    },
+    timeoutMs,
+  );
+  output.send(request);
+  return parseSlotStatusReply(await pending);
+}
+
+export async function readModuleSlots(output, input, { module = "osc", channel = 1, timeoutMs = 800 } = {}) {
+  const slotCount = MODULE_SLOTS[module] || 0;
+  const slots = [];
+  for (let slotIndex = 0; slotIndex < slotCount; slotIndex++) {
+    slots.push(await readSlotStatus(output, input, { module, slot: slotIndex, channel, timeoutMs }));
+  }
+  return slots;
 }
 
 export async function installUnit(output, input, unitBytes, options = {}) {

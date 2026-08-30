@@ -6,8 +6,11 @@ import {
   buildUserSlotDataPackets,
   buildSysex,
   USER_SLOT_DATA,
+  USER_SLOT_STATUS,
   parseIdentityReply,
   isInquiryReply,
+  parseSlotStatusReply,
+  decodeUnitName,
   listMidiPorts,
   portLabel,
 } from "../web/nts1-midi.js";
@@ -85,5 +88,35 @@ const listedPorts = listMidiPorts(fakePortMap);
 assert(listedPorts.length === 2, "listMidiPorts reads Map values");
 assert(listedPorts[0].name === "NTS-1 mkII MIDI OUT", "listMidiPorts keeps port objects");
 assert(portLabel(listedPorts[0]).includes("NTS-1"), "portLabel uses port name");
+
+function encodeUint32LE(value) {
+  return [value & 0xff, (value >>> 8) & 0xff, (value >>> 16) & 0xff, (value >>> 24) & 0xff];
+}
+
+const emptySlotReply = buildSysex(1, USER_SLOT_STATUS, [4, 2]);
+const emptyStatus = parseSlotStatusReply(emptySlotReply);
+assert(emptyStatus.empty, "empty slot has no packed header");
+assert(emptyStatus.module === "osc" && emptyStatus.slot === 2, "empty slot module and index");
+
+const unitName = "HyperSaw";
+const nameBytes = new Uint8Array(20);
+for (let charIndex = 0; charIndex < unitName.length; charIndex++) {
+  nameBytes[charIndex] = unitName.charCodeAt(charIndex);
+}
+const headerBytes = [
+  ...encodeUint32LE(32),
+  ...encodeUint32LE(0),
+  ...encodeUint32LE(0),
+  ...encodeUint32LE(0),
+  ...encodeUint32LE(4),
+  ...encodeUint32LE(0x00010000),
+  ...nameBytes,
+];
+const occupiedSlotReply = buildSysex(1, USER_SLOT_STATUS, [4, 1, 0, ...hostToMidi(headerBytes)]);
+const occupiedStatus = parseSlotStatusReply(occupiedSlotReply);
+assert(!occupiedStatus.empty, "occupied slot is not empty");
+assert(occupiedStatus.slot === 1, "occupied slot index");
+assert(occupiedStatus.name === "HyperSaw", `occupied slot name: ${occupiedStatus.name}`);
+assert(decodeUnitName(nameBytes) === "HyperSaw", "decodeUnitName strips padding");
 
 console.log("nts1-midi tests passed");

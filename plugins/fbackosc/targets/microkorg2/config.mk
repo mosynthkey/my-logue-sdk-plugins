@@ -2,7 +2,7 @@
 # Configuration for Makefile
 #
 
-PROJECT := hypersaw
+PROJECT := fbackosc
 PROJECT_TYPE := osc
 
 ##############################################################################
