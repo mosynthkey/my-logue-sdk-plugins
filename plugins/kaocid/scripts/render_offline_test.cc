@@ -116,7 +116,6 @@ int main()
   mono.reserve(slide_start + 4000U);
 
   bool saw_slide_flag = false;
-  float pitch_at_start = 0.f;
   float pitch_at_30ms = 0.f;
   float max_progress = 0.f;
 
@@ -126,10 +125,7 @@ int main()
     renderBlock(synth, 64U, mono);
     sample_count += 64U;
     if (sample_count >= slide_start && sample_count < slide_start + 64U)
-    {
       saw_slide_flag = synth.debugSlideActive();
-      pitch_at_start = synth.debugPitch();
-    }
     if (sample_count >= slide_start + 1440U && pitch_at_30ms == 0.f)
       pitch_at_30ms = synth.debugPitch();
 
@@ -143,7 +139,6 @@ int main()
     }
   }
 
-  const float attack_rms = windowRms(mono, 0U, 480U);
   const float body_rms = windowRms(mono, 2400U, 2400U);
   std::printf("slide_active=%d body_rms=%.5f\n", saw_slide_flag ? 1 : 0, body_rms);
 
