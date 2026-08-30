@@ -1,12 +1,15 @@
 #pragma once
 
 /*
- * File: acid303.h
+ * File: kaocid.h
  *
  * TB-303 style monophonic acid bass with automatic 16-step phrase generator
  * for NTS-3 kaoss pad. Hold the pad to run the sequencer; each new touch
  * regenerates a random acid pattern with guaranteed pitch glides. X = cutoff,
  * Y = resonance, Depth = mix. ROOT sets the phrase key.
+ *
+ * Panel knobs follow the TB-303: waveform, cutoff, resonance, env mod, decay,
+ * accent. Distortion/delay/reverb are left to other NTS-3 slots.
  *
  * Filter/voice structure follows the gsynth TB-303 module (Andy Sloane, 2001),
  * adapted for 48 kHz and portamento/slide/accent behaviour.
@@ -18,15 +21,15 @@
 #include <math.h>
 #include <stdint.h>
 
-class Acid303 : public Processor
+class Kaocid : public Processor
 {
 public:
   static constexpr uint32_t kStepsPerBar = 16U;
   static constexpr uint32_t kFilterEnvRecalcInterval = 64U;
   static constexpr float kOutputGain = 0.55f;
   static constexpr uint32_t kMinGlidesPerPhrase = 3U;
-  static constexpr float kAccentBoost = 1.35f;
-  static constexpr float kAccentCutoffBoost = 0.18f;
+  static constexpr float kAccentVcaRange = 0.7f;
+  static constexpr float kAccentCutoffRange = 0.42f;
   // Pitch CV slide: 100 kΩ DAC into 0.22 µF (Robin Whittle / Devil Fish).
   // tau = 22 ms; ~60 ms to 95% of the destination, independent of tempo.
   static constexpr float kSlideTauSec = 100000.f * 0.00000022f;
@@ -39,6 +42,10 @@ public:
     CUT = 0U,
     RES,
     MIX,
+    WAVE,
+    ENV,
+    DEC,
+    ACC,
     ROOT,
     NUM_PARAMS
   };
@@ -62,6 +69,20 @@ public:
       if (mix_ > 1.f)
         mix_ = 1.f;
       break;
+    case WAVE:
+      square_wave_ = value != 0;
+      break;
+    case ENV:
+      env_mod_norm_ = param_10bit_to_f32(value);
+      updateFilterTargets();
+      break;
+    case DEC:
+      decay_norm_ = param_10bit_to_f32(value);
+      updateFilterTargets();
+      break;
+    case ACC:
+      accent_norm_ = param_10bit_to_f32(value);
+      break;
     case ROOT:
     {
       int32_t midi_note = value;
@@ -80,6 +101,9 @@ public:
 
   const char *getParameterStrValue(uint8_t index, int32_t value) const override final
   {
+    if (index == WAVE)
+      return (value != 0) ? "SQR" : "SAW";
+
     if (index != ROOT)
       return nullptr;
 
@@ -116,6 +140,10 @@ public:
     cutoff_norm_ = 0.62f;
     resonance_norm_ = 0.55f;
     mix_ = 1.f;
+    square_wave_ = false;
+    env_mod_norm_ = 0.6f;
+    decay_norm_ = 0.4f;
+    accent_norm_ = 0.55f;
     root_note_ = 36;
     bpm_ = 120.f;
     slide_coeff_ = 1.f - expf(-1.f / (kSlideTauSec * getSampleRate()));
@@ -268,7 +296,7 @@ private:
     vcf_reso_ = 0.05f + resonance_norm_ * 0.9f;
     if (vcf_reso_ > 1.f)
       vcf_reso_ = 1.f;
-    vcf_env_mod_ = 0.42f + resonance_norm_ * 0.4f;
+    vcf_env_mod_ = 0.08f + env_mod_norm_ * 0.92f;
 
     vcf_res_coeff_ = expf(-1.20f + 3.455f * vcf_reso_);
     recalcFilterEnvelope();
@@ -284,7 +312,8 @@ private:
     vcf_env_end0_ = env_end0 * sample_rate_scale;
     vcf_env_span_ = (env_end1 - env_end0) * sample_rate_scale;
 
-    const float decay_seconds = 0.2f + 2.3f * (0.35f + cutoff_norm_ * 0.45f);
+    // TB-303 MEG decay: ~200 ms fully CCW to ~2.5 s fully CW.
+    const float decay_seconds = 0.2f + 2.3f * decay_norm_;
     const float decay_samples = decay_seconds * getSampleRate();
     vcf_env_decay_ = powf(0.1f, static_cast<float>(kFilterEnvRecalcInterval) / decay_samples);
     vcf_env_pos_ = kFilterEnvRecalcInterval;
@@ -426,11 +455,13 @@ private:
     vco_pitch_ = vco_pitch_target_;
     vco_phase_inc_ = noteToPhaseInc(vco_pitch_);
     accent_active_ = step.accent;
-    vca_target_ = step.accent ? (0.5f * kAccentBoost) : 0.5f;
+    vca_target_ = 0.5f;
+    if (step.accent)
+      vca_target_ = 0.5f * (1.f + accent_norm_ * kAccentVcaRange);
     vca_mode_ = 0;
     vcf_env_level_ = vcf_env_span_;
     if (accent_active_)
-      vcf_env_level_ += vcf_env_span_ * kAccentCutoffBoost;
+      vcf_env_level_ += vcf_env_span_ * (0.08f + accent_norm_ * kAccentCutoffRange);
     vcf_env_pos_ = kFilterEnvRecalcInterval;
   }
 
@@ -509,7 +540,7 @@ private:
 
     advanceSlide();
 
-    const float oscillator = vco_phase_;
+    const float oscillator = square_wave_ ? ((vco_phase_ >= 0.f) ? 0.5f : -0.5f) : vco_phase_;
     const float filtered = vcf_a_ * vcf_delay1_ + vcf_b_ * vcf_delay2_ + vcf_c_ * oscillator * vca_level_;
     vcf_delay2_ = vcf_delay1_;
     vcf_delay1_ = filtered;
@@ -549,6 +580,10 @@ private:
   float cutoff_norm_ = 0.62f;
   float resonance_norm_ = 0.55f;
   float mix_ = 1.f;
+  float env_mod_norm_ = 0.6f;
+  float decay_norm_ = 0.4f;
+  float accent_norm_ = 0.55f;
+  bool square_wave_ = false;
   int8_t root_note_ = 36;
   int8_t current_degree_ = -1;
   float bpm_ = 120.f;
