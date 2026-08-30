@@ -13,6 +13,8 @@ import {
   decodeUnitName,
   listMidiPorts,
   portLabel,
+  pickPreferredPort,
+  NTS3_KAOSS,
 } from "../web/nts1-midi.js";
 
 function assert(condition, message) {
@@ -118,5 +120,40 @@ assert(!occupiedStatus.empty, "occupied slot is not empty");
 assert(occupiedStatus.slot === 1, "occupied slot index");
 assert(occupiedStatus.name === "HyperSaw", `occupied slot name: ${occupiedStatus.name}`);
 assert(decodeUnitName(nameBytes) === "HyperSaw", "decodeUnitName strips padding");
+
+const nts3Packets = buildUserSlotDataPackets(dummyUnit, {
+  module: "genericfx",
+  slot: 12,
+  channel: 1,
+  device: NTS3_KAOSS,
+});
+assert(nts3Packets.length === 1, "NTS-3 small unit is a single packet");
+assert(nts3Packets[0][1] === 0x42 && nts3Packets[0][5] === 0x72, "NTS-3 exclusive header family 0x72");
+assert(nts3Packets[0][6] === USER_SLOT_DATA, "NTS-3 USER SLOT DATA command");
+assert(nts3Packets[0][7] === 7 && nts3Packets[0][8] === 12, "genericfx module id and slot");
+
+let nts3SlotRejected = false;
+try {
+  buildUserSlotDataPackets(dummyUnit, { module: "genericfx", slot: 50, device: NTS3_KAOSS });
+} catch (error) {
+  nts3SlotRejected = /out of range/.test(error.message);
+}
+assert(nts3SlotRejected, "NTS-3 genericfx rejects slot 50");
+
+const nts3Inquiry = Uint8Array.from([
+  0xf0, 0x7e, 0x00, 0x06, 0x02, 0x42, 0x72, 0x01, 0x01, 0x00, 0x00, 0x01, 0xf7,
+]);
+assert(isInquiryReply(nts3Inquiry), "NTS-3 inquiry reply shape");
+const nts3Identity = parseIdentityReply(nts3Inquiry);
+assert(nts3Identity.deviceId === "nts-3_kaoss", "NTS-3 device id");
+assert(nts3Identity.label.includes("NTS-3"), "NTS-3 device label");
+
+const mixedPorts = new Map([
+  ["port-a", { id: "port-a", name: "NTS-1 mkII MIDI OUT" }],
+  ["port-b", { id: "port-b", name: "NTS-3 kaoss pad kit" }],
+  ["port-c", { id: "port-c", name: "NTS-3 kaoss pad kit" }],
+]);
+const preferredNts3 = pickPreferredPort(mixedPorts, NTS3_KAOSS);
+assert(preferredNts3.id === "port-c", "NTS-3 prefers the last matching port");
 
 console.log("nts1-midi tests passed");

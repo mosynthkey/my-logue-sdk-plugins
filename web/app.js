@@ -5,7 +5,10 @@ import {
   readSlotStatus,
   readModuleSlots,
   MODULE_SLOTS,
-  looksLikeNts1Name,
+  DEVICES,
+  NTS1_MKII,
+  NTS3_KAOSS,
+  looksLikeDevicePort,
   listMidiPorts,
   portLabel,
 } from "./nts1-midi.js";
@@ -22,12 +25,15 @@ const midiUnsupported = document.getElementById("midi-unsupported");
 const slotLabel = document.getElementById("slot-label");
 const sendModal = document.getElementById("send-modal");
 const sendModalTitle = document.getElementById("send-modal-title");
+const sendModalKicker = document.getElementById("send-modal-kicker");
 const deviceStatusEl = document.getElementById("device-status");
+const midiHint = document.getElementById("midi-hint");
 
 let midiAccess = null;
 let pendingPlugin = null;
 let pendingTarget = "nts-1_mkii";
 let deviceInquiryToken = 0;
+let slotInquiryToken = 0;
 let currentSlotModule = "osc";
 const unitCache = new Map();
 const slotStatuses = new Map();
@@ -37,7 +43,10 @@ const LOAD_HINT = {
   delfx: "Select DELAY.",
   revfx: "Select REVERB.",
   modfx: "Select MOD.",
+  genericfx: "The unit appears at the end of the FX list.",
 };
+
+const SENDABLE_TARGETS = new Set(["nts-1_mkii", "nts-3_kaoss"]);
 
 const TARGET_LABEL = {
   "nts-1_mkii": "mkII",
@@ -46,6 +55,14 @@ const TARGET_LABEL = {
 
 function targetName(target) {
   return TARGET_LABEL[target] || target;
+}
+
+function deviceForTarget(target) {
+  return DEVICES[target] || NTS1_MKII;
+}
+
+function sendLabel(target) {
+  return `Send to ${deviceForTarget(target).shortLabel}`;
 }
 
 function log(message, kind = "info") {
@@ -65,8 +82,18 @@ function setDeviceStatus(text, kind = "idle") {
 }
 
 function formatDeviceStatus(identity, output) {
-  const deviceName = identity?.label || "NTS-1 mkII";
+  const deviceName = identity?.label || deviceForTarget(pendingTarget).shortLabel;
   return `${deviceName} on ${portLabel(output)}`;
+}
+
+function portSuffix(name) {
+  if (looksLikeDevicePort(name, NTS3_KAOSS)) {
+    return "  · NTS-3";
+  }
+  if (looksLikeDevicePort(name, NTS1_MKII)) {
+    return "  · NTS-1";
+  }
+  return "";
 }
 
 function slotOptionLabel(slotIndex, status) {
@@ -136,7 +163,11 @@ async function inquireSlotOccupancy(module) {
 
   const channel = Number(channelInput.value) || 1;
   try {
-    const slots = await readModuleSlots(output, input, { module, channel });
+    const slots = await readModuleSlots(output, input, {
+      module,
+      channel,
+      device: deviceForTarget(pendingTarget),
+    });
     if (inquiryToken !== slotInquiryToken) {
       return;
     }
@@ -166,7 +197,7 @@ function fillPortSelect(select, ports, preferred) {
   for (const port of listed) {
     const option = document.createElement("option");
     option.value = port.id;
-    option.textContent = portLabel(port) + (looksLikeNts1Name(port.name) ? "  · NTS-1" : "");
+    option.textContent = portLabel(port) + portSuffix(port.name);
     select.append(option);
   }
   if (preferred) {
@@ -186,8 +217,9 @@ async function refreshPorts() {
   if (!midiAccess) {
     return;
   }
-  fillPortSelect(outputSelect, midiAccess.outputs, pickPreferredPort(midiAccess.outputs));
-  fillPortSelect(inputSelect, midiAccess.inputs, pickPreferredPort(midiAccess.inputs));
+  const preferredDevice = deviceForTarget(pendingTarget);
+  fillPortSelect(outputSelect, midiAccess.outputs, pickPreferredPort(midiAccess.outputs, preferredDevice));
+  fillPortSelect(inputSelect, midiAccess.inputs, pickPreferredPort(midiAccess.inputs, preferredDevice));
 }
 
 async function connectMidi() {
@@ -224,7 +256,7 @@ async function inquireDevice() {
   }
 
   if (!midiAccess) {
-    setDeviceStatus("Looking for NTS-1 mkII…", "busy");
+    setDeviceStatus(`Looking for ${deviceForTarget(pendingTarget).shortLabel}…`, "busy");
     sendButton.disabled = true;
     const connected = await connectMidi();
     if (!connected || inquiryToken !== deviceInquiryToken) {
@@ -233,7 +265,7 @@ async function inquireDevice() {
   }
 
   if (!hasMidiPorts()) {
-    setDeviceStatus("No MIDI device found. Connect NTS-1 mkII over USB-C.", "error");
+    setDeviceStatus(`No MIDI device found. Connect ${deviceForTarget(pendingTarget).shortLabel} over USB-C.`, "error");
     sendButton.disabled = true;
     return;
   }
@@ -250,28 +282,34 @@ async function inquireDevice() {
   setDeviceStatus("Identifying device…", "busy");
   sendButton.disabled = true;
 
+  const expected = deviceForTarget(pendingTarget);
   try {
     const identity = await detectDevice(output, input, { channel });
     if (inquiryToken !== deviceInquiryToken) {
       return;
     }
+    if (identity.deviceId !== expected.id) {
+      setDeviceStatus(`This port is ${identity.shortLabel}, not ${expected.shortLabel}.`, "error");
+      log(`Expected ${expected.shortLabel}, got ${identity.label}`, "warn");
+      sendButton.disabled = true;
+      return;
+    }
     setDeviceStatus(formatDeviceStatus(identity, output), "ok");
     log(`Device identified: ${identity.label}`);
+    sendButton.disabled = false;
     if (pendingPlugin) {
       const module = moduleFor(pendingPlugin, pendingTarget);
-      setDeviceStatus("Reading slot occupancy…", "busy");
       await inquireSlotOccupancy(module);
       if (inquiryToken !== deviceInquiryToken) {
         return;
       }
       setDeviceStatus(formatDeviceStatus(identity, output), "ok");
     }
-    sendButton.disabled = false;
   } catch (error) {
     if (inquiryToken !== deviceInquiryToken) {
       return;
     }
-    setDeviceStatus("No NTS-1 mkII device found. Check USB connection and channel.", "error");
+    setDeviceStatus(`No ${expected.shortLabel} device found. Check USB connection and channel.`, "error");
     log(`Device inquiry failed: ${error.message}`, "warn");
     sendButton.disabled = true;
   }
@@ -280,7 +318,14 @@ async function inquireDevice() {
 function openSendModal(plugin, target = "nts-1_mkii") {
   pendingPlugin = plugin;
   pendingTarget = target;
+  const device = deviceForTarget(target);
   sendModalTitle.textContent = plugin.name;
+  if (sendModalKicker) {
+    sendModalKicker.textContent = sendLabel(target);
+  }
+  if (midiHint) {
+    midiHint.textContent = `If two ${device.shortLabel} ports appear, use the last one.`;
+  }
   clearLog();
   resetSlotStatuses();
   currentSlotModule = "";
@@ -294,7 +339,7 @@ function openSendModal(plugin, target = "nts-1_mkii") {
   if (!webMidiSupported) {
     setDeviceStatus("Use Chrome or Edge for MIDI", "warn");
   } else {
-    setDeviceStatus("Looking for NTS-1 mkII…", "busy");
+    setDeviceStatus(`Looking for ${device.shortLabel}…`, "busy");
   }
 
   sendModal.hidden = false;
@@ -328,10 +373,9 @@ function renderPlugins(catalog) {
     const targetLabel = builds.map((build) => targetName(build.target)).join(" / ") || "unbuilt";
     const actions = builds
       .map((build) => {
-        const send =
-          build.target === "nts-1_mkii"
-            ? `<button class="button button-primary" data-send="${plugin.id}" data-target="${build.target}">Send to NTS-1 mkII</button>`
-            : "";
+        const send = SENDABLE_TARGETS.has(build.target)
+          ? `<button class="button button-primary" data-send="${plugin.id}" data-target="${build.target}">${sendLabel(build.target)}</button>`
+          : "";
         const wasm = build.wasm
           ? `<a class="button button-ghost" href="${build.wasm}">Preview</a>`
           : "";
@@ -400,12 +444,18 @@ async function sendPlugin(plugin, target = "nts-1_mkii") {
   setDeviceStatus("Sending…", "busy");
 
   try {
+    const device = deviceForTarget(target);
     try {
       const identity = await detectDevice(output, input, { channel });
+      if (identity.deviceId !== device.id) {
+        setDeviceStatus(`This port is ${identity.shortLabel}, not ${device.shortLabel}.`, "error");
+        log(`Expected ${device.shortLabel}, got ${identity.label}`, "error");
+        return;
+      }
       log(`Device identified: ${identity.label}`);
       setDeviceStatus(formatDeviceStatus(identity, output), "ok");
     } catch (error) {
-      setDeviceStatus("No NTS-1 mkII device found. Check USB connection and channel.", "error");
+      setDeviceStatus(`No ${device.shortLabel} device found. Check USB connection and channel.`, "error");
       log(`Device inquiry failed: ${error.message}`, "error");
       return;
     }
@@ -418,6 +468,7 @@ async function sendPlugin(plugin, target = "nts-1_mkii") {
         module,
         slot,
         channel,
+        device,
       });
       if (slotInfo.empty) {
         log(`${module} slot ${slot} is empty`);
@@ -433,6 +484,7 @@ async function sendPlugin(plugin, target = "nts-1_mkii") {
       module,
       slot,
       channel,
+      device,
       onProgress: ({ phase, packetIndex, packetCount }) => {
         if (phase === "start") {
           log(`Sending ${packetCount} SysEx packet(s) to ${module} slot ${slot}`);

@@ -1,16 +1,37 @@
 /**
- * NTS-1 mkII user-unit transfer via Web MIDI SysEx.
+ * NTS-1 mkII / NTS-3 user-unit transfer via Web MIDI SysEx.
  *
- * Message layout follows the public KORG document
- * "NTS-1 digital kit mkII MIDI Implementation" (2024.04.02):
- *   F0 42 3g 00 01 73 <id> <payload...> F7
+ * Message layout follows the public KORG MIDI Implementation documents:
+ *   NTS-1 mkII (2024.04.02): F0 42 3g 00 01 73 <id> <payload...> F7
+ *   NTS-3 kaoss (2024.09.03): F0 42 3g 00 01 72 <id> <payload...> F7
  * USER SLOT DATA (4AH) carries 7-bit packed host data (NOTE 1).
- * Payload (8-bit, before packing): little-endian length, CRC-32, then the .nts1mkiiunit ELF.
+ * Payload (8-bit, before packing): little-endian length, CRC-32, then the unit ELF.
  */
 
 export const KORG_ID = 0x42;
-export const FAMILY_LSB = 0x73;
-export const FAMILY_MSB = 0x01;
+export const NTS1_MKII = {
+  id: "nts-1_mkii",
+  familyLsb: 0x73,
+  familyMsb: 0x01,
+  family: "NTS-1 digital kit mkII",
+  shortLabel: "NTS-1 mkII",
+  portPattern: /nts-?1/i,
+};
+export const NTS3_KAOSS = {
+  id: "nts-3_kaoss",
+  familyLsb: 0x72,
+  familyMsb: 0x01,
+  family: "NTS-3 kaoss pad kit",
+  shortLabel: "NTS-3",
+  portPattern: /nts-?3/i,
+};
+export const DEVICES = {
+  [NTS1_MKII.id]: NTS1_MKII,
+  [NTS3_KAOSS.id]: NTS3_KAOSS,
+};
+
+export const FAMILY_LSB = NTS1_MKII.familyLsb;
+export const FAMILY_MSB = NTS1_MKII.familyMsb;
 export const USER_SLOT_DATA = 0x4a;
 export const USER_SLOT_STATUS_REQUEST = 0x19;
 export const USER_SLOT_STATUS = 0x49;
@@ -33,8 +54,8 @@ export const STATUS = {
   0x2f: "User internal error",
 };
 
-export const MODULE_IDS = { modfx: 1, delfx: 2, revfx: 3, osc: 4 };
-export const MODULE_SLOTS = { modfx: 16, osc: 16, delfx: 8, revfx: 8 };
+export const MODULE_IDS = { modfx: 1, delfx: 2, revfx: 3, osc: 4, genericfx: 7 };
+export const MODULE_SLOTS = { modfx: 16, osc: 16, delfx: 8, revfx: 8, genericfx: 50 };
 export const UNIT_NAME_SIZE = 20;
 export const UNIT_HEADER_NAME_OFFSET = 24;
 
@@ -96,12 +117,30 @@ export function midiToHost(midiBytes) {
   return hostBytes;
 }
 
-export function exclusiveHeader(channel) {
-  const channelNibble = Math.max(0, Math.min(15, (channel || 1) - 1));
-  return [KORG_ID, 0x30 | channelNibble, 0x00, 0x01, FAMILY_LSB];
+export function resolveDevice(device = NTS1_MKII) {
+  if (typeof device === "string") {
+    return DEVICES[device] || NTS1_MKII;
+  }
+  return device || NTS1_MKII;
 }
 
-export function isNts1Mk2Exclusive(data) {
+export function deviceFromFamily(familyLsb, familyMsb) {
+  for (const device of Object.values(DEVICES)) {
+    if (device.familyLsb === familyLsb && device.familyMsb === familyMsb) {
+      return device;
+    }
+  }
+  return null;
+}
+
+export function exclusiveHeader(channel, device = NTS1_MKII) {
+  const resolved = resolveDevice(device);
+  const channelNibble = Math.max(0, Math.min(15, (channel || 1) - 1));
+  return [KORG_ID, 0x30 | channelNibble, 0x00, 0x01, resolved.familyLsb];
+}
+
+export function isDeviceExclusive(data, device = NTS1_MKII) {
+  const resolved = resolveDevice(device);
   return (
     data.length >= 6 &&
     data[0] === 0xf0 &&
@@ -109,23 +148,26 @@ export function isNts1Mk2Exclusive(data) {
     (data[2] & 0xf0) === 0x30 &&
     data[3] === 0x00 &&
     data[4] === 0x01 &&
-    data[5] === FAMILY_LSB
+    data[5] === resolved.familyLsb
   );
 }
 
+export function isNts1Mk2Exclusive(data) {
+  return isDeviceExclusive(data, NTS1_MKII);
+}
+
 function identityFamilyOffset(data) {
-  if (
-    data.length >= 15 &&
-    data[5] === 0x00 &&
-    data[6] === 0x00 &&
-    data[7] === KORG_ID &&
-    data[8] === FAMILY_LSB &&
-    data[9] === FAMILY_MSB
-  ) {
-    return 8;
+  const candidates = [];
+  if (data.length >= 15 && data[5] === 0x00 && data[6] === 0x00 && data[7] === KORG_ID) {
+    candidates.push(8);
   }
-  if (data.length >= 13 && data[5] === KORG_ID && data[6] === FAMILY_LSB && data[7] === FAMILY_MSB) {
-    return 6;
+  if (data.length >= 13 && data[5] === KORG_ID) {
+    candidates.push(6);
+  }
+  for (const familyOffset of candidates) {
+    if (deviceFromFamily(data[familyOffset], data[familyOffset + 1])) {
+      return familyOffset;
+    }
   }
   return -1;
 }
@@ -151,20 +193,23 @@ export function parseIdentityReply(data) {
   if (modelOffset + 3 >= data.length) {
     return null;
   }
+  const device = deviceFromFamily(data[familyOffset], data[familyOffset + 1]);
   const modelNumber = data[modelOffset] | (data[modelOffset + 1] << 8);
   const softwareVersion = data[modelOffset + 2] | (data[modelOffset + 3] << 8);
   return {
     manufacturer: "KORG",
-    family: "NTS-1 digital kit mkII",
+    family: device.family,
+    deviceId: device.id,
+    shortLabel: device.shortLabel,
     modelNumber,
     softwareVersion,
-    label: `NTS-1 mkII · model ${modelNumber} · v${softwareVersion >> 8}.${softwareVersion & 0xff}`,
+    label: `${device.shortLabel} · model ${modelNumber} · v${softwareVersion >> 8}.${softwareVersion & 0xff}`,
     raw: data,
   };
 }
 
-export function buildSysex(channel, commandId, payload = []) {
-  return Uint8Array.from([0xf0, ...exclusiveHeader(channel), commandId, ...payload, 0xf7]);
+export function buildSysex(channel, commandId, payload = [], device = NTS1_MKII) {
+  return Uint8Array.from([0xf0, ...exclusiveHeader(channel, device), commandId, ...payload, 0xf7]);
 }
 
 export function wrapUnitFile(unitBytes) {
@@ -184,7 +229,7 @@ export function wrapUnitFile(unitBytes) {
   return wrapped;
 }
 
-export function buildUserSlotDataPackets(unitBytes, { module = "osc", slot = 0, channel = 1 } = {}) {
+export function buildUserSlotDataPackets(unitBytes, { module = "osc", slot = 0, channel = 1, device = NTS1_MKII } = {}) {
   const moduleId = MODULE_IDS[module];
   if (moduleId === undefined) {
     throw new Error(`Unknown module "${module}"`);
@@ -203,7 +248,7 @@ export function buildUserSlotDataPackets(unitBytes, { module = "osc", slot = 0, 
     const chunkEnd = Math.min(chunkStart + MAX_HOST_DATA_SIZE, programData.length);
     const chunk = programData.subarray(chunkStart, chunkEnd);
     const payload = [moduleId, slot, sequenceNum, sequenceMax, ...hostToMidi(chunk)];
-    const message = buildSysex(channel, USER_SLOT_DATA, payload);
+    const message = buildSysex(channel, USER_SLOT_DATA, payload, device);
     if (message.length > MAX_MSG_SIZE) {
       throw new Error(`SysEx packet ${sequenceNum} is ${message.length} bytes (max ${MAX_MSG_SIZE})`);
     }
@@ -214,7 +259,12 @@ export function buildUserSlotDataPackets(unitBytes, { module = "osc", slot = 0, 
 }
 
 function commandIdFrom(data) {
-  return isNts1Mk2Exclusive(data) ? data[6] : null;
+  for (const device of Object.values(DEVICES)) {
+    if (isDeviceExclusive(data, device)) {
+      return data[6];
+    }
+  }
+  return null;
 }
 
 export function describeStatus(data) {
@@ -232,7 +282,7 @@ function waitForSysex(input, predicate, timeoutMs) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       input.removeEventListener("midimessage", onMessage);
-      reject(new Error("Timed out waiting for NTS-1 mkII SysEx reply"));
+      reject(new Error("Timed out waiting for SysEx reply"));
     }, timeoutMs);
 
     function onMessage(event) {
@@ -318,10 +368,12 @@ export function parseSlotStatusReply(data) {
   }
 
   const headerBytes = midiToHost(payload.slice(3));
-  const nameStart = UNIT_HEADER_NAME_OFFSET;
-  const nameEnd = nameStart + UNIT_NAME_SIZE;
-  const name =
-    headerBytes.length >= nameEnd ? decodeUnitName(headerBytes.slice(nameStart, nameEnd)) : "";
+  const elfName =
+    headerBytes.length >= UNIT_HEADER_NAME_OFFSET + UNIT_NAME_SIZE
+      ? decodeUnitName(headerBytes.slice(UNIT_HEADER_NAME_OFFSET, UNIT_HEADER_NAME_OFFSET + UNIT_NAME_SIZE))
+      : "";
+  const tableName = headerBytes.length >= 32 ? decodeUnitName(headerBytes.slice(18, 32)) : "";
+  const name = elfName || tableName;
   const headerSize = headerBytes.length >= 4 ? readUint32LE(headerBytes, 0) : 0;
   return {
     module,
@@ -333,12 +385,12 @@ export function parseSlotStatusReply(data) {
   };
 }
 
-export async function readSlotStatus(output, input, { module = "osc", slot = 0, channel = 1, timeoutMs = 2000 } = {}) {
+export async function readSlotStatus(output, input, { module = "osc", slot = 0, channel = 1, timeoutMs = 2000, device = NTS1_MKII } = {}) {
   const moduleId = MODULE_IDS[module];
   if (moduleId === undefined) {
     throw new Error(`Unknown module "${module}"`);
   }
-  const request = buildSysex(channel, USER_SLOT_STATUS_REQUEST, [moduleId, slot]);
+  const request = buildSysex(channel, USER_SLOT_STATUS_REQUEST, [moduleId, slot], device);
   const pending = waitForSysex(
     input,
     (data) => {
@@ -354,11 +406,11 @@ export async function readSlotStatus(output, input, { module = "osc", slot = 0, 
   return parseSlotStatusReply(await pending);
 }
 
-export async function readModuleSlots(output, input, { module = "osc", channel = 1, timeoutMs = 800 } = {}) {
+export async function readModuleSlots(output, input, { module = "osc", channel = 1, timeoutMs = 800, device = NTS1_MKII } = {}) {
   const slotCount = MODULE_SLOTS[module] || 0;
   const slots = [];
   for (let slotIndex = 0; slotIndex < slotCount; slotIndex++) {
-    slots.push(await readSlotStatus(output, input, { module, slot: slotIndex, channel, timeoutMs }));
+    slots.push(await readSlotStatus(output, input, { module, slot: slotIndex, channel, timeoutMs, device }));
   }
   return slots;
 }
@@ -369,10 +421,12 @@ export async function installUnit(output, input, unitBytes, options = {}) {
     slot = 0,
     channel = 1,
     timeoutMs = 8000,
+    device = NTS1_MKII,
     onProgress = () => {},
   } = options;
+  const resolved = resolveDevice(device);
 
-  const packets = buildUserSlotDataPackets(unitBytes, { module, slot, channel });
+  const packets = buildUserSlotDataPackets(unitBytes, { module, slot, channel, device: resolved });
   onProgress({ phase: "start", packetIndex: 0, packetCount: packets.length });
 
   for (let packetIndex = 0; packetIndex < packets.length; packetIndex++) {
@@ -391,7 +445,7 @@ export async function installUnit(output, input, unitBytes, options = {}) {
       status,
     });
     if (!status.ok) {
-      throw new Error(`NTS-1 mkII rejected packet ${packetIndex + 1}/${packets.length}: ${status.message}`);
+      throw new Error(`${resolved.shortLabel} rejected packet ${packetIndex + 1}/${packets.length}: ${status.message}`);
     }
   }
 
@@ -400,7 +454,11 @@ export async function installUnit(output, input, unitBytes, options = {}) {
 }
 
 export function looksLikeNts1Name(name) {
-  return /nts-?1/i.test(name || "");
+  return NTS1_MKII.portPattern.test(name || "");
+}
+
+export function looksLikeDevicePort(name, device = NTS1_MKII) {
+  return resolveDevice(device).portPattern.test(name || "");
 }
 
 export function listMidiPorts(ports) {
@@ -417,14 +475,14 @@ export function portLabel(port) {
   return port.name || port.id || "Unknown MIDI port";
 }
 
-export function pickPreferredPort(ports) {
+export function pickPreferredPort(ports, device = NTS1_MKII) {
   const listed = listMidiPorts(ports);
-  const ntsPorts = listed.filter((port) => looksLikeNts1Name(port.name));
-  if (ntsPorts.length >= 2) {
-    return ntsPorts[ntsPorts.length - 1];
+  const matched = listed.filter((port) => looksLikeDevicePort(port.name, device));
+  if (matched.length >= 2) {
+    return matched[matched.length - 1];
   }
-  if (ntsPorts.length === 1) {
-    return ntsPorts[0];
+  if (matched.length === 1) {
+    return matched[0];
   }
   return listed[0] || null;
 }

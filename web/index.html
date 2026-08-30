@@ -15,7 +15,7 @@
   <header class="mast">
     <p class="kicker">logue SDK</p>
     <h1>Plugins</h1>
-    <p class="lede">Send to NTS-1 mkII over USB, or download the unit.</p>
+    <p class="lede">Send to NTS-1 mkII or NTS-3 over USB, or download the unit.</p>
     <p class="notice">Under construction. Still being tested.</p>
   </header>
 
@@ -32,7 +32,7 @@
     <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="send-modal-title">
       <header class="modal__header">
         <div>
-          <p class="kicker">Send to NTS-1 mkII</p>
+          <p class="kicker" id="send-modal-kicker">Send to NTS-1 mkII</p>
           <h2 id="send-modal-title">Plugin</h2>
         </div>
         <button type="button" class="modal__close" data-close-modal aria-label="Close">×</button>
@@ -63,7 +63,7 @@
             <select id="slot"></select>
           </label>
         </div>
-        <p class="hint">If two NTS-1 ports appear, use the last one.</p>
+        <p class="hint" id="midi-hint">If two NTS-1 ports appear, use the last one.</p>
 
         <div class="modal__actions">
           <button type="button" class="button button-secondary" data-close-modal>Cancel</button>
