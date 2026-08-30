@@ -2,7 +2,7 @@
 # Configuration for Makefile
 #
 
-PROJECT := acid303
+PROJECT := kaocid
 PROJECT_TYPE := genericfx
 
 ##############################################################################

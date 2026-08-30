@@ -2,7 +2,7 @@
     BSD 3-Clause License
 
     Copyright (c) 2023, KORG INC.
-    Copyright (c) 2026, Acid303 contributors
+    Copyright (c) 2026, kaocid contributors
     All rights reserved.
 
     Redistribution and use in source and binary forms, with or without
@@ -35,7 +35,7 @@
 /*
  * File: header.c
  *
- * NTS-3 generic effect unit header for Acid303
+ * NTS-3 generic effect unit header for kaocid
  *
  */
 
@@ -48,27 +48,27 @@ const __unit_header genericfx_unit_header_t unit_header = {
         .api = UNIT_API_VERSION,
         .dev_id = 0x0U,
         .unit_id = 0x0000000AU,
-        .version = 0x00020000U,
-        .name = "Acid303",
-        .num_params = 4,
+        .version = 0x00030000U,
+        .name = "kaocid",
+        .num_params = 8,
         .params = {
             {0, 1023, 0, 512, k_unit_param_type_none, 0, 0, 0, {"CUT"}},
             {0, 1023, 0, 512, k_unit_param_type_none, 0, 0, 0, {"RES"}},
             {0, 1000, 0, 1000, k_unit_param_type_percent, 1, 1, 0, {"MIX"}},
-            {24, 48, 36, 36, k_unit_param_type_midi_note, 0, 0, 0, {"ROOT"}},
-            {0, 0, 0, 0, k_unit_param_type_none, 0, 0, 0, {""}},
-            {0, 0, 0, 0, k_unit_param_type_none, 0, 0, 0, {""}},
-            {0, 0, 0, 0, k_unit_param_type_none, 0, 0, 0, {""}},
-            {0, 0, 0, 0, k_unit_param_type_none, 0, 0, 0, {""}}},
+            {0, 1, 0, 0, k_unit_param_type_strings, 0, 0, 0, {"WAVE"}},
+            {0, 1023, 0, 614, k_unit_param_type_none, 0, 0, 0, {"ENV"}},
+            {0, 1023, 0, 410, k_unit_param_type_none, 0, 0, 0, {"DEC"}},
+            {0, 1023, 0, 563, k_unit_param_type_none, 0, 0, 0, {"ACC"}},
+            {24, 48, 36, 36, k_unit_param_type_midi_note, 0, 0, 0, {"ROOT"}}},
     },
     .default_mappings = {
         {k_genericfx_param_assign_x, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1023, 512},
         {k_genericfx_param_assign_y, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1023, 512},
         {k_genericfx_param_assign_depth, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1000, 1000},
+        {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1, 0},
+        {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1023, 614},
+        {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1023, 410},
+        {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1023, 563},
         {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 24, 48, 36},
-        {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 0, 0},
-        {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 0, 0},
-        {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 0, 0},
-        {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 0, 0},
     },
 };
