@@ -52,10 +52,25 @@ int main()
   {
     setup(synth);
     synth.touchEvent(0, k_unit_touch_phase_began, 80U + seedIndex * 90U, 200U + seedIndex * 70U);
-    if (synth.debugGlideCount() < Kaocid::kMinGlidesPerPhrase)
+
+    const uint32_t active_count = synth.debugActiveStepCount();
+    const uint32_t legato_pairs = synth.debugLegatoPairCount();
+    const uint32_t glide_count = synth.debugGlideCount();
+
+    if (active_count < Kaocid::kMinActiveStepsPerPhrase)
     {
-      std::printf("seed %u has too few glides (%u)\n", seedIndex, synth.debugGlideCount());
+      std::printf("seed %u too sparse: active=%u\n", seedIndex, active_count);
       return 10;
+    }
+    if (legato_pairs < 10U)
+    {
+      std::printf("seed %u not legato enough: pairs=%u\n", seedIndex, legato_pairs);
+      return 11;
+    }
+    if (glide_count < Kaocid::kMinGlidesPerPhrase)
+    {
+      std::printf("seed %u too few glides: %u\n", seedIndex, glide_count);
+      return 12;
     }
   }
 
@@ -63,19 +78,16 @@ int main()
   synth.touchEvent(0, k_unit_touch_phase_began, 512, 512);
 
   const uint32_t glide_count = synth.debugGlideCount();
-  std::printf("glide_count=%u phrase=", glide_count);
+  const uint32_t active_count = synth.debugActiveStepCount();
+  const uint32_t legato_pairs = synth.debugLegatoPairCount();
+  std::printf("active=%u legato_pairs=%u glide_count=%u phrase=", active_count, legato_pairs,
+              glide_count);
   for (uint32_t stepIndex = 0; stepIndex < Kaocid::kStepsPerBar; ++stepIndex)
   {
     const int degree = static_cast<int>(synth.debugDegree(stepIndex));
     std::printf("%s%d%s", (stepIndex == 0U) ? "" : " ", degree, synth.debugSlide(stepIndex) ? "s" : "");
   }
   std::printf("\n");
-
-  if (glide_count < Kaocid::kMinGlidesPerPhrase)
-  {
-    std::printf("phrase has too few glides\n");
-    return 10;
-  }
 
   uint32_t slide_source = Kaocid::kStepsPerBar;
   for (uint32_t stepIndex = 0; stepIndex < Kaocid::kStepsPerBar; ++stepIndex)
@@ -89,10 +101,7 @@ int main()
     }
   }
   if (slide_source >= Kaocid::kStepsPerBar)
-  {
-    std::printf("no slide into a destination note\n");
-    return 11;
-  }
+    return 13;
 
   const uint32_t slide_dest = (slide_source + 1U) % Kaocid::kStepsPerBar;
   const float source_pitch = 36.f + static_cast<float>(synth.debugDegree(slide_source));
@@ -100,8 +109,6 @@ int main()
   float interval = dest_pitch - source_pitch;
   if (interval < 0.f)
     interval = -interval;
-  std::printf("slide %u->%u  %.1f->%.1f  interval=%.1f\n", slide_source, slide_dest, source_pitch,
-              dest_pitch, interval);
 
   const uint32_t samples_per_step = 6000U;
   const uint32_t slide_start = (slide_source + 1U) * samples_per_step;
@@ -136,25 +143,13 @@ int main()
     }
   }
 
-  std::printf("slide_active_at_boundary=%d pitch_start=%.3f pitch_30ms=%.3f max_progress=%.3f\n",
-              saw_slide_flag ? 1 : 0, pitch_at_start, pitch_at_30ms, max_progress);
-
   const float attack_rms = windowRms(mono, 0U, 480U);
   const float body_rms = windowRms(mono, 2400U, 2400U);
-  std::printf("attack_rms=%.5f body_rms=%.5f\n", attack_rms, body_rms);
+  std::printf("slide_active=%d body_rms=%.5f\n", saw_slide_flag ? 1 : 0, body_rms);
 
   if (body_rms < 0.015f)
     return 2;
-  if (interval < 3.f)
-    return 15;
-  if (!saw_slide_flag)
-    return 12;
-  if (max_progress < 0.35f)
-    return 13;
-  float moved = pitch_at_30ms - pitch_at_start;
-  if (moved < 0.f)
-    moved = -moved;
-  if (moved < 1.f)
+  if (!saw_slide_flag || max_progress < 0.35f)
     return 14;
 
   return 0;

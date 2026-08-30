@@ -5,7 +5,7 @@
  *
  * TB-303 style monophonic acid bass with automatic 16-step phrase generator
  * for NTS-3 kaoss pad. Hold the pad to run the sequencer; each new touch
- * regenerates a random acid pattern with guaranteed pitch glides. X = cutoff,
+ * regenerates a legato acid line (long tied runs, short rests, pitch glides). X = cutoff,
  * Y = resonance, Depth = mix. ROOT sets the phrase key.
  *
  * Panel knobs follow the TB-303: waveform, cutoff, resonance, env mod, decay,
@@ -31,6 +31,8 @@ public:
   static constexpr uint32_t kFilterEnvRecalcInterval = 64U;
   static constexpr float kOutputGain = 0.45f;
   static constexpr uint32_t kMinGlidesPerPhrase = 3U;
+  static constexpr uint32_t kMinActiveStepsPerPhrase = 13U;
+  static constexpr uint32_t kMaxRestGapSteps = 2U;
   static constexpr float kAccentVcaRange = 0.7f;
   static constexpr float kAccentCutoffRange = 0.42f;
   static constexpr float kSlideTauSec = 100000.f * 0.00000022f;
@@ -241,6 +243,27 @@ public:
   }
   int8_t debugDegree(uint32_t step_index) const { return phrase_[step_index].degree; }
   bool debugSlide(uint32_t step_index) const { return phrase_[step_index].slide; }
+  uint32_t debugActiveStepCount() const
+  {
+    uint32_t active_count = 0U;
+    for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
+    {
+      if (phrase_[stepIndex].degree >= 0)
+        ++active_count;
+    }
+    return active_count;
+  }
+  uint32_t debugLegatoPairCount() const
+  {
+    uint32_t legato_count = 0U;
+    for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
+    {
+      const uint32_t next_index = (stepIndex + 1U) % kStepsPerBar;
+      if (phrase_[stepIndex].degree >= 0 && phrase_[next_index].degree >= 0)
+        ++legato_count;
+    }
+    return legato_count;
+  }
 #endif
 
 private:
@@ -267,9 +290,20 @@ private:
     return static_cast<float>(nextRandom(state) >> 8) * (1.f / 16777216.f);
   }
 
-  static bool euclideanGate(uint32_t stepIndex, uint32_t pulses, uint32_t steps)
+  static int8_t clampDegree(int8_t degree)
   {
-    return ((stepIndex * pulses) % steps) < pulses;
+    if (degree < 0)
+      return 0;
+    if (degree > 17)
+      return 17;
+    return degree;
+  }
+
+  static int8_t pickWalkDegree(int8_t current_degree, uint32_t &rng)
+  {
+    static const int8_t kWalkDeltas[] = {-5, -3, -2, -1, 1, 2, 3, 5};
+    static constexpr uint32_t kWalkCount = sizeof(kWalkDeltas) / sizeof(kWalkDeltas[0]);
+    return clampDegree(static_cast<int8_t>(current_degree + kWalkDeltas[nextRandom(rng) % kWalkCount]));
   }
 
   static float clipRange(float value, float min_value, float max_value)
@@ -357,7 +391,22 @@ private:
     static const int8_t kScaleDegrees[] = {0, 3, 5, 7, 10, 12, 15, 17};
     static constexpr uint32_t kScaleLength = sizeof(kScaleDegrees) / sizeof(kScaleDegrees[0]);
 
-    const uint32_t pulse_count = 7U + (nextRandom(rng) % 4U);
+    bool active[kStepsPerBar];
+    for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
+      active[stepIndex] = true;
+
+    const uint32_t gap_length = 1U + (nextRandom(rng) & 1U);
+    uint32_t gap_start = 12U + (nextRandom(rng) % 3U);
+    if (gap_start + gap_length > kStepsPerBar)
+      gap_start = kStepsPerBar - gap_length;
+
+    for (uint32_t gapOffset = 0; gapOffset < gap_length; ++gapOffset)
+      active[gap_start + gapOffset] = false;
+
+    active[0] = true;
+
+    int8_t current_degree = kScaleDegrees[nextRandom(rng) % kScaleLength];
+    bool after_rest = true;
 
     for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
     {
@@ -366,21 +415,29 @@ private:
       step.slide = false;
       step.degree = -1;
 
-      if (!euclideanGate(stepIndex, pulse_count, kStepsPerBar))
+      if (!active[stepIndex])
+      {
+        after_rest = true;
         continue;
+      }
 
-      const uint32_t degree_index = nextRandom(rng) % kScaleLength;
-      step.degree = kScaleDegrees[degree_index];
+      if (after_rest)
+        current_degree = kScaleDegrees[nextRandom(rng) % kScaleLength];
+      else if (randomFloat(rng) < 0.78f)
+        current_degree = pickWalkDegree(current_degree, rng);
+      else
+        current_degree = kScaleDegrees[nextRandom(rng) % kScaleLength];
 
-      if ((stepIndex % 4U) == 0U || randomFloat(rng) > 0.62f)
+      step.degree = current_degree;
+      after_rest = false;
+
+      if ((stepIndex % 4U) == 0U)
+        step.accent = true;
+      else if (randomFloat(rng) > 0.78f)
         step.accent = true;
     }
 
-    if (phrase_[0].degree < 0)
-    {
-      phrase_[0].degree = 0;
-      phrase_[0].accent = true;
-    }
+    phrase_[0].accent = true;
 
     uint32_t glide_count = 0U;
     for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
@@ -389,7 +446,18 @@ private:
       if (phrase_[stepIndex].degree < 0 || phrase_[next_index].degree < 0)
         continue;
 
-      if (randomFloat(rng) < 0.42f)
+      int32_t interval = phrase_[next_index].degree - phrase_[stepIndex].degree;
+      if (interval < 0)
+        interval = -interval;
+
+      if (interval >= 5)
+      {
+        phrase_[stepIndex].slide = true;
+        ++glide_count;
+        continue;
+      }
+
+      if (randomFloat(rng) < 0.55f)
         continue;
 
       applyGlideLeap(stepIndex, next_index, rng);
@@ -405,22 +473,22 @@ private:
 
       const uint32_t next_index = (search_index + 1U) % kStepsPerBar;
       if (phrase_[next_index].degree < 0)
-        phrase_[next_index].degree = 12;
+        phrase_[next_index].degree = clampDegree(static_cast<int8_t>(phrase_[search_index].degree + 7));
 
       applyGlideLeap(search_index, next_index, rng);
       phrase_[search_index].slide = true;
       ++glide_count;
     }
 
-    for (uint32_t force_index = 0; glide_count < kMinGlidesPerPhrase && force_index < kStepsPerBar;
-         force_index += 4U)
+    for (uint32_t force_index = 2; glide_count < kMinGlidesPerPhrase && force_index < kStepsPerBar;
+         force_index += 3U)
     {
       if (phrase_[force_index].degree < 0)
-        phrase_[force_index].degree = 0;
+        continue;
 
       const uint32_t next_index = (force_index + 1U) % kStepsPerBar;
       if (phrase_[next_index].degree < 0)
-        phrase_[next_index].degree = 12;
+        phrase_[next_index].degree = clampDegree(static_cast<int8_t>(phrase_[force_index].degree + 12));
 
       if (phrase_[force_index].slide)
         continue;
@@ -451,7 +519,7 @@ private:
       if (dest_degree < 0 || dest_degree > 17)
         dest_degree = (source_degree <= 5) ? static_cast<int8_t>(source_degree + 12)
                                            : static_cast<int8_t>(source_degree - 12);
-      phrase_[dest_index].degree = dest_degree;
+      phrase_[dest_index].degree = clampDegree(dest_degree);
     }
   }
 
@@ -461,6 +529,8 @@ private:
     const uint32_t prev_index = (step_index + kStepsPerBar - 1U) % kStepsPerBar;
     const bool arriving_via_slide = allow_slide_in && phrase_[prev_index].slide &&
                                     phrase_[prev_index].degree >= 0;
+    const bool arriving_legato = allow_slide_in && !arriving_via_slide &&
+                                 phrase_[prev_index].degree >= 0 && vco_phase_inc_ > 0.f;
 
     if (step.degree < 0)
     {
@@ -479,6 +549,14 @@ private:
     if (arriving_via_slide && vco_phase_inc_ > 0.f)
     {
       slide_active_ = true;
+      return;
+    }
+
+    if (arriving_legato)
+    {
+      slide_active_ = false;
+      vco_pitch_ = vco_pitch_target_;
+      vco_phase_inc_ = noteToPhaseInc(vco_pitch_);
       return;
     }
 
