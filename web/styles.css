@@ -237,6 +237,32 @@ body.modal-open {
   color: var(--ink);
 }
 
+.preview-shell--hosted {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.preview-iframe {
+  display: block;
+  width: 100%;
+  min-height: 360px;
+  height: 100%;
+  border: none;
+  background: var(--surface);
+}
+
+.preview-frame {
+  margin: 0;
+  min-height: 100%;
+  padding: clamp(16px, 2.5vw, 24px);
+  background: var(--surface);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
 .preview-status {
   margin: auto;
   font-size: 0.78rem;
@@ -302,45 +328,46 @@ body.modal-open {
   padding: 8px 0 4px;
 }
 
-.preview-keyboard-wrap .qwerty-hancock {
-  margin: 0 auto;
+.preview-keyboard-shell {
+  width: 100%;
+  padding: 16px 12px 12px;
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(180deg, #161616 0%, #101010 100%);
 }
 
-.preview-keyboard-wrap .qwerty-hancock .white-key,
-.preview-keyboard-wrap .qwerty-hancock .black-key {
-  border-radius: 0 0 2px 2px;
-}
-
-.preview-xypad-wrap {
+.preview-keyboard-wrap--mk2 {
   display: flex;
-  align-items: stretch;
-  gap: 16px;
+  justify-content: center;
+}
+
+.preview-keyboard-wrap--mk2 #preview-keyboard {
+  display: inline-block;
+  padding: 10px 12px 8px;
+  border: 1px solid #2a2a2a;
+  border-radius: 4px;
+  background: #0a0a0a;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.preview-keyboard-wrap--mk2 .white-key,
+.preview-keyboard-wrap--mk2 li.white-key {
+  border: 1px solid #bbb6aa !important;
+  border-radius: 0 0 3px 3px !important;
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.12) !important;
+}
+
+.preview-keyboard-wrap--mk2 .black-key,
+.preview-keyboard-wrap--mk2 li.black-key {
+  border: 1px solid #000 !important;
+  border-radius: 0 0 2px 2px !important;
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.08) !important;
+}
+
+.preview-xypad-shell {
+  display: flex;
   justify-content: center;
   width: 100%;
-}
-
-.preview-depth {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
-.preview-depth input[type="range"] {
-  writing-mode: vertical-lr;
-  direction: rtl;
-  width: 4px;
-  height: 220px;
-  accent-color: var(--accent);
-  background: var(--knob-track);
-}
-
-.preview-depth span {
-  font-size: 0.6rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--muted);
+  padding: 8px 0;
 }
 
 .preview-xypad {

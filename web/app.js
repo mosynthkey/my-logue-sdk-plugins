@@ -47,6 +47,12 @@ let selectedTargetByPlugin = new Map();
 let catalog = null;
 const unitCache = new Map();
 const slotStatuses = new Map();
+let previewMountChain = Promise.resolve();
+
+function enqueuePreviewMount(task) {
+  previewMountChain = previewMountChain.then(task).catch(() => {});
+  return previewMountChain;
+}
 
 const LOAD_HINT = {
   osc: "Select OSC.",
@@ -471,7 +477,7 @@ async function selectTarget(pluginId, target) {
   renderSendActions(plugin, target);
 
   const build = buildForTarget(plugin, target);
-  await mountPreview(build, plugin);
+  await enqueuePreviewMount(() => mountPreview(build, plugin));
 }
 
 async function selectPlugin(pluginId) {
@@ -497,7 +503,7 @@ async function selectPlugin(pluginId) {
   renderSendActions(plugin, target);
 
   const build = buildForTarget(plugin, target);
-  await mountPreview(build, plugin);
+  await enqueuePreviewMount(() => mountPreview(build, plugin));
 }
 
 async function fetchUnit(plugin, target) {

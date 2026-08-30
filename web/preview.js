@@ -3,9 +3,11 @@ const KNOB_ARC_START = 225;
 const KNOB_ARC_SWEEP = 270;
 const KNOB_CENTER = 24;
 const KNOB_RADIUS = 19;
+const PREVIEW_TIMEOUT_MS = 20000;
+
+const SELF_CONTAINED_TYPES = new Set(["osc", "fm", "synth", "drum", "loopkey"]);
 
 let knobIdCounter = 0;
-
 let activeScript = null;
 let audioContext = null;
 let keyboard = null;
@@ -13,6 +15,10 @@ let frequencyStack = [];
 let latchEnabled = false;
 let xyPadHold = false;
 let lastXYPadEvent = { clientX: 0, clientY: 0 };
+let previewGeneration = 0;
+let dryInputNodes = [];
+let activePreviewIframe = null;
+let parentMountToken = 0;
 
 function approximatelyEqual(a, b, epsilon = 1e-4) {
   return Math.abs(a - b) < epsilon;
@@ -27,8 +33,15 @@ function wasmBaseUrl(wasmHref) {
   return jsUrl.slice(0, jsUrl.lastIndexOf("/") + 1);
 }
 
-function previewMode(build) {
-  return build.target === "nts-3_kaoss" ? "xypad" : "osc";
+function previewLayout(build) {
+  if (build.target === "nts-3_kaoss") {
+    return "xypad";
+  }
+  return "keyboard";
+}
+
+function usesDryInput(plugin, build) {
+  return build.target === "nts-3_kaoss" && !SELF_CONTAINED_TYPES.has(plugin.type);
 }
 
 function loadScript(url) {
@@ -50,6 +63,20 @@ function removeActiveScript() {
   }
 }
 
+function stopDryInputNodes() {
+  for (const node of dryInputNodes) {
+    try {
+      if (typeof node.stop === "function") {
+        node.stop();
+      }
+      node.disconnect();
+    } catch {
+      // Ignore teardown errors.
+    }
+  }
+  dryInputNodes = [];
+}
+
 function ensureAudioRunning(toggleButton) {
   if (!audioContext) {
     return;
@@ -59,6 +86,7 @@ function ensureAudioRunning(toggleButton) {
   }
   if (toggleButton) {
     toggleButton.textContent = "Suspend audio";
+    toggleButton.classList.add("is-on");
   }
 }
 
@@ -79,6 +107,7 @@ function createToolbar() {
     } else {
       audioContext.suspend();
       audioButton.textContent = "Start audio";
+      audioButton.classList.remove("is-on");
     }
   });
 
@@ -258,7 +287,7 @@ function createKnob(param, index, wasmProcessor) {
     dial.releasePointerCapture(event.pointerId);
   });
 
-  return { element: wrap, setValue, param };
+  return { element: wrap, setValue, param, index };
 }
 
 function mountPlaceholderKnobs(container, plugin) {
@@ -277,44 +306,32 @@ function mountPlaceholderKnobs(container, plugin) {
   }
 }
 
-function mountOscInstrument(container, context, envelope) {
-  container.innerHTML = "";
-  const { toolbar, audioButton } = createToolbar();
-
-  const latchButton = document.createElement("button");
-  latchButton.type = "button";
-  latchButton.className = "preview-chip";
-  latchButton.textContent = "Latch Off";
-  latchButton.addEventListener("click", () => {
-    latchEnabled = !latchEnabled;
-    latchButton.textContent = `Latch ${latchEnabled ? "On" : "Off"}`;
-    if (!latchEnabled && frequencyStack.length === 0) {
-      envelope.gain.cancelAndHoldAtTime(context.currentTime);
-      envelope.gain.linearRampToValueAtTime(0.0, context.currentTime + AHREnvelopeTime);
-    }
-  });
-
-  toolbar.append(latchButton);
+function mountMk2Keyboard(container, context, envelope, audioButton) {
+  const keyboardShell = document.createElement("div");
+  keyboardShell.className = "preview-keyboard-shell";
 
   const keyboardWrap = document.createElement("div");
-  keyboardWrap.className = "preview-keyboard-wrap";
+  keyboardWrap.className = "preview-keyboard-wrap preview-keyboard-wrap--mk2";
   const keyboardHost = document.createElement("div");
   keyboardHost.id = "preview-keyboard";
   keyboardWrap.append(keyboardHost);
-
-  container.append(toolbar, keyboardWrap);
+  keyboardShell.append(keyboardWrap);
+  container.append(keyboardShell);
 
   let currentOctave = 3;
+  const keyboardWidth = Math.min(520, container.clientWidth - 32 || 520);
   keyboard = new QwertyHancock({
     id: "preview-keyboard",
-    width: Math.min(640, container.clientWidth - 16 || 640),
-    height: 120,
-    octaves: currentOctave,
+    width: keyboardWidth,
+    height: 96,
+    octaves: 2,
     startNote: "C3",
-    whiteNotesColour: "#d4d4d4",
-    blackNotesColour: "#1a1a1a",
+    whiteNotesColour: "#ddd9ce",
+    blackNotesColour: "#141414",
     hoverColour: "#b6b2a1",
+    activeColour: "#b6b2a1",
   });
+  keyboard.setKeyOctave(currentOctave);
 
   keyboard.keyDown = (note, frequency) => {
     ensureAudioRunning(audioButton);
@@ -359,38 +376,49 @@ function mountOscInstrument(container, context, envelope) {
   };
 }
 
-function mountXypadInstrument(container, context) {
+function mountOscInstrument(container, context, envelope) {
   container.innerHTML = "";
   const { toolbar, audioButton } = createToolbar();
+
+  const latchButton = document.createElement("button");
+  latchButton.type = "button";
+  latchButton.className = "preview-chip";
+  latchButton.textContent = "Latch Off";
+  latchButton.addEventListener("click", () => {
+    latchEnabled = !latchEnabled;
+    latchButton.textContent = `Latch ${latchEnabled ? "On" : "Off"}`;
+    latchButton.classList.toggle("is-on", latchEnabled);
+    if (!latchEnabled && frequencyStack.length === 0) {
+      envelope.gain.cancelAndHoldAtTime(context.currentTime);
+      envelope.gain.linearRampToValueAtTime(0.0, context.currentTime + AHREnvelopeTime);
+    }
+  });
+
+  toolbar.append(latchButton);
+  container.append(toolbar);
+  mountMk2Keyboard(container, context, envelope, audioButton);
+}
+
+function mountXypadInstrument(container) {
+  container.innerHTML = "";
+  const { toolbar } = createToolbar();
 
   const holdButton = document.createElement("button");
   holdButton.type = "button";
   holdButton.className = "preview-chip";
   holdButton.textContent = "Hold Off";
 
-  const padWrap = document.createElement("div");
-  padWrap.className = "preview-xypad-wrap";
-
-  const depthWrap = document.createElement("div");
-  depthWrap.className = "preview-depth";
-  const depthLabel = document.createElement("span");
-  depthLabel.textContent = "Depth";
-  const depthSlider = document.createElement("input");
-  depthSlider.type = "range";
-  depthSlider.min = "0";
-  depthSlider.max = "1";
-  depthSlider.step = "0.0001";
-  depthSlider.value = "0.5";
-  depthWrap.append(depthLabel, depthSlider);
+  const padShell = document.createElement("div");
+  padShell.className = "preview-xypad-shell";
 
   const canvas = document.createElement("canvas");
   canvas.className = "preview-xypad";
   canvas.width = 360;
   canvas.height = 240;
 
-  padWrap.append(depthWrap, canvas);
+  padShell.append(canvas);
   toolbar.append(holdButton);
-  container.append(toolbar, padWrap);
+  container.append(toolbar, padShell);
 
   const padCtx = canvas.getContext("2d");
   drawXypadGrid(padCtx, canvas.width, canvas.height);
@@ -398,6 +426,7 @@ function mountXypadInstrument(container, context) {
   holdButton.addEventListener("click", () => {
     xyPadHold = !xyPadHold;
     holdButton.textContent = `Hold ${xyPadHold ? "On" : "Off"}`;
+    holdButton.classList.toggle("is-on", xyPadHold);
     if (!xyPadHold) {
       updateXYPad(lastXYPadEvent, Module.TouchEvent.Ended);
     }
@@ -406,8 +435,10 @@ function mountXypadInstrument(container, context) {
   function updateXYPad(event, phase) {
     lastXYPadEvent = event;
     const rect = canvas.getBoundingClientRect();
-    const x = Math.min(Math.max(event.clientX - rect.left, 0), canvas.width);
-    const y = Math.min(Math.max(event.clientY - rect.top, 0), canvas.height);
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = Math.min(Math.max((event.clientX - rect.left) * scaleX, 0), canvas.width);
+    const y = Math.min(Math.max((event.clientY - rect.top) * scaleY, 0), canvas.height);
 
     Module.touchEvent(phase, x / canvas.width, y / canvas.height);
 
@@ -426,7 +457,7 @@ function mountXypadInstrument(container, context) {
 
   canvas.addEventListener("pointerdown", (event) => {
     canvas.setPointerCapture(event.pointerId);
-    ensureAudioRunning(audioButton);
+    ensureAudioRunning(container.querySelector(".preview-chip"));
     updateXYPad(event, Module.TouchEvent.Began);
   });
 
@@ -443,11 +474,35 @@ function mountXypadInstrument(container, context) {
       updateXYPad(event, Module.TouchEvent.Ended);
     }
   });
+}
 
-  container._depthSlider = depthSlider;
+function connectWasmProcessor(context, wasmProcessor, plugin, build) {
+  stopDryInputNodes();
+
+  if (usesDryInput(plugin, build)) {
+    const dryGain = new GainNode(context, { gain: 0.2 });
+    const oscillator = new OscillatorNode(context, { frequency: 220, type: "sawtooth" });
+    oscillator.connect(dryGain).connect(wasmProcessor);
+    oscillator.start();
+    dryInputNodes.push(oscillator, dryGain);
+    return;
+  }
+
+  if (build.target === "nts-3_kaoss") {
+    const silentGain = new GainNode(context, { gain: 0 });
+    const silentSource = new ConstantSourceNode(context, { offset: 0 });
+    silentSource.connect(silentGain).connect(wasmProcessor);
+    silentSource.start();
+    dryInputNodes.push(silentSource, silentGain);
+  }
 }
 
 function wireKnobMappings(knobs, mappings) {
+  const canvas = document.querySelector(".preview-xypad");
+  if (!canvas) {
+    return;
+  }
+
   for (let paramIndex = 0; paramIndex < knobs.length; paramIndex += 1) {
     const mapping = mappings.get(paramIndex);
     const knob = knobs[paramIndex];
@@ -458,87 +513,64 @@ function wireKnobMappings(knobs, mappings) {
     knob.setValue(mapping.init);
 
     if (mapping.assign === Module.ParamAssign.X) {
-      const canvas = document.querySelector(".preview-xypad");
-      if (!canvas) {
-        continue;
-      }
       const handler = (event) => {
         if (event.buttons !== 1 && event.type !== "pointerdown") {
           return;
         }
         const rect = canvas.getBoundingClientRect();
-        const xNormalized = Math.min(Math.max(event.clientX - rect.left, 0), canvas.width) / canvas.width;
+        const xNormalized = Math.min(Math.max(event.clientX - rect.left, 0), rect.width) / rect.width;
         const curved = Module.applyCurveToParameter0to1(xNormalized, mapping.curve, mapping.unipolar);
         knob.setValue(curved * (knob.param.max - knob.param.min) + knob.param.min);
       };
       canvas.addEventListener("pointermove", handler);
       canvas.addEventListener("pointerdown", handler);
     } else if (mapping.assign === Module.ParamAssign.Y) {
-      const canvas = document.querySelector(".preview-xypad");
-      if (!canvas) {
-        continue;
-      }
       const handler = (event) => {
         if (event.buttons !== 1 && event.type !== "pointerdown") {
           return;
         }
         const rect = canvas.getBoundingClientRect();
-        const yNormalized = 1.0 - Math.min(Math.max(event.clientY - rect.top, 0), canvas.height) / canvas.height;
+        const yNormalized = 1.0 - Math.min(Math.max(event.clientY - rect.top, 0), rect.height) / rect.height;
         const curved = Module.applyCurveToParameter0to1(yNormalized, mapping.curve, mapping.unipolar);
         knob.setValue(curved * (knob.param.max - knob.param.min) + knob.param.min);
       };
       canvas.addEventListener("pointermove", handler);
       canvas.addEventListener("pointerdown", handler);
-    } else if (mapping.assign === Module.ParamAssign.Depth) {
-      const instrument = document.getElementById("preview-instrument");
-      const depthSlider = instrument?._depthSlider;
-      if (!depthSlider) {
-        continue;
-      }
-      depthSlider.addEventListener("input", () => {
-        const curved = Module.applyCurveToParameter0to1(depthSlider.value, mapping.curve, mapping.unipolar);
-        knob.setValue(curved * (knob.param.max - knob.param.min) + knob.param.min);
-      });
     }
   }
 }
 
-function buildSetupHandler(mode, knobsContainer) {
+function buildSetupHandler(layout, knobsContainer, plugin, build, generation) {
   return function setupWebAudioAndUI(context, wasmProcessor) {
+    if (generation !== previewGeneration) {
+      return;
+    }
+
     audioContext = context;
     const volume = new GainNode(context, { gain: 0.35 });
-    const analyser = new AnalyserNode(context, { fftSize: 2048 });
 
     const instrumentEl = document.getElementById("preview-instrument");
     const statusEl = document.getElementById("preview-status");
     statusEl.hidden = true;
     instrumentEl.hidden = false;
 
-    let envelope = null;
-    let mixGain = null;
-
-    if (mode === "osc") {
-      envelope = new GainNode(context, { gain: 0.0 });
+    if (layout === "keyboard") {
+      const envelope = new GainNode(context, { gain: 0.0 });
       wasmProcessor.connect(envelope).connect(volume);
       mountOscInstrument(instrumentEl, context, envelope);
     } else {
-      envelope = new GainNode(context, { gain: 1.0 });
-      mixGain = new GainNode(context, { gain: 1.0 });
-      const oscillator = new OscillatorNode(context, { frequency: 440.0 });
-      oscillator.connect(envelope).connect(mixGain);
-      mixGain.connect(wasmProcessor).connect(volume);
-      oscillator.start();
-      mountXypadInstrument(instrumentEl, context);
+      connectWasmProcessor(context, wasmProcessor, plugin, build);
+      mountXypadInstrument(instrumentEl);
+      wasmProcessor.connect(volume);
     }
 
-    volume.connect(analyser);
     volume.connect(context.destination);
 
     knobsContainer.innerHTML = "";
     knobsContainer.hidden = false;
 
     const parameters = Module.getValidParameters();
-    const mappings = mode === "xypad" ? Module.getDefaultMapping() : null;
+    const mappings = layout === "xypad" ? Module.getDefaultMapping() : null;
     const knobs = [];
 
     for (let paramIndex = 0; paramIndex < parameters.size(); paramIndex += 1) {
@@ -563,8 +595,36 @@ export function pickPreviewBuild(plugin) {
   );
 }
 
-export async function mountPreview(build, plugin) {
-  await teardownPreview();
+function waitForPreviewReady(generation) {
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      reject(new Error("Preview timed out. Run scripts/sync-web-preview.sh after make wasm-ci."));
+    }, PREVIEW_TIMEOUT_MS);
+
+    const handler = (context, wasmProcessor) => {
+      if (generation !== previewGeneration) {
+        return;
+      }
+      window.clearTimeout(timeout);
+      resolve({ context, wasmProcessor });
+    };
+
+    window.setupWebAudioAndUI = handler;
+    globalThis.setupWebAudioAndUI = handler;
+  });
+}
+
+function restorePreviewShellMarkup(shell) {
+  shell.classList.remove("preview-shell--hosted");
+  shell.innerHTML = `
+    <p id="preview-status" class="preview-status">Select a plugin to preview.</p>
+    <div id="preview-instrument" class="preview-instrument" hidden></div>
+    <div id="preview-knobs" class="preview-knobs" hidden></div>
+  `;
+}
+
+export async function runPreviewHost(build, plugin) {
+  const generation = ++previewGeneration;
 
   const statusEl = document.getElementById("preview-status");
   const instrumentEl = document.getElementById("preview-instrument");
@@ -584,33 +644,97 @@ export async function mountPreview(build, plugin) {
     return;
   }
 
-  const mode = previewMode(build);
+  const layout = previewLayout(build);
   const baseUrl = wasmBaseUrl(build.wasm);
-  const jsUrl = wasmJsUrl(build.wasm);
+  const jsUrl = `${wasmJsUrl(build.wasm)}?v=${Date.now()}`;
 
-  window.setupWebAudioAndUI = buildSetupHandler(mode, knobsEl);
-  window.Module = {
+  const moduleConfig = {
     locateFile: (path) => baseUrl + path,
+    mainScriptUrlOrBlob: jsUrl,
+    printErr: (message) => console.error("[preview wasm]", message),
   };
+  window.Module = moduleConfig;
+  globalThis.Module = moduleConfig;
 
   try {
+    const readyPromise = waitForPreviewReady(generation);
     await loadScript(jsUrl);
+    const { context, wasmProcessor } = await readyPromise;
+    buildSetupHandler(layout, knobsEl, plugin, build, generation)(context, wasmProcessor);
   } catch (error) {
+    if (generation !== previewGeneration) {
+      return;
+    }
     statusEl.hidden = false;
     statusEl.textContent = error.message;
     instrumentEl.hidden = true;
   }
 }
 
+export async function mountPreview(build, plugin) {
+  await teardownPreview();
+  const mountToken = ++parentMountToken;
+
+  const shell = document.getElementById("preview-shell");
+  if (!shell) {
+    return;
+  }
+
+  if (!build?.wasm) {
+    restorePreviewShellMarkup(shell);
+    const statusEl = document.getElementById("preview-status");
+    statusEl.textContent = "No WebAssembly preview for this plugin yet.";
+    return;
+  }
+
+  shell.classList.add("preview-shell--hosted");
+  shell.innerHTML = "";
+
+  const iframe = document.createElement("iframe");
+  iframe.className = "preview-iframe";
+  iframe.title = "Plugin preview";
+  shell.append(iframe);
+  activePreviewIframe = iframe;
+
+  const params = new URLSearchParams({
+    build: JSON.stringify(build),
+    plugin: JSON.stringify(plugin),
+  });
+
+  await new Promise((resolve, reject) => {
+    iframe.addEventListener("load", resolve, { once: true });
+    iframe.addEventListener("error", reject, { once: true });
+    iframe.src = `./preview-frame.html?${params.toString()}`;
+  });
+
+  if (mountToken !== parentMountToken) {
+    return;
+  }
+}
+
 export async function teardownPreview() {
+  parentMountToken += 1;
+  previewGeneration += 1;
+
+  if (activePreviewIframe) {
+    activePreviewIframe.remove();
+    activePreviewIframe = null;
+  }
+
+  const shell = document.getElementById("preview-shell");
+  if (shell?.classList.contains("preview-shell--hosted")) {
+    restorePreviewShellMarkup(shell);
+  }
+
   removeActiveScript();
   delete window.setupWebAudioAndUI;
-  delete window.Module;
+  delete globalThis.setupWebAudioAndUI;
 
   frequencyStack = [];
   latchEnabled = false;
   xyPadHold = false;
   keyboard = null;
+  stopDryInputNodes();
 
   const instrumentEl = document.getElementById("preview-instrument");
   if (instrumentEl?._cleanup) {
@@ -626,4 +750,6 @@ export async function teardownPreview() {
     }
   }
   audioContext = null;
+  delete window.Module;
+  delete globalThis.Module;
 }

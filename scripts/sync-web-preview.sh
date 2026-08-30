@@ -2,14 +2,10 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DEST="${1:-"$ROOT/site"}"
+DEST="$ROOT/web"
 
-rm -rf "$DEST"
-mkdir -p "$DEST/units" "$DEST/sim" "$DEST/vendor"
-
-cp "$ROOT/web/index.html" "$ROOT/web/styles.css" "$ROOT/web/app.js" "$ROOT/web/preview.js" "$ROOT/web/preview-frame.html" "$ROOT/web/nts1-midi.js" "$DEST/"
-cp "$ROOT/web/vendor/coi-serviceworker.js" "$ROOT/web/vendor/qwerty-hancock.js" "$DEST/vendor/"
-cp "$ROOT/web/vendor/coi-serviceworker.js" "$DEST/"
+mkdir -p "$DEST/units" "$DEST/sim"
+cp "$ROOT/web/vendor/coi-serviceworker.js" "$DEST/coi-serviceworker.js"
 
 python3 - "$ROOT" "$DEST" <<'PY'
 import json
@@ -42,7 +38,7 @@ for plugin_json in sorted((root / "plugins").glob("*/plugin.json")):
             continue
         unit_files = [path for path in target_dir.iterdir() if path.suffix in UNIT_SUFFIXES]
         if not unit_files:
-            raise SystemExit(f"Missing unit file in {target_dir}")
+            continue
         unit_path = unit_files[0]
         dest_name = f"{plugin_dir.name}-{target_dir.name}{unit_path.suffix}"
         (dest / "units" / dest_name).write_bytes(unit_path.read_bytes())
@@ -58,26 +54,23 @@ for plugin_json in sorted((root / "plugins").glob("*/plugin.json")):
 
         wasm_href = None
         sim_src = target_dir / "sim"
-        if sim_src.is_dir():
+        if sim_src.is_dir() and any(sim_src.glob("*.js")):
             sim_dest = dest / "sim" / plugin_dir.name / target_dir.name
+            if sim_dest.exists():
+                shutil.rmtree(sim_dest)
             sim_dest.mkdir(parents=True, exist_ok=True)
             for child in sim_src.iterdir():
                 target = sim_dest / child.name
                 if child.is_file():
                     target.write_bytes(child.read_bytes())
                 elif child.is_dir():
-                    shutil.copytree(child, target, dirs_exist_ok=True)
+                    shutil.copytree(child, target)
             (sim_dest / "coi-serviceworker.js").write_bytes(
                 (root / "web/vendor/coi-serviceworker.js").read_bytes()
             )
             html_files = list(sim_dest.glob("*.html"))
             if html_files:
-                html = html_files[0]
-                text = html.read_text()
-                snippet = '<script src="./coi-serviceworker.js"></script>\n'
-                if "coi-serviceworker" not in text:
-                    html.write_text(text.replace("<head>", "<head>\n  " + snippet, 1))
-                wasm_href = f"./sim/{plugin_dir.name}/{target_dir.name}/{html.name}"
+                wasm_href = f"./sim/{plugin_dir.name}/{target_dir.name}/{html_files[0].name}"
 
         builds.append(
             {
@@ -89,10 +82,10 @@ for plugin_json in sorted((root / "plugins").glob("*/plugin.json")):
             }
         )
 
-    plugins.append({**meta, "builds": builds})
+    if builds:
+        plugins.append({**meta, "builds": builds})
 
 catalog = {"generatedAt": datetime.now(timezone.utc).isoformat(), "plugins": plugins}
 (dest / "catalog.json").write_text(json.dumps(catalog, indent=2) + "\n")
-(dest / ".nojekyll").write_text("")
-print(f"Assembled {len(plugins)} plugin(s) into {dest}")
+print(f"Synced preview assets for {len(plugins)} plugin(s) into {dest}")
 PY
