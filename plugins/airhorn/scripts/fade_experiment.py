@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
-"""Simulate AirHorn voice decay curves and render comparison WAVs."""
+"""Simulate AirHorn voice decay curves, render comparison WAVs, and score the loop wrap.
+
+The voice model here mirrors dsp/airhorn_engine.h. Keep the two in step: the
+engine reads the loop with a plain wrapping interpolation because the wrap
+crossfade is baked into the embedded PCM by embed_pcm.py, so nothing in this
+file should crossfade at playback time either.
+"""
 
 from __future__ import annotations
 
+import cmath
 import math
 import re
 import struct
@@ -13,7 +20,6 @@ from pathlib import Path
 HOST_RATE = 48000
 EMBED_RATE = 24000
 BASE_RATE = EMBED_RATE / HOST_RATE
-LOOP_CROSSFADE = 96.0
 PITCH_SETTLED = 0.025
 OUTPUT_DIR = Path(__file__).resolve().parent / "fade_experiment_out"
 
@@ -70,20 +76,6 @@ def clamp_index(index: int, length: int) -> int:
     return index
 
 
-def linear_sample(pcm: list[int], horn: Horn, position: float) -> float:
-    index = int(position)
-    frac = position - index
-    if horn.looping:
-        sample_index0 = wrap_index(index, horn.length)
-        sample_index1 = wrap_index(index + 1, horn.length)
-    else:
-        sample_index0 = clamp_index(index, horn.length)
-        sample_index1 = clamp_index(index + 1, horn.length)
-    y0 = pcm_to_float(pcm[horn.offset + sample_index0])
-    y1 = pcm_to_float(pcm[horn.offset + sample_index1])
-    return y0 + frac * (y1 - y0)
-
-
 def hermite(y0: float, y1: float, y2: float, y3: float, frac: float) -> float:
     c1 = 0.5 * (y2 - y0)
     c2 = y0 - 2.5 * y1 + 2.0 * y2 - 0.5 * y3
@@ -91,48 +83,15 @@ def hermite(y0: float, y1: float, y2: float, y3: float, frac: float) -> float:
     return ((c3 * frac + c2) * frac + c1) * frac + y1
 
 
-def sample_at(pcm: list[int], horn: Horn, position: float, sustain_phase: bool) -> float:
-    if sustain_phase:
-        return linear_sample(pcm, horn, position)
-
+def sample_at(pcm: list[int], horn: Horn, position: float) -> float:
     index = int(position)
     frac = position - index
     if horn.looping:
-        i0 = wrap_index(index - 1, horn.length)
-        i1 = wrap_index(index, horn.length)
-        i2 = wrap_index(index + 1, horn.length)
-        i3 = wrap_index(index + 2, horn.length)
+        taps = [wrap_index(index + offset, horn.length) for offset in (-1, 0, 1, 2)]
     else:
-        i0 = clamp_index(index - 1, horn.length)
-        i1 = clamp_index(index, horn.length)
-        i2 = clamp_index(index + 1, horn.length)
-        i3 = clamp_index(index + 2, horn.length)
-
+        taps = [clamp_index(index + offset, horn.length) for offset in (-1, 0, 1, 2)]
     base = horn.offset
-    return hermite(
-        pcm_to_float(pcm[base + i0]),
-        pcm_to_float(pcm[base + i1]),
-        pcm_to_float(pcm[base + i2]),
-        pcm_to_float(pcm[base + i3]),
-        frac,
-    )
-
-
-def loop_sample_with_crossfade(
-    pcm: list[int], horn: Horn, position: float, sustain_phase: bool
-) -> float:
-    loop_length = float(horn.length)
-    output = sample_at(pcm, horn, position, sustain_phase)
-    if not horn.looping or LOOP_CROSSFADE <= 1.0:
-        return output
-
-    dist_to_end = loop_length - position
-    if dist_to_end <= 0.0 or dist_to_end >= LOOP_CROSSFADE:
-        return output
-
-    blend = 1.0 - dist_to_end / LOOP_CROSSFADE
-    wrapped = sample_at(pcm, horn, position - loop_length, sustain_phase)
-    return output * (1.0 - blend) + wrapped * blend
+    return hermite(*(pcm_to_float(pcm[base + tap]) for tap in taps), frac)
 
 
 def pitch_settled(horn: Horn, pitch_ratio: float) -> bool:
@@ -143,31 +102,22 @@ def exp_coeff(tau_seconds: float) -> float:
     return math.exp(-1.0 / (tau_seconds * HOST_RATE))
 
 
-def seam_jump_rms(pcm: list[int], horn: Horn) -> float:
-    if not horn.looping:
-        return 0.0
-    start = linear_sample(pcm, horn, 0.0)
-    end = linear_sample(pcm, horn, float(horn.length - 1))
-    return abs(start - end)
-
-
 @dataclass(frozen=True)
 class DecayProfile:
     name: str
     hold_after_settle: float
     tau_while_fading: float
     lpf_coeff: float
-    crossfade_scale: float
     min_hold_seconds: float
 
 
 PROFILES = [
-    DecayProfile("A_flat_sustain", 999.0, 0.0, 0.42, 1.0, 0.4),
-    DecayProfile("B_slow_3s", 0.25, 3.0, 0.42, 1.0, 0.0),
-    DecayProfile("C_medium_2s", 0.25, 2.0, 0.42, 1.25, 0.0),
-    DecayProfile("D_fast_1_2s", 0.20, 1.2, 0.50, 1.5, 0.0),
-    DecayProfile("E_two_stage", 0.35, 2.5, 0.45, 1.25, 0.0),
-    DecayProfile("F_natural_1_8s", 0.25, 1.8, 0.48, 1.35, 0.0),
+    DecayProfile("A_flat_sustain", 999.0, 0.0, 0.48, 0.4),
+    DecayProfile("B_slow_3s", 0.25, 3.0, 0.48, 0.0),
+    DecayProfile("C_medium_2s", 0.25, 2.0, 0.48, 0.0),
+    DecayProfile("D_fast_1_2s", 0.20, 1.2, 0.50, 0.0),
+    DecayProfile("E_two_stage", 0.35, 2.5, 0.45, 0.0),
+    DecayProfile("F_natural_1_8s", 0.25, 1.8, 0.48, 0.0),
 ]
 
 
@@ -176,7 +126,7 @@ def render_voice(
     horn: Horn,
     duration_seconds: float,
     profile: DecayProfile,
-) -> list[float]:
+) -> tuple[list[float], list[int]]:
     attack_inc = 1.0 / (HOST_RATE * 0.004)
     min_amp = 0.0005
     min_hold = int(profile.min_hold_seconds * HOST_RATE)
@@ -185,6 +135,7 @@ def render_voice(
 
     total_frames = int(duration_seconds * HOST_RATE)
     output: list[float] = []
+    wraps: list[int] = []
     pos = 0.0
     amp = 0.0
     pitch_ratio = horn.start_ratio
@@ -194,15 +145,11 @@ def render_voice(
     releasing = False
     fading = False
     gated = True
-    crossfade = LOOP_CROSSFADE * profile.crossfade_scale
 
-    for _ in range(total_frames):
+    for frame_index in range(total_frames):
         age += 1
         settled = pitch_settled(horn, pitch_ratio)
-        if settled:
-            settled_age += 1
-        else:
-            settled_age = 0
+        settled_age = settled_age + 1 if settled else 0
 
         if settled and settled_age >= hold_after_settle:
             fading = True
@@ -210,13 +157,10 @@ def render_voice(
         if fading:
             amp *= exp_coeff(profile.tau_while_fading) if profile.tau_while_fading > 0.0 else 1.0
         elif not releasing:
-            amp += attack_inc
-            if amp > 1.0:
-                amp = 1.0
+            amp = min(1.0, amp + attack_inc)
 
         if not gated and not releasing and horn.looping and age >= min_hold:
             releasing = True
-
         if releasing:
             amp *= release_coeff
 
@@ -224,19 +168,8 @@ def render_voice(
             output.extend([0.0] * (total_frames - len(output)))
             break
 
-        sustain_phase = settled
-        sample = loop_sample_with_crossfade(pcm, horn, pos, sustain_phase)
-
-        if horn.looping and crossfade > 1.0:
-            loop_length = float(horn.length)
-            dist_to_end = loop_length - pos
-            if 0.0 < dist_to_end < crossfade:
-                blend = 1.0 - dist_to_end / crossfade
-                wrapped = sample_at(pcm, horn, pos - loop_length, sustain_phase)
-                sample = sample * (1.0 - blend) + wrapped * blend
-
-        frame = sample * amp
-        if settled or profile.lpf_coeff > 0.0:
+        frame = sample_at(pcm, horn, pos) * amp
+        if settled:
             sustain_lpf += profile.lpf_coeff * (frame - sustain_lpf)
             frame = sustain_lpf
         else:
@@ -246,9 +179,9 @@ def render_voice(
 
         pos += BASE_RATE * pitch_ratio
         if horn.looping:
-            loop_length = float(horn.length)
-            while pos >= loop_length:
-                pos -= loop_length
+            while pos >= float(horn.length):
+                pos -= float(horn.length)
+                wraps.append(frame_index)
         elif pos >= float(horn.length - 2):
             pos = float(horn.length - 2)
             releasing = True
@@ -258,7 +191,7 @@ def render_voice(
 
     while len(output) < total_frames:
         output.append(0.0)
-    return output
+    return output, wraps
 
 
 def write_wav(path: Path, samples: list[float]) -> None:
@@ -285,27 +218,100 @@ def envelope_stats(samples: list[float], window: int = 480) -> dict[str, float]:
         chunk = samples[start : start + window]
         peaks.append(max(abs(sample) for sample in chunk))
     if not peaks:
-        return {"peak": 0.0, "tail_db": -120.0}
+        return {"peak": 0.0, "tail_db": -120.0, "duration_active_s": 0.0}
 
     peak = max(peaks)
-    tail = peaks[-1] if peaks else 0.0
+    tail = peaks[-1]
     tail_db = 20.0 * math.log10(max(tail, 1e-9) / max(peak, 1e-9))
     return {"peak": peak, "tail_db": tail_db, "duration_active_s": len(peaks) * window / HOST_RATE}
 
 
-def loop_wrap_click(samples: list[float], horn: Horn, embed_rate: int = EMBED_RATE) -> float:
-    if not horn.looping:
+def fft(values: list[complex]) -> list[complex]:
+    """Iterative radix-2 FFT; `values` length must be a power of two."""
+    size = len(values)
+    data = list(values)
+    bit = 0
+    while (1 << bit) < size:
+        bit += 1
+    for index in range(size):
+        mirrored = int(f"{index:0{bit}b}"[::-1], 2)
+        if mirrored > index:
+            data[index], data[mirrored] = data[mirrored], data[index]
+
+    span = 2
+    while span <= size:
+        step = cmath.exp(-2j * math.pi / span)
+        for block in range(0, size, span):
+            twiddle = 1 + 0j
+            for offset in range(span // 2):
+                even = data[block + offset]
+                odd = data[block + offset + span // 2] * twiddle
+                data[block + offset] = even + odd
+                data[block + offset + span // 2] = even - odd
+                twiddle *= step
+        span *= 2
+    return data
+
+
+def spectral_flux(samples: list[float], size: int = 512, hop: int = 128,
+                  min_hz: float = 500.0) -> tuple[list[float], int]:
+    """Positive spectral flux per frame: the standard onset/click detector.
+
+    A loop seam makes many harmonics step at once, which a per-bin sum of positive
+    magnitude changes picks up far better than a broadband envelope does.
+    """
+    window = [0.5 - 0.5 * math.cos(2.0 * math.pi * index / size) for index in range(size)]
+    first_bin = max(1, int(min_hz * size / HOST_RATE))
+    flux: list[float] = []
+    previous: list[float] | None = None
+    for start in range(0, len(samples) - size, hop):
+        spectrum = fft([samples[start + index] * window[index] for index in range(size)])
+        magnitude = [abs(spectrum[bin_index]) for bin_index in range(first_bin, size // 2 + 1)]
+        if previous is None:
+            flux.append(0.0)
+        else:
+            flux.append(sum(max(now - was, 0.0) for now, was in zip(magnitude, previous)))
+        previous = magnitude
+    return flux, hop
+
+
+def wrap_click_db(samples: list[float], wraps: list[int]) -> float:
+    """How far the loop wrap sticks out of the tone's own spectral movement.
+
+    The peak spectral flux inside each wrap window is compared against the 99th
+    percentile of the same measurement over windows that contain no wrap, so 0 dB
+    means the wrap is indistinguishable from ordinary signal movement. The loop
+    this replaced measured about +3 dB, which is what was heard as a click.
+    """
+    if not wraps:
         return 0.0
-    loop_host = int(horn.length / BASE_RATE)
-    if loop_host <= 0 or loop_host >= len(samples):
+    flux, hop = spectral_flux(samples)
+    if len(flux) < 8:
         return 0.0
-    clicks: list[float] = []
-    wrap_index = loop_host
-    while wrap_index < len(samples):
-        delta = samples[wrap_index] - samples[wrap_index - 1]
-        clicks.append(abs(delta))
-        wrap_index += loop_host
-    return max(clicks) if clicks else 0.0
+
+    guard = max(1, int(0.003 * HOST_RATE) // hop)
+    span = max(2, int(0.011 * HOST_RATE) // hop)
+    blocked = [False] * len(flux)
+    wrap_peaks: list[float] = []
+    for wrap in wraps:
+        frame = wrap // hop
+        low, high = max(0, frame - guard), min(len(flux), frame + span)
+        if high > low:
+            wrap_peaks.append(max(flux[low:high]))
+        for index in range(max(0, frame - 3 * guard), min(len(flux), frame + 3 * span)):
+            blocked[index] = True
+
+    clean_peaks = [
+        max(flux[start : start + span])
+        for start in range(1, len(flux) - span, span)
+        if not any(blocked[start : start + span])
+    ]
+    if not wrap_peaks or not clean_peaks:
+        return 0.0
+    clean_peaks.sort()
+    reference = clean_peaks[int(len(clean_peaks) * 0.99)]
+    average_wrap = sum(wrap_peaks) / len(wrap_peaks)
+    return 20.0 * math.log10(max(average_wrap, 1e-12) / max(reference, 1e-12))
 
 
 def main() -> int:
@@ -313,34 +319,30 @@ def main() -> int:
     pcm_path = repo_root / "plugins/airhorn/dsp/airhorn_pcm.h"
     pcm, horns = parse_pcm_header(pcm_path)
 
-    print("Loop seam jump (linear, no crossfade):")
-    for horn_index, horn in enumerate(horns):
-        print(f"  horn {horn_index}: {seam_jump_rms(pcm, horn):.5f}")
-
     duration = 4.0
-    summary: list[tuple[str, int, dict[str, float]]] = []
+    summary: list[tuple[str, int, dict[str, float], float]] = []
 
     for profile in PROFILES:
         for horn_index, horn in enumerate(horns):
             if not horn.looping:
                 continue
-            rendered = render_voice(pcm, horn, duration, profile)
+            rendered, wraps = render_voice(pcm, horn, duration, profile)
             stats = envelope_stats(rendered)
-            click = loop_wrap_click(rendered, horn)
+            click = wrap_click_db(rendered, wraps)
             out_path = OUTPUT_DIR / f"{profile.name}_horn{horn_index}.wav"
             write_wav(out_path, rendered)
             summary.append((profile.name, horn_index, stats, click))
             print(
                 f"{profile.name} horn{horn_index}: peak={stats['peak']:.3f} "
                 f"tail={stats['tail_db']:.1f} dB active={stats['duration_active_s']:.2f}s "
-                f"wrap_click={click:.5f} -> {out_path.name}"
+                f"wrap_click={click:+.2f} dB over {len(wraps)} wraps -> {out_path.name}"
             )
 
     print("\nRecommendation heuristic (loop horns, prefer smooth tail ~ -36 to -48 dB at 4s):")
     scored: list[tuple[float, str, int]] = []
     for name, horn_index, stats, click in summary:
         target_tail = -42.0
-        score = abs(stats["tail_db"] - target_tail) + click * 120.0
+        score = abs(stats["tail_db"] - target_tail) + max(click, 0.0) * 4.0
         scored.append((score, name, horn_index))
     scored.sort()
     for score, name, horn_index in scored[:5]:
