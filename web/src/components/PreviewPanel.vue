@@ -5,7 +5,6 @@ import PreviewKeyboard from "./preview/PreviewKeyboard.vue";
 import PreviewKnob from "./preview/PreviewKnob.vue";
 import PreviewXyPad from "./preview/PreviewXyPad.vue";
 import { useWasmPreview } from "../preview/useWasmPreview.js";
-import { getModule } from "../preview/wasm.js";
 
 const props = defineProps({
   build: {
@@ -38,7 +37,9 @@ const {
   onKeyboardDown,
   onKeyboardUp,
   onLatchToggle,
-  onTouchEvent,
+  onTouchBegan,
+  onTouchMoved,
+  onTouchEnded,
   onHoldToggle,
   startPreviewFromTap,
 } = useWasmPreview();
@@ -59,29 +60,16 @@ function onKnobUpdate(knobIndex, nextValue) {
   setKnobValue(knobIndex, nextValue, !knobs.value[knobIndex]?.placeholder);
 }
 
-function touchPhase(name) {
-  return getModule()?.TouchEvent?.[name];
-}
-
 function onXyPointerDown(position) {
-  const began = touchPhase("Began");
-  if (began !== undefined) {
-    onTouchEvent(began, position.xNormalized, position.yNormalized);
-  }
+  onTouchBegan(position.xNormalized, position.yNormalized);
 }
 
 function onXyPointerMove(position) {
-  const moved = touchPhase("Moved");
-  if (moved !== undefined) {
-    onTouchEvent(moved, position.xNormalized, position.yNormalized);
-  }
+  onTouchMoved(position.xNormalized, position.yNormalized);
 }
 
 function onXyPointerUp(position) {
-  const ended = touchPhase("Ended");
-  if (ended !== undefined) {
-    onTouchEvent(ended, position.xNormalized, position.yNormalized);
-  }
+  onTouchEnded(position.xNormalized, position.yNormalized);
 }
 
 function handleHoldToggle() {

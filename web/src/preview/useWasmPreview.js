@@ -1,26 +1,9 @@
 import { computed, ref, shallowRef } from "vue";
 import { unlockAudioSessionSync } from "../composables/useAudioSession.js";
 import { previewDebugLog } from "../composables/usePreviewDebugLog.js";
-import { AHREnvelopeTime } from "./constants.js";
-import {
-  connectWasmProcessor,
-  ensureAudioRunning,
-  stopDryInputNodes,
-} from "./audio.js";
-import { previewLayout } from "./layout.js";
-import {
-  clearWasmGlobals,
-  configureWasmModule,
-  getModule,
-  loadWasmScript,
-  waitForWasmReady,
-} from "./wasm.js";
-import {
-  needsGestureForWasmStart,
-  resetWasmRuntimeState,
-  startWasmMainInGesture,
-  waitForWasmRuntime,
-} from "./wasm-runtime.js";
+import { previewLayout, usesDryInput } from "./layout.js";
+import { needsGestureForWasmStart } from "./gesture.js";
+import { PreviewSession } from "./PreviewSession.js";
 
 function approximatelyEqual(a, b, epsilon = 1e-4) {
   return Math.abs(a - b) < epsilon;
@@ -38,53 +21,6 @@ function buildPlaceholderKnobs(plugin) {
   }));
 }
 
-function readWasmKnobs(wasmProcessor) {
-  const moduleRef = getModule();
-  const parameters = moduleRef.getValidParameters();
-  const knobs = [];
-  for (let paramIndex = 0; paramIndex < parameters.size(); paramIndex += 1) {
-    const param = parameters.get(paramIndex);
-    const value = param.init;
-    knobs.push({
-      name: param.name,
-      min: param.min,
-      max: param.max,
-      value,
-      index: paramIndex,
-      placeholder: false,
-      valueLabel: formatKnobValue(paramIndex, value),
-    });
-  }
-  return knobs;
-}
-
-function formatKnobValue(index, value) {
-  const moduleRef = getModule();
-  if (moduleRef?.getParameterValueString) {
-    return moduleRef.getParameterValueString(index, value);
-  }
-  return String(Math.round(value));
-}
-
-function readKnobMappings(knobCount) {
-  const mappings = getModule().getDefaultMapping();
-  const entries = [];
-  for (let paramIndex = 0; paramIndex < knobCount; paramIndex += 1) {
-    const mapping = mappings.get(paramIndex);
-    if (!mapping) {
-      continue;
-    }
-    entries.push({
-      paramIndex,
-      assign: mapping.assign,
-      curve: mapping.curve,
-      unipolar: mapping.unipolar,
-      init: mapping.init,
-    });
-  }
-  return entries;
-}
-
 export function useWasmPreview() {
   const phase = ref("idle");
   const message = ref("Select a plugin to preview.");
@@ -97,23 +33,31 @@ export function useWasmPreview() {
   const holdEnabled = ref(false);
 
   const previewGeneration = ref(0);
-  const audioContext = shallowRef(null);
-  const wasmProcessor = shallowRef(null);
-  const envelope = shallowRef(null);
   const knobMappings = shallowRef([]);
-
+  const paramAssign = shallowRef({ X: 1, Y: 2 });
   const frequencyStack = ref([]);
   const awaitingWasmTap = ref(false);
+
+  let session = null;
+  let pendingTapFinish = null;
 
   const isLoading = computed(() => phase.value === "loading");
   const isReady = computed(() => phase.value === "ready");
   const hasWasm = computed(() => phase.value !== "no-wasm");
+
+  function host() {
+    return session?.host ?? null;
+  }
 
   function resetPlaybackState() {
     frequencyStack.value = [];
     latchEnabled.value = false;
     holdEnabled.value = false;
     audioRunning.value = false;
+  }
+
+  function formatKnobValue(index, value) {
+    return host()?.formatKnobValue(index, value) ?? String(Math.round(value));
   }
 
   function setKnobValue(knobIndex, nextValue, dispatch = true) {
@@ -124,60 +68,68 @@ export function useWasmPreview() {
     const clamped = Math.min(Math.max(nextValue, knob.min), knob.max);
     knob.value = clamped;
     knob.valueLabel = formatKnobValue(knob.index, clamped);
-    if (dispatch && wasmProcessor.value) {
-      const audioParameter = wasmProcessor.value.parameters.get(`${knob.index}`);
-      if (audioParameter) {
-        audioParameter.value = clamped;
-      }
+    if (dispatch) {
+      host()?.setParam(knob.index, clamped);
     }
   }
 
   function applyMappingValue(paramIndex, normalized, unipolar, curve) {
+    const runtime = host();
     const knobIndex = knobs.value.findIndex((knob) => knob.index === paramIndex);
-    if (knobIndex < 0) {
+    if (!runtime || knobIndex < 0) {
       return;
     }
     const knob = knobs.value[knobIndex];
-    const curved = getModule().applyCurveToParameter0to1(normalized, curve, unipolar);
+    const curved = runtime.applyCurve(normalized, curve, unipolar);
     setKnobValue(knobIndex, curved * (knob.max - knob.min) + knob.min);
   }
 
   function handleXyPosition(xNormalized, yNormalized) {
-    const moduleRef = getModule();
     for (const mapping of knobMappings.value) {
-      if (mapping.assign === moduleRef.ParamAssign.X) {
+      if (mapping.assign === paramAssign.value.X) {
         applyMappingValue(mapping.paramIndex, xNormalized, mapping.unipolar, mapping.curve);
-      } else if (mapping.assign === moduleRef.ParamAssign.Y) {
+      } else if (mapping.assign === paramAssign.value.Y) {
         applyMappingValue(mapping.paramIndex, yNormalized, mapping.unipolar, mapping.curve);
       }
     }
   }
 
+  function syncAudioRunning() {
+    audioRunning.value = host()?.audioState() === "running";
+  }
+
   function toggleAudio() {
-    if (!audioContext.value) {
+    const runtime = host();
+    if (!runtime) {
       return;
     }
-    if (audioContext.value.state !== "running") {
-      ensureAudioRunning(audioContext.value, audioRunning);
+    if (runtime.audioState() !== "running") {
+      runtime.resumeAudio();
+      audioRunning.value = true;
     } else {
-      audioContext.value.suspend();
+      runtime.suspendAudio();
       audioRunning.value = false;
     }
   }
 
   function onKeyboardDown(note, frequency) {
-    ensureAudioRunning(audioContext.value, audioRunning);
-    const moduleRef = getModule();
-    frequencyStack.value = [...frequencyStack.value, frequency];
-    moduleRef.setOscPitch(frequency);
-    moduleRef.noteOn(note, 100);
-    if (envelope.value) {
-      envelope.value.gain.cancelAndHoldAtTime(audioContext.value.currentTime);
-      envelope.value.gain.linearRampToValueAtTime(1.0, audioContext.value.currentTime + AHREnvelopeTime);
+    const runtime = host();
+    if (!runtime) {
+      return;
     }
+    runtime.resumeAudio();
+    audioRunning.value = true;
+    frequencyStack.value = [...frequencyStack.value, frequency];
+    runtime.setOscPitch(frequency);
+    runtime.noteOn(note, 100);
+    runtime.setGate(true);
   }
 
   function onKeyboardUp(note, frequency) {
+    const runtime = host();
+    if (!runtime) {
+      return;
+    }
     const nextStack = [...frequencyStack.value];
     for (let stackIndex = nextStack.length - 1; stackIndex >= 0; stackIndex -= 1) {
       if (approximatelyEqual(nextStack[stackIndex], frequency)) {
@@ -188,64 +140,57 @@ export function useWasmPreview() {
     frequencyStack.value = nextStack;
 
     if (nextStack.length > 0) {
-      getModule().setOscPitch(nextStack[nextStack.length - 1]);
-    } else if (!latchEnabled.value && envelope.value) {
-      envelope.value.gain.cancelAndHoldAtTime(audioContext.value.currentTime);
-      envelope.value.gain.linearRampToValueAtTime(0.0, audioContext.value.currentTime + AHREnvelopeTime);
+      runtime.setOscPitch(nextStack[nextStack.length - 1]);
+    } else if (!latchEnabled.value) {
+      runtime.setGate(false);
     }
 
-    getModule().noteOff(note);
+    runtime.noteOff(note);
   }
 
   function onLatchToggle() {
     latchEnabled.value = !latchEnabled.value;
-    if (!latchEnabled.value && frequencyStack.value.length === 0 && envelope.value && audioContext.value) {
-      envelope.value.gain.cancelAndHoldAtTime(audioContext.value.currentTime);
-      envelope.value.gain.linearRampToValueAtTime(0.0, audioContext.value.currentTime + AHREnvelopeTime);
+    if (!latchEnabled.value && frequencyStack.value.length === 0) {
+      host()?.setGate(false);
     }
   }
 
-  function onTouchEvent(phase, xNormalized, yNormalized) {
-    const moduleRef = getModule();
-    if (phase === moduleRef.TouchEvent?.Began) {
-      ensureAudioRunning(audioContext.value, audioRunning);
-    }
-    moduleRef.touchEvent(phase, xNormalized, yNormalized);
+  function onTouchBegan(xNormalized, yNormalized) {
+    host()?.touchBegan(xNormalized, yNormalized);
+    audioRunning.value = true;
+    handleXyPosition(xNormalized, yNormalized);
+  }
+
+  function onTouchMoved(xNormalized, yNormalized) {
+    host()?.touchMoved(xNormalized, yNormalized);
+    handleXyPosition(xNormalized, yNormalized);
+  }
+
+  function onTouchEnded(xNormalized, yNormalized) {
+    host()?.touchEnded(xNormalized, yNormalized);
     handleXyPosition(xNormalized, yNormalized);
   }
 
   function onHoldToggle(lastPointerEvent) {
     holdEnabled.value = !holdEnabled.value;
     if (!holdEnabled.value && lastPointerEvent) {
-      const moduleRef = getModule();
-      onTouchEvent(moduleRef.TouchEvent.Ended, lastPointerEvent.xNormalized, lastPointerEvent.yNormalized);
+      onTouchEnded(lastPointerEvent.xNormalized, lastPointerEvent.yNormalized);
     }
   }
 
   async function teardown() {
     previewGeneration.value += 1;
-    clearWasmGlobals();
-    resetWasmRuntimeState();
-    stopDryInputNodes();
+    pendingTapFinish = null;
+    awaitingWasmTap.value = false;
     resetPlaybackState();
-
-    if (audioContext.value && audioContext.value.state !== "closed") {
-      try {
-        await audioContext.value.close();
-      } catch {
-        // Ignore close errors during teardown.
-      }
-    }
-
-    audioContext.value = null;
-    wasmProcessor.value = null;
-    envelope.value = null;
-    knobMappings.value = [];
     showInstrument.value = false;
     showKnobs.value = false;
     knobs.value = [];
-    awaitingWasmTap.value = false;
-    delete window.__previewWasmTapFinish;
+    knobMappings.value = [];
+    if (session) {
+      await session.destroy();
+      session = null;
+    }
   }
 
   async function mount(build, plugin) {
@@ -270,19 +215,30 @@ export function useWasmPreview() {
     showInstrument.value = false;
 
     try {
-      const { jsUrl } = configureWasmModule(build);
-      const readyPromise = waitForWasmReady(generation, previewGeneration);
-      await loadWasmScript(jsUrl);
+      session = new PreviewSession();
+      await session.attach();
+      if (generation !== previewGeneration.value) {
+        return;
+      }
+      previewDebugLog("info", "Preview runtime attached", {
+        parentIsolated: window.crossOriginIsolated,
+        runtimeIsolated: session.iframe?.contentWindow?.crossOriginIsolated,
+      });
+
+      const deferMain = needsGestureForWasmStart();
+      const wasmHref = new URL(build.wasm, document.baseURI).href;
+      const { audioReady } = await session.host.configureAndLoad({
+        wasmHref,
+        layoutName: layout.value,
+        dryInput: usesDryInput(plugin, build),
+        target: build.target,
+        deferMain,
+      });
       if (generation !== previewGeneration.value) {
         return;
       }
 
-      await waitForWasmRuntime();
-      if (generation !== previewGeneration.value) {
-        return;
-      }
-
-      if (needsGestureForWasmStart()) {
+      if (deferMain) {
         awaitingWasmTap.value = true;
         phase.value = "gesture";
         message.value = window.crossOriginIsolated
@@ -290,12 +246,9 @@ export function useWasmPreview() {
           : "Tap to start preview (audio isolation unavailable on this browser)";
         previewDebugLog("info", "Waiting for single tap to unlock audio and start wasm");
         await new Promise((resolve) => {
-          window.__previewWasmTapFinish = () => {
-            awaitingWasmTap.value = false;
-            resolve();
-          };
+          pendingTapFinish = resolve;
         });
-        delete window.__previewWasmTapFinish;
+        pendingTapFinish = null;
         if (generation !== previewGeneration.value) {
           return;
         }
@@ -303,32 +256,19 @@ export function useWasmPreview() {
 
       phase.value = "loading";
       message.value = "Loading preview…";
-      const { context, wasmProcessor: processor } = await readyPromise;
+      await audioReady;
       if (generation !== previewGeneration.value) {
         return;
       }
 
-      audioContext.value = context;
-      wasmProcessor.value = processor;
-      const volume = context.createGain();
-      volume.gain.value = 0.35;
-
-      if (layout.value === "keyboard") {
-        const gainEnvelope = context.createGain();
-        gainEnvelope.gain.value = 0.0;
-        envelope.value = gainEnvelope;
-        processor.connect(gainEnvelope).connect(volume);
-      } else {
-        connectWasmProcessor(context, processor, plugin, build);
-        processor.connect(volume);
-      }
-
-      volume.connect(context.destination);
-      knobs.value = readWasmKnobs(processor);
+      const runtime = host();
+      knobs.value = runtime.readKnobs();
       showKnobs.value = knobs.value.length > 0;
 
       if (layout.value === "xypad") {
-        knobMappings.value = readKnobMappings(knobs.value.length);
+        const mappingData = runtime.readMappings(knobs.value.length);
+        knobMappings.value = mappingData.entries;
+        paramAssign.value = mappingData.paramAssign;
         for (const mapping of knobMappings.value) {
           const knobIndex = knobs.value.findIndex((knob) => knob.index === mapping.paramIndex);
           if (knobIndex >= 0) {
@@ -340,7 +280,9 @@ export function useWasmPreview() {
       showInstrument.value = true;
       phase.value = "ready";
       message.value = "";
-      ensureAudioRunning(context, audioRunning);
+      runtime.resumeAudio();
+      syncAudioRunning();
+      audioRunning.value = true;
     } catch (error) {
       if (generation !== previewGeneration.value) {
         return;
@@ -353,12 +295,16 @@ export function useWasmPreview() {
   }
 
   function startPreviewFromTap() {
+    if (!awaitingWasmTap.value) {
+      return;
+    }
     unlockAudioSessionSync();
-    if (!startWasmMainInGesture()) {
+    if (!host()?.startMain()) {
       previewDebugLog("warn", "Tap ignored — wasm not ready yet");
       return;
     }
-    window.__previewWasmTapFinish?.();
+    awaitingWasmTap.value = false;
+    pendingTapFinish?.();
   }
 
   return {
@@ -375,8 +321,6 @@ export function useWasmPreview() {
     isLoading,
     isReady,
     hasWasm,
-    audioContext,
-    wasmProcessor,
     mount,
     teardown,
     setKnobValue,
@@ -384,9 +328,10 @@ export function useWasmPreview() {
     onKeyboardDown,
     onKeyboardUp,
     onLatchToggle,
-    onTouchEvent,
+    onTouchBegan,
+    onTouchMoved,
+    onTouchEnded,
     onHoldToggle,
     startPreviewFromTap,
-    handleXyPosition,
   };
 }
