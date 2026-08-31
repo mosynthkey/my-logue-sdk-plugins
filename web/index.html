@@ -16,98 +16,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Unbounded:wght@700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <div class="app">
-    <aside class="sidebar" aria-label="Plugin list">
-      <header class="sidebar__head">
-        <h1 class="sidebar__title">Logue SDK<br>Plugins List</h1>
-        <div class="plugin-picker">
-          <label class="plugin-picker__label" for="plugin-select">Plugin</label>
-          <select id="plugin-select" class="plugin-picker__select" aria-label="Select plugin"></select>
-        </div>
-      </header>
-      <nav id="plugin-list" class="plugin-nav" aria-label="Plugins"></nav>
-    </aside>
-
-    <main class="detail" id="plugin-detail" hidden>
-      <header class="detail__head">
-        <h2 id="detail-name" class="detail__name"></h2>
-        <p id="detail-desc" class="detail__desc"></p>
-        <div id="target-tabs" class="target-tabs" role="tablist" hidden></div>
-      </header>
-
-      <section class="detail__stage" aria-label="Preview">
-        <div id="preview-shell" class="preview-shell">
-          <p id="preview-status" class="preview-status">Select a plugin to preview.</p>
-          <div id="preview-instrument" class="preview-instrument" hidden></div>
-          <div id="preview-knobs" class="preview-knobs" hidden></div>
-        </div>
-      </section>
-
-      <footer class="detail__foot">
-        <div id="send-actions" class="send-actions"></div>
-      </footer>
-    </main>
-
-    <div id="detail-empty" class="detail detail--empty">
-      <p>Loading plugins…</p>
-    </div>
-  </div>
-
-  <div id="send-modal" class="modal" hidden>
-    <div class="modal__backdrop" data-close-modal></div>
-    <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="send-modal-title">
-      <header class="modal__header">
-        <div>
-          <p class="modal__kicker" id="send-modal-kicker">Send to NTS-1 mkII</p>
-          <h2 id="send-modal-title">Plugin</h2>
-        </div>
-        <button type="button" class="modal__close" data-close-modal aria-label="Close">×</button>
-      </header>
-
-      <div id="midi-unsupported" class="modal__notice" hidden>
-        <p>Chrome or Edge required for MIDI. Download the unit otherwise.</p>
-      </div>
-
-      <div id="midi-panel">
-        <p id="device-status" class="status" data-kind="idle">Looking for NTS-1 mkII…</p>
-
-        <label class="field">
-          <span>Output</span>
-          <select id="midi-output"></select>
-        </label>
-        <label class="field">
-          <span>Input</span>
-          <select id="midi-input"></select>
-        </label>
-        <div class="field-row">
-          <label class="field">
-            <span>Channel</span>
-            <input id="channel" type="number" min="1" max="16" value="1">
-          </label>
-          <label class="field">
-            <span id="slot-label">Slot</span>
-            <select id="slot"></select>
-          </label>
-        </div>
-        <p class="hint" id="midi-hint">If two NTS-1 ports appear, use the last one.</p>
-
-        <div class="modal__actions">
-          <button type="button" class="button button-secondary" data-close-modal>Cancel</button>
-          <button type="button" class="button button-primary" id="send">Send to slot</button>
-        </div>
-      </div>
-
-      <div class="log-wrap">
-        <h3>Log</h3>
-        <div id="log" class="log" role="log" aria-live="polite"></div>
-      </div>
-    </div>
-  </div>
-
+  <div id="app"></div>
   <script src="./vendor/qwerty-hancock.js"></script>
-  <script type="module" src="./app.js"></script>
+  <script type="module" src="/src/main.js"></script>
 </body>
 </html>
