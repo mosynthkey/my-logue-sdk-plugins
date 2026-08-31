@@ -49,7 +49,7 @@ const __unit_header genericfx_unit_header_t unit_header = {
         .dev_id = 0x0U,
         .unit_id = 0x0000000AU,
         .version = 0x00080000U,
-        .name = "kaocid",
+        .name = "Kaocid",
         .num_params = 8,
         .params = {
             {0, 1023, 0, 512, k_unit_param_type_none, 0, 0, 0, {"CUT"}},

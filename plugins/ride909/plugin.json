@@ -1,6 +1,5 @@
 {
   "id": "ride909",
-  "experimental": true,
   "name": "Ride909",
   "type": "drum",
   "targets": ["nts-3_kaoss"],

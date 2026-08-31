@@ -27,7 +27,7 @@ Plugins:
 - **Shaker** — PhISEM percussion, `nts-1_mkii` (`osc`, note on = shake) and `nts-3_kaoss` (`genericfx`, pad motion = shake). Instrument constants follow STK Shakers (Cook / Scavone); not a copy of STK source.
 - **airFM** — two-op phase-mod FM, `nts-3_kaoss` (`genericfx`, pad XY = carrier/modulator, touch gate). Inspired by Alesis airSynth Program 3.
 - **AirHorn** — DJ air horn at the original recorded pitch. A pitch envelope recreates the opening drop, then a long 16-bit loop holds the settled tone. Targets `nts-1_mkii`, `nts-3_kaoss`, and `microkorg2`.
-- **kaocid** — TB-303 style acid bass with auto phrase generator, `nts-3_kaoss` (`genericfx`, hold pad = tempo-synced 16-step pattern with glides, retouch = new phrase). Panel: Cutoff, Resonance, Wave, Env Mod, Decay, Accent, plus ROOT and Mix. Voice inspired by gsynth TB-303 (Andy Sloane, 2001).
+- **Kaocid** — TB-303 style acid bass with auto phrase generator, `nts-3_kaoss` (`genericfx`, hold pad = tempo-synced 16-step pattern with glides, retouch = new phrase). Panel: Cutoff, Resonance, Wave, Env Mod, Decay, Accent, plus ROOT and Mix. Voice inspired by gsynth TB-303 (Andy Sloane, 2001).
 
 ## Targets
 
