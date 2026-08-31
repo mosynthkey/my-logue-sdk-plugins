@@ -29,8 +29,8 @@ __unit_callback int8_t unit_init(const unit_runtime_desc_t *desc)
   if (desc->input_channels != 2 || desc->output_channels != 2)
     return k_unit_err_geometry;
 
-  s_airhorn_instance.setStereoMix(true);
   s_airhorn_instance.init(nullptr);
+  s_airhorn_instance.setStereoMix(true);
 
   for (uint8_t paramIndex = 0; paramIndex < UNIT_GENERICFX_MAX_PARAM_COUNT; ++paramIndex)
     cached_values[paramIndex] = static_cast<int32_t>(unit_header.common.params[paramIndex].init);

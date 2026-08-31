@@ -17,6 +17,9 @@
   --knob-pointer: #b6b2a1;
   --font-display: "Unbounded", system-ui, sans-serif;
   --font-body: "Inter", system-ui, sans-serif;
+  --control-height: 40px;
+  --control-pad-x: 18px;
+  --control-font-size: 0.72rem;
   --ok: #4caf50;
   --warn: #ffb020;
   --err: #ff3333;
@@ -168,6 +171,7 @@ body.modal-open {
 .detail {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   min-height: 100vh;
   padding: clamp(28px, 4vw, 56px);
   background: var(--bg);
@@ -258,6 +262,7 @@ body.modal-open {
   flex: 1;
   display: flex;
   align-items: stretch;
+  min-width: 0;
   min-height: 280px;
   margin-top: 24px;
 }
@@ -267,6 +272,7 @@ body.modal-open {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  min-width: 0;
   padding: clamp(16px, 2.5vw, 24px);
   border: 1px solid var(--line);
   border-radius: 2px;
@@ -303,8 +309,10 @@ body.modal-open {
 .preview-instrument {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   gap: 16px;
+  width: 100%;
+  min-width: 0;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -328,13 +336,17 @@ body.modal-open {
 }
 
 .preview-chip {
-  padding: 5px 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--control-height);
+  padding: 0 var(--control-pad-x);
   border: 1px solid var(--line-strong);
   border-radius: 0;
-  background: var(--knob-body);
-  color: var(--muted);
+  background: transparent;
+  color: var(--ink);
   font-family: var(--font-body);
-  font-size: 0.62rem;
+  font-size: var(--control-font-size);
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -342,9 +354,11 @@ body.modal-open {
   transition: background 0.1s ease, color 0.1s ease, border-color 0.1s ease;
 }
 
-.preview-chip:hover {
-  color: var(--ink);
-  border-color: var(--muted);
+.preview-chip:hover:not(:disabled),
+.preview-chip:focus-visible:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
 }
 
 .preview-chip.is-on {
@@ -353,19 +367,15 @@ body.modal-open {
   color: var(--accent);
 }
 
-.preview-keyboard-wrap {
-  width: 100%;
-  overflow-x: auto;
-  padding: 8px 0 4px;
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
+.preview-chip:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .preview-keyboard-shell {
   width: 100%;
-  padding: 20px 16px 16px;
+  min-width: 0;
+  padding: 12px;
   border: 1px solid var(--line-strong);
   background: #000000;
   touch-action: none;
@@ -374,59 +384,103 @@ body.modal-open {
   -webkit-touch-callout: none;
 }
 
+.preview-keyboard-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.preview-octave {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.5rem;
+  min-height: var(--control-height);
+  padding: 0 10px;
+  color: var(--accent);
+  font-family: var(--font-body);
+  font-size: var(--control-font-size);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.preview-keyboard-wrap {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 4px 0 2px;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+  touch-action: pan-x;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
 .preview-keyboard-wrap--mk2 {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
-.preview-keyboard-wrap--mk2 #preview-keyboard {
-  --pad-size: 40px;
-  --pad-gap: 10px;
-  --pad-columns: 10;
-  display: block !important;
-  width: max-content !important;
-  height: auto !important;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.preview-keyboard-wrap--mk2 #preview-keyboard ul {
-  display: grid !important;
+.preview-keyboard-keys {
+  --pad-size: 56px;
+  --pad-gap: 12px;
+  --pad-columns: 75;
+  display: grid;
   grid-template-columns: repeat(var(--pad-columns), var(--pad-size));
   grid-template-rows: var(--pad-size) var(--pad-size);
   column-gap: var(--pad-gap);
   row-gap: var(--pad-gap);
-  width: max-content !important;
-  height: auto !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  padding-right: calc(var(--pad-size) / 2 + var(--pad-gap) / 2) !important;
-  list-style: none;
+  width: max-content;
+  touch-action: none;
 }
 
-.preview-keyboard-wrap--mk2 #preview-keyboard li {
-  display: block !important;
-  position: relative !important;
-  left: auto !important;
-  z-index: 1 !important;
-  box-sizing: border-box !important;
-  width: var(--pad-size) !important;
-  height: var(--pad-size) !important;
-  border: 1.5px solid var(--accent) !important;
+.preview-key {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: var(--pad-size);
+  height: var(--pad-size);
+  border: 1.5px solid var(--accent);
+  border-radius: 4px;
+  cursor: pointer;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
-  border-radius: 4px !important;
-  box-shadow: none !important;
-  cursor: pointer;
 }
 
-.preview-keyboard-wrap--mk2 #preview-keyboard li[data-note-type="black"] {
-  z-index: 2 !important;
+.preview-key--white {
+  background: #e8e6df;
+}
+
+.preview-key--black {
+  z-index: 2;
+  background: transparent;
   transform: translateX(calc(50% + var(--pad-gap) / 2));
+}
+
+.preview-key.is-active {
+  background: var(--accent);
+}
+
+.preview-key__name {
+  padding-bottom: 6px;
+  color: var(--accent-ink);
+  font-family: var(--font-body);
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  pointer-events: none;
 }
 
 .preview-xypad-shell {
@@ -572,14 +626,14 @@ body.modal-open {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 40px;
-  padding: 0 18px;
+  min-height: var(--control-height);
+  padding: 0 var(--control-pad-x);
   border: 1px solid var(--line-strong);
   border-radius: 0;
   background: transparent;
   color: var(--ink);
   font-family: var(--font-body);
-  font-size: 0.72rem;
+  font-size: var(--control-font-size);
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
