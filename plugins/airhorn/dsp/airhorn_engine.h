@@ -4,7 +4,8 @@
  * File: airhorn_engine.h
  *
  * Fixed-pitch air horn: 16-bit loop (or one-shot) plus a pitch envelope
- * that recreates the initial pitch drop, then holds the settled tone.
+ * that recreates the initial pitch drop, then fades naturally with a
+ * smoothed loop crossfade instead of sustaining at full level.
  */
 
 #include "airhorn_pcm.h"
@@ -15,6 +16,7 @@ struct AirHornVoice
   bool active = false;
   bool gated = false;
   bool releasing = false;
+  bool fading = false;
   uint8_t horn_index = 0U;
   uint8_t note = 0xFF;
   float pos = 0.f;
@@ -22,15 +24,18 @@ struct AirHornVoice
   float amp = 0.f;
   float pitch_ratio = 1.f;
   float sustain_lpf = 0.f;
-  uint32_t age = 0U;
+  uint32_t settled_age = 0U;
 
   static constexpr float kAttackInc = 1.f / (48000.f * 0.004f);
-  static constexpr float kReleaseCoeff = 0.999792f; // ~100 ms
+  static constexpr float kNaturalDecayCoeff = 0.99998843f; // tau 1.8 s @ 48 kHz
+  static constexpr float kReleaseDecayCoeff = 0.99994048f; // tau 0.35 s after note off
+  static constexpr float kEndDecayCoeff = 0.999792f; // one-shot tail ~100 ms
   static constexpr float kMinAmp = 0.0005f;
-  static constexpr uint32_t kMinHold = 19200U; // 400 ms at 48 kHz
+  static constexpr uint32_t kSettledHoldSamples = 12000U; // 250 ms at 48 kHz
   static constexpr float kBaseRate = static_cast<float>(kAirhornSampleRate) / 48000.f;
   static constexpr float kLoopCrossfade = 96.f; // embedded-rate samples
-  static constexpr float kSustainLpfCoeff = 0.42f; // ~7.5 kHz at 48 kHz
+  static constexpr float kLoopCrossfadeFadeBoost = 0.5f;
+  static constexpr float kSustainLpfCoeff = 0.48f; // ~8 kHz at 48 kHz
   static constexpr float kPitchSettled = 0.025f;
 
   static float pcmToFloat(int16_t sample)
@@ -121,19 +126,20 @@ struct AirHornVoice
         frac);
   }
 
-  static float loopSampleWithCrossfade(const AirhornSample &horn, float position, bool sustain_phase)
+  static float loopSampleWithCrossfade(
+      const AirhornSample &horn, float position, bool sustain_phase, float crossfade)
   {
     const float loop_length = static_cast<float>(horn.length);
     float output = sampleAt(horn, position, sustain_phase);
 
-    if (!horn.looping || kLoopCrossfade <= 1.f)
+    if (!horn.looping || crossfade <= 1.f)
       return output;
 
     const float dist_to_end = loop_length - position;
-    if (dist_to_end <= 0.f || dist_to_end >= kLoopCrossfade)
+    if (dist_to_end <= 0.f || dist_to_end >= crossfade)
       return output;
 
-    const float blend = 1.f - dist_to_end / kLoopCrossfade;
+    const float blend = 1.f - dist_to_end / crossfade;
     const float wrapped = sampleAt(horn, position - loop_length, sustain_phase);
     return output * (1.f - blend) + wrapped * blend;
   }
@@ -151,12 +157,13 @@ struct AirHornVoice
     active = true;
     gated = true;
     releasing = false;
+    fading = false;
     horn_index = horn;
     note = midi_note;
     pos = 0.f;
     amp = 0.f;
     sustain_lpf = 0.f;
-    age = 0U;
+    settled_age = 0U;
     gain = (static_cast<float>(velocity) + 1.f) * (1.f / 128.f);
     pitch_ratio = kAirhornSamples[horn].start_ratio;
     if (pitch_ratio < 0.5f)
@@ -177,20 +184,19 @@ struct AirHornVoice
 
     const AirhornSample &horn = kAirhornSamples[horn_index];
 
-    ++age;
-    if (!gated && !releasing && horn.looping && age >= kMinHold)
-      releasing = true;
+    const bool settled = pitchSettled(horn);
+    if (settled)
+      ++settled_age;
+    else
+      settled_age = 0U;
 
-    if (releasing)
-    {
-      amp *= kReleaseCoeff;
-      if (amp < kMinAmp)
-      {
-        active = false;
-        amp = 0.f;
-        return 0.f;
-      }
-    }
+    if (settled && settled_age >= kSettledHoldSamples)
+      fading = true;
+
+    if (fading)
+      amp *= gated ? kNaturalDecayCoeff : kReleaseDecayCoeff;
+    else if (releasing)
+      amp *= kEndDecayCoeff;
     else
     {
       amp += kAttackInc;
@@ -198,8 +204,19 @@ struct AirHornVoice
         amp = 1.f;
     }
 
-    const bool sustain_phase = pitchSettled(horn);
-    float output = loopSampleWithCrossfade(horn, pos, sustain_phase) * gain * amp;
+    if (amp < kMinAmp)
+    {
+      active = false;
+      amp = 0.f;
+      return 0.f;
+    }
+
+    const bool sustain_phase = settled;
+    float crossfade = kLoopCrossfade;
+    if (fading && amp < 1.f)
+      crossfade *= 1.f + kLoopCrossfadeFadeBoost * (1.f - amp);
+
+    float output = loopSampleWithCrossfade(horn, pos, sustain_phase, crossfade) * gain * amp;
 
     if (sustain_phase)
     {
@@ -240,6 +257,7 @@ struct AirHornVoice
     active = false;
     gated = false;
     releasing = false;
+    fading = false;
     amp = 0.f;
     sustain_lpf = 0.f;
   }
