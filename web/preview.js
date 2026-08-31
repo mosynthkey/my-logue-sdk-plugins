@@ -33,6 +33,66 @@ function wasmBaseUrl(wasmHref) {
   return jsUrl.slice(0, jsUrl.lastIndexOf("/") + 1);
 }
 
+function useInlinePreview() {
+  return window.matchMedia("(max-width: 820px), (pointer: coarse)").matches;
+}
+
+function previewNeedsUserGesture() {
+  return useInlinePreview() || !window.crossOriginIsolated;
+}
+
+let audioUnlockContext = null;
+
+function unlockAudioForPreview() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) {
+    return Promise.resolve();
+  }
+
+  if (!audioUnlockContext) {
+    audioUnlockContext = new AudioContextClass();
+  }
+
+  if (audioUnlockContext.state === "suspended") {
+    return audioUnlockContext.resume();
+  }
+
+  return Promise.resolve();
+}
+
+function waitForPreviewGesture(statusEl) {
+  if (!previewNeedsUserGesture()) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    statusEl.hidden = false;
+    statusEl.textContent = "Tap to start preview";
+    statusEl.classList.add("preview-status--action");
+    statusEl.setAttribute("role", "button");
+    statusEl.tabIndex = 0;
+
+    const startPreview = () => {
+      statusEl.removeEventListener("pointerdown", startPreview);
+      statusEl.removeEventListener("keydown", onKeyDown);
+      statusEl.classList.remove("preview-status--action");
+      statusEl.removeAttribute("role");
+      statusEl.tabIndex = -1;
+      unlockAudioForPreview().then(resolve);
+    };
+
+    const onKeyDown = (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        startPreview();
+      }
+    };
+
+    statusEl.addEventListener("pointerdown", startPreview, { once: true });
+    statusEl.addEventListener("keydown", onKeyDown);
+  });
+}
+
 function installWorkletModuleBase(baseUrl) {
   const resolvedBase = new URL(baseUrl, location.href).href;
   const audioWorkletPrototype = AudioWorklet.prototype;
@@ -623,7 +683,7 @@ export function pickPreviewBuild(plugin) {
 function waitForPreviewReady(generation) {
   return new Promise((resolve, reject) => {
     const timeout = window.setTimeout(() => {
-      reject(new Error("Preview timed out. Run scripts/sync-web-preview.sh after make wasm-ci."));
+      reject(new Error("Preview timed out. Tap to start preview, then try again."));
     }, PREVIEW_TIMEOUT_MS);
 
     const handler = (context, wasmProcessor) => {
@@ -683,6 +743,12 @@ export async function runPreviewHost(build, plugin) {
   installWorkletModuleBase(baseUrl);
 
   try {
+    await waitForPreviewGesture(statusEl);
+    if (generation !== previewGeneration) {
+      return;
+    }
+
+    statusEl.textContent = "Loading preview…";
     const readyPromise = waitForPreviewReady(generation);
     await loadScript(jsUrl);
     const { context, wasmProcessor } = await readyPromise;
@@ -710,6 +776,15 @@ export async function mountPreview(build, plugin) {
     restorePreviewShellMarkup(shell);
     const statusEl = document.getElementById("preview-status");
     statusEl.textContent = "No WebAssembly preview for this plugin yet.";
+    return;
+  }
+
+  if (useInlinePreview()) {
+    restorePreviewShellMarkup(shell);
+    await runPreviewHost(build, plugin);
+    if (mountToken !== parentMountToken) {
+      return;
+    }
     return;
   }
 
@@ -776,6 +851,15 @@ export async function teardownPreview() {
     }
   }
   audioContext = null;
+
+  if (audioUnlockContext && audioUnlockContext.state !== "closed") {
+    try {
+      await audioUnlockContext.close();
+    } catch {
+      // Ignore close errors during teardown.
+    }
+  }
+  audioUnlockContext = null;
   delete window.Module;
   delete globalThis.Module;
 }

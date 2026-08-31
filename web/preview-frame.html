@@ -4,6 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Preview</title>
+  <script>
+    window.coi = {
+      coepCredentialless: () => true,
+      coepDegrade: () => false,
+      quiet: true,
+    };
+  </script>
+  <script src="./coi-serviceworker.js"></script>
   <link rel="stylesheet" href="./styles.css">
   <script src="./vendor/qwerty-hancock.js"></script>
 </head>
