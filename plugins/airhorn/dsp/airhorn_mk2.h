@@ -18,8 +18,7 @@ class AirHornMk2
 public:
   enum
   {
-    kType = 0U,
-    kLevel,
+    kLevel = 0U,
     kNumParams
   };
 
@@ -72,7 +71,7 @@ public:
       if (context->trigger & (1U << voiceIndex))
       {
         (void)context->pitch[voiceIndex];
-        voices_[voiceIndex].trigger(engine_.hornIndex(), 127, 0);
+        voices_[voiceIndex].trigger(127, 0);
       }
 
       ProcessVoice(out, voiceIndex, frames, context);

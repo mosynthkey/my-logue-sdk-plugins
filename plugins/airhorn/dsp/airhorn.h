@@ -32,7 +32,6 @@ public:
   void init(float *) override final
   {
     engine_.init();
-    stereo_mix_ = false;
   }
 
   void reset() override final { engine_.reset(); }
@@ -44,7 +43,7 @@ public:
 
   void noteOn(uint8_t note, uint8_t velo) override final
   {
-    engine_.startVoice(engine_.hornIndex(), velo, note);
+    engine_.startVoice(velo, note);
   }
 
   void noteOff(uint8_t note) override final
@@ -64,7 +63,7 @@ public:
     (void)y;
 
     if (phase == 0U)
-      engine_.startVoice(engine_.hornIndex(), 127, 0);
+      engine_.startVoice(127, 0);
     else if (phase == 2U || phase == 4U)
       engine_.releaseAll();
   }
@@ -93,8 +92,6 @@ public:
       }
     }
   }
-
-  uint8_t hornIndex() const { return engine_.hornIndex(); }
 
   float outputLevel() const { return engine_.outputLevel(); }
 

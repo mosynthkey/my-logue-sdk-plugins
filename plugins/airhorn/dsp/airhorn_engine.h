@@ -3,9 +3,9 @@
 /*
  * File: airhorn_engine.h
  *
- * Fixed-pitch air horn: 16-bit loop (or one-shot) plus a pitch envelope
- * that recreates the initial pitch drop, then fades naturally with a
- * smoothed loop crossfade instead of sustaining at full level.
+ * Fixed-pitch DJ air horn: a 16-bit loop plus a pitch envelope that
+ * recreates the opening drop, then fades naturally with a smoothed loop
+ * crossfade instead of sustaining at full level.
  */
 
 #include "airhorn_pcm.h"
@@ -17,7 +17,6 @@ struct AirHornVoice
   bool gated = false;
   bool releasing = false;
   bool fading = false;
-  uint8_t horn_index = 0U;
   uint8_t note = 0xFF;
   float pos = 0.f;
   float gain = 1.f;
@@ -33,7 +32,7 @@ struct AirHornVoice
   static constexpr float kMinAmp = 0.0005f;
   static constexpr uint32_t kSettledHoldSamples = 12000U; // 250 ms at 48 kHz
   static constexpr float kBaseRate = static_cast<float>(kAirhornSampleRate) / 48000.f;
-  static constexpr float kLoopCrossfade = 96.f; // embedded-rate samples
+  static constexpr float kLoopCrossfade = 0.012f * static_cast<float>(kAirhornSampleRate);
   static constexpr float kLoopCrossfadeFadeBoost = 0.5f;
   static constexpr float kSustainLpfCoeff = 0.48f; // ~8 kHz at 48 kHz
   static constexpr float kPitchSettled = 0.025f;
@@ -59,64 +58,14 @@ struct AirHornVoice
     return static_cast<uint32_t>(wrapped);
   }
 
-  static uint32_t clampIndex(int32_t index, uint32_t length)
-  {
-    if (index < 0)
-      return 0U;
-    if (index >= static_cast<int32_t>(length))
-      return length - 1U;
-    return static_cast<uint32_t>(index);
-  }
-
-  static float linearSampleAt(const AirhornSample &horn, float position)
+  static float sampleAt(const AirhornSample &horn, float position)
   {
     const int32_t index = static_cast<int32_t>(position);
     const float frac = position - static_cast<float>(index);
-    uint32_t i0;
-    uint32_t i1;
-    if (horn.looping)
-    {
-      i0 = wrapIndex(index, horn.length);
-      i1 = wrapIndex(index + 1, horn.length);
-    }
-    else
-    {
-      i0 = clampIndex(index, horn.length);
-      i1 = clampIndex(index + 1, horn.length);
-    }
-
-    const uint32_t offset = horn.offset;
-    const float y0 = pcmToFloat(kAirhornPcm16[offset + i0]);
-    const float y1 = pcmToFloat(kAirhornPcm16[offset + i1]);
-    return y0 + frac * (y1 - y0);
-  }
-
-  static float sampleAt(const AirhornSample &horn, float position, bool sustain_phase)
-  {
-    if (sustain_phase)
-      return linearSampleAt(horn, position);
-
-    const int32_t index = static_cast<int32_t>(position);
-    const float frac = position - static_cast<float>(index);
-    uint32_t i0;
-    uint32_t i1;
-    uint32_t i2;
-    uint32_t i3;
-    if (horn.looping)
-    {
-      i0 = wrapIndex(index - 1, horn.length);
-      i1 = wrapIndex(index, horn.length);
-      i2 = wrapIndex(index + 1, horn.length);
-      i3 = wrapIndex(index + 2, horn.length);
-    }
-    else
-    {
-      i0 = clampIndex(index - 1, horn.length);
-      i1 = clampIndex(index, horn.length);
-      i2 = clampIndex(index + 1, horn.length);
-      i3 = clampIndex(index + 2, horn.length);
-    }
-
+    const uint32_t i0 = wrapIndex(index - 1, horn.length);
+    const uint32_t i1 = wrapIndex(index, horn.length);
+    const uint32_t i2 = wrapIndex(index + 1, horn.length);
+    const uint32_t i3 = wrapIndex(index + 2, horn.length);
     const uint32_t offset = horn.offset;
     return hermite(
         pcmToFloat(kAirhornPcm16[offset + i0]),
@@ -126,13 +75,12 @@ struct AirHornVoice
         frac);
   }
 
-  static float loopSampleWithCrossfade(
-      const AirhornSample &horn, float position, bool sustain_phase, float crossfade)
+  static float loopSampleWithCrossfade(const AirhornSample &horn, float position, float crossfade)
   {
     const float loop_length = static_cast<float>(horn.length);
-    float output = sampleAt(horn, position, sustain_phase);
+    float output = sampleAt(horn, position);
 
-    if (!horn.looping || crossfade <= 1.f)
+    if (crossfade <= 1.f)
       return output;
 
     const float dist_to_end = loop_length - position;
@@ -140,32 +88,28 @@ struct AirHornVoice
       return output;
 
     const float blend = 1.f - dist_to_end / crossfade;
-    const float wrapped = sampleAt(horn, position - loop_length, sustain_phase);
+    const float wrapped = sampleAt(horn, position - loop_length);
     return output * (1.f - blend) + wrapped * blend;
   }
 
-  bool pitchSettled(const AirhornSample &horn) const
+  bool pitchSettled() const
   {
-    return horn.looping && (pitch_ratio > 1.f - kPitchSettled) && (pitch_ratio < 1.f + kPitchSettled);
+    return (pitch_ratio > 1.f - kPitchSettled) && (pitch_ratio < 1.f + kPitchSettled);
   }
 
-  void trigger(uint8_t horn, uint8_t velocity, uint8_t midi_note)
+  void trigger(uint8_t velocity, uint8_t midi_note)
   {
-    if (horn >= kAirhornCount)
-      horn = static_cast<uint8_t>(kAirhornCount - 1U);
-
     active = true;
     gated = true;
     releasing = false;
     fading = false;
-    horn_index = horn;
     note = midi_note;
     pos = 0.f;
     amp = 0.f;
     sustain_lpf = 0.f;
     settled_age = 0U;
     gain = (static_cast<float>(velocity) + 1.f) * (1.f / 128.f);
-    pitch_ratio = kAirhornSamples[horn].start_ratio;
+    pitch_ratio = kAirhornSamples[0].start_ratio;
     if (pitch_ratio < 0.5f)
       pitch_ratio = 0.5f;
     if (pitch_ratio > 2.f)
@@ -182,9 +126,9 @@ struct AirHornVoice
     if (!active)
       return 0.f;
 
-    const AirhornSample &horn = kAirhornSamples[horn_index];
+    const AirhornSample &horn = kAirhornSamples[0];
 
-    const bool settled = pitchSettled(horn);
+    const bool settled = pitchSettled();
     if (settled)
       ++settled_age;
     else
@@ -211,14 +155,13 @@ struct AirHornVoice
       return 0.f;
     }
 
-    const bool sustain_phase = settled;
     float crossfade = kLoopCrossfade;
     if (fading && amp < 1.f)
       crossfade *= 1.f + kLoopCrossfadeFadeBoost * (1.f - amp);
 
-    float output = loopSampleWithCrossfade(horn, pos, sustain_phase, crossfade) * gain * amp;
+    float output = loopSampleWithCrossfade(horn, pos, crossfade) * gain * amp;
 
-    if (sustain_phase)
+    if (settled)
     {
       sustain_lpf += kSustainLpfCoeff * (output - sustain_lpf);
       output = sustain_lpf;
@@ -229,17 +172,9 @@ struct AirHornVoice
     }
 
     pos += kBaseRate * pitch_ratio;
-    if (horn.looping)
-    {
-      const float loop_length = static_cast<float>(horn.length);
-      while (pos >= loop_length)
-        pos -= loop_length;
-    }
-    else if (pos >= static_cast<float>(horn.length - 2U))
-    {
-      pos = static_cast<float>(horn.length - 2U);
-      releasing = true;
-    }
+    const float loop_length = static_cast<float>(horn.length);
+    while (pos >= loop_length)
+      pos -= loop_length;
 
     if (horn.env_coeff > 0.f)
       pitch_ratio = 1.f + (pitch_ratio - 1.f) * horn.env_coeff;
@@ -273,23 +208,13 @@ public:
 
   enum
   {
-    TYPE = 0U,
-    LEVEL,
+    LEVEL = 0U,
     MIX,
     NUM_PARAMS
   };
 
-  enum
-  {
-    HORN_DJ = 0,
-    HORN_TRAIN,
-    HORN_BIKE,
-    NUM_HORNS
-  };
-
   void init()
   {
-    horn_index_ = HORN_DJ;
     level_ = 1.f;
     mix_ = 1.f;
     next_voice_ = 0U;
@@ -302,14 +227,6 @@ public:
   {
     switch (index)
     {
-    case TYPE:
-    {
-      uint32_t horn = static_cast<uint32_t>(value);
-      if (horn >= kAirhornCount)
-        horn = kAirhornCount - 1;
-      horn_index_ = static_cast<uint8_t>(horn);
-      break;
-    }
     case LEVEL:
       level_ = param10BitToFloat(value);
       break;
@@ -327,17 +244,14 @@ public:
 
   const char *getParameterStrValue(uint8_t index, int32_t value) const
   {
-    static const char *horn_names[NUM_HORNS] = {"DJ", "TRAIN", "BIKE"};
-
-    if (index == TYPE && value >= 0 && static_cast<uint32_t>(value) < kAirhornCount)
-      return horn_names[value];
-
+    (void)index;
+    (void)value;
     return nullptr;
   }
 
-  void startVoice(uint8_t horn, uint8_t velocity, uint8_t note)
+  void startVoice(uint8_t velocity, uint8_t note)
   {
-    voices_[next_voice_].trigger(horn, velocity, note);
+    voices_[next_voice_].trigger(velocity, note);
     next_voice_ = (next_voice_ + 1U) % kMaxVoices;
   }
 
@@ -364,8 +278,6 @@ public:
     return wet;
   }
 
-  uint8_t hornIndex() const { return horn_index_; }
-
   float outputLevel() const { return level_ * kOutputGain; }
 
   float mix() const { return mix_; }
@@ -382,7 +294,6 @@ private:
       voices_[voiceIndex].reset();
   }
 
-  uint8_t horn_index_ = HORN_DJ;
   uint8_t next_voice_ = 0U;
   float level_ = 1.f;
   float mix_ = 1.f;

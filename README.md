@@ -26,12 +26,8 @@ Plugins:
 - **Ride909** — NTS-3 techno ride wash (off-beats 3-7-11-15, kick pump). Voice is the TR-909 Ride ROM (6-bit PCM) through variable-rate playback, resistor DAC, and analog reconstruction, not a WAV sampler.
 - **Shaker** — PhISEM percussion, `nts-1_mkii` (`osc`, note on = shake) and `nts-3_kaoss` (`genericfx`, pad motion = shake). Instrument constants follow STK Shakers (Cook / Scavone); not a copy of STK source.
 - **airFM** — two-op phase-mod FM, `nts-3_kaoss` (`genericfx`, pad XY = carrier/modulator, touch gate). Inspired by Alesis airSynth Program 3.
-<<<<<<< HEAD
-- **AirHorn** — CC0 air horn samples (DJ / train / bike). Any key plays at the original recorded pitch. Targets `nts-1_mkii`, `nts-3_kaoss`, and `microkorg2`.
+- **AirHorn** — DJ air horn at the original recorded pitch. A pitch envelope recreates the opening drop, then a long 16-bit loop holds the settled tone. Targets `nts-1_mkii`, `nts-3_kaoss`, and `microkorg2`.
 - **kaocid** — TB-303 style acid bass with auto phrase generator, `nts-3_kaoss` (`genericfx`, hold pad = tempo-synced 16-step pattern with glides, retouch = new phrase). Panel: Cutoff, Resonance, Wave, Env Mod, Decay, Accent, plus ROOT and Mix. Voice inspired by gsynth TB-303 (Andy Sloane, 2001).
-=======
-- **AirHorn** — 16-bit air horn loops (DJ / train / bike). Any key plays at the original recorded pitch. DJ/TRAIN loop the settled tone with a pitch envelope for the opening drop. Targets `nts-1_mkii`, `nts-3_kaoss`, and `microkorg2`.
->>>>>>> 8b59e64 (Improve AirHorn quality with 16-bit loops and a pitch envelope)
 
 ## Targets
 

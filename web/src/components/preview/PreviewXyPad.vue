@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref, watch } from "vue";
+import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { paintXypad, xyPadPointFromEvent } from "../../preview/geometry.js";
 
 const props = defineProps({
@@ -14,6 +14,7 @@ const emit = defineEmits(["pointer-down", "pointer-move", "pointer-up"]);
 const canvasEl = ref(null);
 const lastPointer = ref(null);
 let marker = null;
+let resizeObserver = null;
 
 function redraw() {
   const canvas = canvasEl.value;
@@ -68,8 +69,19 @@ defineExpose({
 });
 
 onMounted(() => {
+  const canvas = canvasEl.value;
+  if (canvas && typeof ResizeObserver === "function") {
+    resizeObserver = new ResizeObserver(() => {
+      redraw();
+    });
+    resizeObserver.observe(canvas);
+  }
   redraw();
-  requestAnimationFrame(redraw);
+});
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect();
+  resizeObserver = null;
 });
 </script>
 

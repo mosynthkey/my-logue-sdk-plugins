@@ -40,7 +40,7 @@ function accentColor() {
 export function drawXypadGrid(ctx, width, height) {
   ctx.fillStyle = "#0d0d0d";
   ctx.fillRect(0, 0, width, height);
-  ctx.strokeStyle = "#1e1e1e";
+  ctx.strokeStyle = "#222222";
   ctx.lineWidth = 1;
   for (let gridIndex = 1; gridIndex < 8; gridIndex += 1) {
     const x = (width / 8) * gridIndex;
@@ -54,7 +54,7 @@ export function drawXypadGrid(ctx, width, height) {
     ctx.lineTo(width, y);
     ctx.stroke();
   }
-  ctx.strokeStyle = "#2a2a2a";
+  ctx.strokeStyle = "#333333";
   ctx.beginPath();
   ctx.moveTo(width / 2, 0);
   ctx.lineTo(width / 2, height);
@@ -78,8 +78,11 @@ export function drawXypadMarker(ctx, x, y) {
 
 export function paintXypad(canvas, marker) {
   const rect = canvas.getBoundingClientRect();
-  const cssWidth = Math.max(1, rect.width);
-  const cssHeight = Math.max(1, rect.height);
+  if (rect.width < 2 || rect.height < 2) {
+    return;
+  }
+  const cssWidth = rect.width;
+  const cssHeight = rect.height;
   const dpr = window.devicePixelRatio || 1;
   const pixelWidth = Math.max(1, Math.round(cssWidth * dpr));
   const pixelHeight = Math.max(1, Math.round(cssHeight * dpr));
