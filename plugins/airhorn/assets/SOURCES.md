@@ -32,15 +32,23 @@ answers it by picking a loop length whose head and tail still line up (currently
 `match=0.87`) and by folding the last 12 fundamental periods back into the loop head
 as a crossfade, which is why nothing crossfades at playback time.
 
-Regeneration prints the resulting seam figures; a healthy loop lands below 0 dB:
+The same sustain also has a slow loudness swell of about 1.3 dB peak-to-peak. Locked
+into a 434 ms loop that swell repeats at ~2.3 Hz and reads as an amp LFO, so after the
+crossfade the extractor divides out a short circular RMS envelope (2-period window,
+4-period Hann smooth). That drops the residual swell to about 0.07 dB in the PCM and
+about 0.7 dB once rendered through the engine.
+
+Regeneration prints the resulting seam figures; a healthy loop lands below 0 dB on the
+seam excess and well under 0.5 dB on the level swell:
 
 ```
 period=79.550 samples (301.70 Hz) crossfade=955 samples
 loop start=18640 (777 ms) length=10418 cycles=130.96 match=0.870
-seam: sample jump=0.03918 excess over loop interior=-4.62 dB
+level flatten: swell 1.29 dB -> 0.07 dB (removed 1.22 dB)
+seam: sample jump=0.04058 excess over loop interior=-4.23 dB level swell=0.07 dB
 ```
 
 `scripts/fade_experiment.py` renders the loop through a model of the engine and scores
 the wrap with spectral flux, the usual click detector. The loop this replaced measured
 +3.1 dB there (the wrap was the loudest spectral event in the render); the current one
-measures -10.6 dB, i.e. below the tone's own movement.
+measures around -10 dB, i.e. below the tone's own movement.

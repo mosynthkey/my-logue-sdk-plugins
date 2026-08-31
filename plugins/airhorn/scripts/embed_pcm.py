@@ -286,6 +286,80 @@ def bake_crossfade(samples: list[float], start: int, length: int, crossfade: int
     return loop
 
 
+def circular_rms(samples: list[float], window: int) -> list[float]:
+    """Sliding RMS that wraps at the ends, so the loop is treated as a ring."""
+    length = len(samples)
+    if length == 0 or window < 1:
+        return [0.0] * length
+    window = min(window, length)
+    # One full pass of squared samples so every window sum is O(1).
+    doubled = samples + samples
+    squares = [value * value for value in doubled]
+    running = sum(squares[:window])
+    half = window // 2
+    out = [0.0] * length
+    for sample_index in range(length):
+        out[(sample_index + half) % length] = math.sqrt(running / window)
+        running += squares[sample_index + window] - squares[sample_index]
+    return out
+
+
+def hann_kernel(radius: int) -> list[float]:
+    size = radius * 2 + 1
+    weights = [0.5 - 0.5 * math.cos(2.0 * math.pi * index / (size - 1)) for index in range(size)]
+    total = sum(weights)
+    return [weight / total for weight in weights]
+
+
+def circular_smooth(values: list[float], radius: int) -> list[float]:
+    if radius < 1:
+        return list(values)
+    length = len(values)
+    kernel = hann_kernel(radius)
+    out = [0.0] * length
+    for sample_index in range(length):
+        acc = 0.0
+        for tap_index, weight in enumerate(kernel):
+            acc += values[(sample_index + tap_index - radius) % length] * weight
+        out[sample_index] = acc
+    return out
+
+
+def flatten_loop_level(loop: list[float], period: float,
+                       window_periods: float = 2.0, smooth_periods: float = 4.0) -> tuple[list[float], float]:
+    """Divide out the slow loudness swell so looping does not sound like an amp LFO.
+
+    The source horn is not level-flat across a few hundred milliseconds. Once that
+    contour is locked into a loop it repeats at the loop rate and reads as a
+    ~2 Hz tremolo. A short circular RMS (a couple of fundamental periods) tracks
+    the swell without touching the tone's own within-cycle ripple; dividing it
+    out leaves a loop whose loudness no longer pumps.
+    """
+    if len(loop) < 32 or period < 2.0:
+        return list(loop), 0.0
+
+    window = max(8, int(round(period * window_periods)))
+    radius = max(2, int(round(period * smooth_periods)))
+    envelope = circular_smooth(circular_rms(loop, window), radius)
+    before = level_excursion_db(envelope)
+
+    target = sum(envelope) / len(envelope)
+    flat = [
+        sample * (target / env) if env > 1e-6 else sample
+        for sample, env in zip(loop, envelope)
+    ]
+    after = level_excursion_db(circular_smooth(circular_rms(flat, window), radius))
+    return flat, before - after
+
+
+def level_excursion_db(envelope: list[float]) -> float:
+    peak = max(envelope) if envelope else 0.0
+    floor = min(envelope) if envelope else 0.0
+    if peak <= 0.0 or floor <= 0.0:
+        return 0.0
+    return 20.0 * math.log10(peak / floor)
+
+
 def seam_report(loop: list[float], period: float) -> dict:
     """Numbers that describe how much the wrap stands out from the loop interior."""
     length = len(loop)
@@ -360,7 +434,17 @@ def extract_dj_loop(
     )
 
     loop = bake_crossfade(samples, loop_start, loop_length, crossfade)
+    window = max(8, int(round(period * 2.0)))
+    radius = max(2, int(round(period * 4.0)))
+    level_before = level_excursion_db(circular_smooth(circular_rms(loop, window), radius))
+    loop, level_removed_db = flatten_loop_level(loop, period)
+    level_after = level_excursion_db(circular_smooth(circular_rms(loop, window), radius))
+    print(
+        f"  level flatten: swell {level_before:.2f} dB -> {level_after:.2f} dB "
+        f"(removed {level_removed_db:.2f} dB)"
+    )
     report = seam_report(loop, period)
+    report["level_swell_db"] = level_after
     pcm = to_pcm16(loop)
 
     attack_hz = track[0][1] if track else settled_hz
@@ -474,7 +558,8 @@ def main() -> int:
     )
     print(
         f"  seam: sample jump={report['sample_jump']:.5f} "
-        f"excess over loop interior={report['seam_excess_db']:+.2f} dB"
+        f"excess over loop interior={report['seam_excess_db']:+.2f} dB "
+        f"level swell={report['level_swell_db']:.2f} dB"
     )
     write_header(args.out, [horn], args.rate)
     print(f"Wrote {args.out} ({horn['length'] * 2} bytes PCM16)")
