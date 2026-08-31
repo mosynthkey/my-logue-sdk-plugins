@@ -1,7 +1,6 @@
 <script setup>
 import { computed } from "vue";
 import PreviewPanel from "./PreviewPanel.vue";
-import SendButton from "./SendButton.vue";
 import TargetTabs from "./TargetTabs.vue";
 import { SENDABLE_TARGETS } from "../constants.js";
 import { buildForTarget, sendableBuilds } from "../utils/plugin.js";
@@ -42,17 +41,9 @@ const canSend = computed(() => {
     <PreviewPanel
       :build="activeBuild"
       :plugin="plugin"
+      :target="activeTarget"
+      :can-send="canSend"
+      @send="(pluginItem, target) => emit('send', pluginItem, target)"
     />
-
-    <footer class="detail__foot">
-      <div class="send-actions">
-        <SendButton
-          v-if="canSend"
-          :plugin="plugin"
-          :target="activeTarget"
-          @send="(pluginItem, target) => emit('send', pluginItem, target)"
-        />
-      </div>
-    </footer>
   </main>
 </template>
