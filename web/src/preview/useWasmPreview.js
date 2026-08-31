@@ -1,12 +1,10 @@
 import { computed, ref, shallowRef } from "vue";
+import { whenAudioUnlocked } from "../composables/useAudioSession.js";
 import { AHREnvelopeTime } from "./constants.js";
 import {
-  closeAudioUnlockContext,
   connectWasmProcessor,
   ensureAudioRunning,
-  previewNeedsUserGesture,
   stopDryInputNodes,
-  unlockAudioForPreview,
 } from "./audio.js";
 import { previewLayout } from "./layout.js";
 import {
@@ -95,7 +93,6 @@ export function useWasmPreview() {
   const knobMappings = shallowRef([]);
 
   const frequencyStack = ref([]);
-  const awaitingGesture = ref(false);
 
   const isLoading = computed(() => phase.value === "loading");
   const isReady = computed(() => phase.value === "ready");
@@ -207,29 +204,6 @@ export function useWasmPreview() {
     }
   }
 
-  async function waitForGesture() {
-    if (!previewNeedsUserGesture()) {
-      return;
-    }
-    awaitingGesture.value = true;
-    phase.value = "gesture";
-    message.value = "Tap to start preview";
-    await new Promise((resolve) => {
-      const finish = () => {
-        awaitingGesture.value = false;
-        unlockAudioForPreview().then(resolve);
-      };
-      window.__previewGestureFinish = finish;
-    });
-    delete window.__previewGestureFinish;
-  }
-
-  function confirmGesture() {
-    if (window.__previewGestureFinish) {
-      window.__previewGestureFinish();
-    }
-  }
-
   async function teardown() {
     previewGeneration.value += 1;
     clearWasmGlobals();
@@ -251,8 +225,6 @@ export function useWasmPreview() {
     showInstrument.value = false;
     showKnobs.value = false;
     knobs.value = [];
-    awaitingGesture.value = false;
-    await closeAudioUnlockContext();
   }
 
   async function mount(build, plugin) {
@@ -278,7 +250,7 @@ export function useWasmPreview() {
     configureWasmModule(build);
 
     try {
-      await waitForGesture();
+      await whenAudioUnlocked();
       if (generation !== previewGeneration.value) {
         return;
       }
@@ -323,6 +295,7 @@ export function useWasmPreview() {
       showInstrument.value = true;
       phase.value = "ready";
       message.value = "";
+      ensureAudioRunning(context, audioRunning);
     } catch (error) {
       if (generation !== previewGeneration.value) {
         return;
@@ -343,7 +316,6 @@ export function useWasmPreview() {
     audioRunning,
     latchEnabled,
     holdEnabled,
-    awaitingGesture,
     isLoading,
     isReady,
     hasWasm,
@@ -358,7 +330,6 @@ export function useWasmPreview() {
     onLatchToggle,
     onTouchEvent,
     onHoldToggle,
-    confirmGesture,
     handleXyPosition,
   };
 }

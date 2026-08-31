@@ -27,7 +27,6 @@ const {
   audioRunning,
   latchEnabled,
   holdEnabled,
-  awaitingGesture,
   isReady,
   mount,
   teardown,
@@ -38,7 +37,6 @@ const {
   onLatchToggle,
   onTouchEvent,
   onHoldToggle,
-  confirmGesture,
 } = useWasmPreview();
 
 watch(
@@ -95,12 +93,6 @@ function handleHoldToggle() {
       <p
         v-if="!showInstrument && message"
         class="preview-status"
-        :class="{ 'preview-status--action': awaitingGesture }"
-        :role="awaitingGesture ? 'button' : undefined"
-        :tabindex="awaitingGesture ? 0 : -1"
-        @pointerdown="confirmGesture"
-        @keydown.enter.prevent="confirmGesture"
-        @keydown.space.prevent="confirmGesture"
       >
         {{ message }}
       </p>
