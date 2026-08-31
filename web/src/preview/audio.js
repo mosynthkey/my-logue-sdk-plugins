@@ -20,8 +20,11 @@ export function connectWasmProcessor(context, wasmProcessor, plugin, build) {
   stopDryInputNodes();
 
   if (usesDryInput(plugin, build)) {
-    const dryGain = new GainNode(context, { gain: 0.2 });
-    const oscillator = new OscillatorNode(context, { frequency: 220, type: "sawtooth" });
+    const dryGain = context.createGain();
+    dryGain.gain.value = 0.2;
+    const oscillator = context.createOscillator();
+    oscillator.frequency.value = 220;
+    oscillator.type = "sawtooth";
     oscillator.connect(dryGain).connect(wasmProcessor);
     oscillator.start();
     dryInputNodes.push(oscillator, dryGain);
@@ -29,8 +32,10 @@ export function connectWasmProcessor(context, wasmProcessor, plugin, build) {
   }
 
   if (build?.target === "nts-3_kaoss") {
-    const silentGain = new GainNode(context, { gain: 0 });
-    const silentSource = new ConstantSourceNode(context, { offset: 0 });
+    const silentGain = context.createGain();
+    silentGain.gain.value = 0;
+    const silentSource = context.createConstantSource();
+    silentSource.offset.value = 0;
     silentSource.connect(silentGain).connect(wasmProcessor);
     silentSource.start();
     dryInputNodes.push(silentSource, silentGain);

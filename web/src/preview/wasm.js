@@ -1,9 +1,18 @@
 import { PREVIEW_TIMEOUT_MS } from "./constants.js";
 import { previewDebugLog } from "../composables/usePreviewDebugLog.js";
 import { needsGestureForWasmStart } from "./gesture.js";
+import {
+  createWasmHost,
+  destroyWasmHost,
+  getModule,
+  getWasmDocument,
+  getWasmWindow,
+} from "./wasm-host.js";
 import { onWasmRuntimeInitialized } from "./wasm-runtime.js";
 
 let activeScript = null;
+
+export { getModule, getWasmWindow };
 
 export function wasmJsUrl(wasmHref) {
   return wasmHref.replace(/\.html(?:\?.*)?$/, ".js");
@@ -14,9 +23,9 @@ export function wasmBaseUrl(wasmHref) {
   return jsUrl.slice(0, jsUrl.lastIndexOf("/") + 1);
 }
 
-export function installWorkletModuleBase(baseUrl) {
+export function installWorkletModuleBase(baseUrl, targetWindow = getWasmWindow()) {
   const resolvedBase = new URL(baseUrl, location.href).href;
-  const audioWorkletPrototype = AudioWorklet.prototype;
+  const audioWorkletPrototype = targetWindow.AudioWorklet.prototype;
   if (audioWorkletPrototype.__previewModuleBaseUrl === resolvedBase) {
     return;
   }
@@ -45,8 +54,9 @@ export function installWorkletModuleBase(baseUrl) {
 
 export function loadWasmScript(url) {
   previewDebugLog("info", `Loading wasm script ${url}`);
+  const wasmDocument = getWasmDocument();
   return new Promise((resolve, reject) => {
-    const script = document.createElement("script");
+    const script = wasmDocument.createElement("script");
     script.src = url;
     script.async = true;
     script.onload = () => {
@@ -58,7 +68,7 @@ export function loadWasmScript(url) {
       previewDebugLog("error", error.message);
       reject(error);
     };
-    document.body.append(script);
+    wasmDocument.body.append(script);
     activeScript = script;
   });
 }
@@ -71,6 +81,7 @@ export function removeActiveWasmScript() {
 }
 
 export function configureWasmModule(build) {
+  const frameWindow = createWasmHost();
   const baseUrl = wasmBaseUrl(build.wasm);
   const jsUrl = `${wasmJsUrl(build.wasm)}?v=${Date.now()}`;
   const deferMain = needsGestureForWasmStart();
@@ -83,13 +94,13 @@ export function configureWasmModule(build) {
       onWasmRuntimeInitialized();
     },
   };
-  window.Module = moduleConfig;
-  globalThis.Module = moduleConfig;
-  installWorkletModuleBase(baseUrl);
+  frameWindow.Module = moduleConfig;
+  installWorkletModuleBase(baseUrl, frameWindow);
   previewDebugLog("info", "Configured wasm module", {
     wasm: build.wasm,
     crossOriginIsolated: window.crossOriginIsolated,
-    hasAudioContext: typeof AudioContext !== "undefined" || typeof webkitAudioContext !== "undefined",
+    hasAudioContext: typeof frameWindow.AudioContext !== "undefined"
+      || typeof frameWindow.webkitAudioContext !== "undefined",
     deferMain,
   });
   return { baseUrl, jsUrl };
@@ -114,15 +125,15 @@ export function waitForWasmReady(generation, previewGenerationRef) {
       resolve({ context, wasmProcessor });
     };
 
-    window.setupWebAudioAndUI = handler;
-    globalThis.setupWebAudioAndUI = handler;
+    const frameWindow = getWasmWindow();
+    frameWindow.setupWebAudioAndUI = handler;
   });
 }
 
 export function clearWasmGlobals() {
   removeActiveWasmScript();
-  delete window.setupWebAudioAndUI;
-  delete globalThis.setupWebAudioAndUI;
-  delete window.Module;
-  delete globalThis.Module;
+  const frameWindow = getWasmWindow();
+  delete frameWindow.setupWebAudioAndUI;
+  delete frameWindow.Module;
+  destroyWasmHost();
 }
