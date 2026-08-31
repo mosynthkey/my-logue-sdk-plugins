@@ -18,6 +18,8 @@
   let audioTimeout = 0;
   let activeScript = null;
   let originalAddModule = null;
+  let gestureListener = null;
+  let gestureFinish = null;
 
   function log(kind, message, detail) {
     try {
@@ -272,6 +274,95 @@
     return audioContext.state !== "suspended";
   }
 
+  function unlockAudioSession() {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) {
+      return;
+    }
+    const unlockContext = new AudioContextClass();
+    if (unlockContext.state === "suspended") {
+      unlockContext.resume();
+    }
+    window.setTimeout(() => {
+      if (unlockContext.state !== "closed") {
+        unlockContext.close();
+      }
+    }, 1000);
+    log("info", "Audio session unlocked");
+  }
+
+  function disarmGestureStart() {
+    if (!gestureListener) {
+      gestureFinish = null;
+      return;
+    }
+    document.removeEventListener("pointerdown", gestureListener);
+    document.removeEventListener("keydown", gestureListener);
+    gestureListener = null;
+    gestureFinish = null;
+  }
+
+  function armGestureStart(onGestureDone) {
+    disarmGestureStart();
+    gestureFinish = onGestureDone;
+
+    gestureListener = (event) => {
+      if (event.type === "keydown" && event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+      if (event.type === "keydown") {
+        event.preventDefault();
+      }
+
+      disarmGestureStart();
+      unlockAudioSession();
+      if (!startMainFromGesture()) {
+        log("warn", "Tap ignored — wasm not ready yet");
+        return;
+      }
+      onGestureDone?.();
+    };
+
+    document.addEventListener("pointerdown", gestureListener, { once: true });
+    document.addEventListener("keydown", gestureListener, { once: true });
+  }
+
+  function startMainFromGesture() {
+    const moduleRef = window.Module;
+    if (!moduleRef?.calledRun || typeof moduleRef._main !== "function") {
+      log("info", "Wasm runtime not ready for main()");
+      return false;
+    }
+    if (mainStarted || moduleRef.__previewMainStarted) {
+      return true;
+    }
+
+    restartAudioWaiterTimeout();
+    if (!window.crossOriginIsolated) {
+      log(
+        "warn",
+        "crossOriginIsolated is false — reload the page once if preview stays silent",
+      );
+    }
+
+    moduleRef.__previewMainStarted = true;
+    try {
+      log("info", "Calling Module._main(0, 0) from iframe user gesture");
+      moduleRef._main(0, 0);
+      mainStarted = true;
+      return true;
+    } catch (error) {
+      if (isEmscriptenControlFlow(error)) {
+        mainStarted = true;
+        log("info", "Module._main resumed async audio init (unwind)");
+        return true;
+      }
+      moduleRef.__previewMainStarted = false;
+      log("error", "Module._main(0, 0) failed", error?.message || String(error));
+      return false;
+    }
+  }
+
   function setGate(open) {
     if (!envelope || !audioContext) {
       return;
@@ -330,40 +421,11 @@
       return { audioReady };
     },
 
+    armGestureStart,
+    disarmGestureStart,
+
     startMain() {
-      const moduleRef = window.Module;
-      if (!moduleRef?.calledRun || typeof moduleRef._main !== "function") {
-        log("info", "Wasm runtime not ready for main()");
-        return false;
-      }
-      if (mainStarted || moduleRef.__previewMainStarted) {
-        return true;
-      }
-
-      restartAudioWaiterTimeout();
-      if (!window.crossOriginIsolated) {
-        log(
-          "warn",
-          "crossOriginIsolated is false — wasm AudioWorklet needs an isolated tab (reload once if prompted)",
-        );
-      }
-
-      moduleRef.__previewMainStarted = true;
-      try {
-        log("info", "Calling Module._main(0, 0) from user gesture");
-        moduleRef._main(0, 0);
-        mainStarted = true;
-        return true;
-      } catch (error) {
-        if (isEmscriptenControlFlow(error)) {
-          mainStarted = true;
-          log("info", "Module._main resumed async audio init (unwind)");
-          return true;
-        }
-        moduleRef.__previewMainStarted = false;
-        log("error", "Module._main(0, 0) failed", error?.message || String(error));
-        return false;
-      }
+      return startMainFromGesture();
     },
 
     readKnobs,

@@ -34,7 +34,7 @@ function buildPlaceholderKnobs(plugin) {
   }));
 }
 
-export function useWasmPreview() {
+export function useWasmPreview(previewShellRef) {
   const phase = ref("idle");
   const message = ref("Select a plugin to preview.");
   const layout = ref("keyboard");
@@ -194,6 +194,7 @@ export function useWasmPreview() {
   async function teardown() {
     previewGeneration.value += 1;
     pendingTapFinish = null;
+    delete window.__previewGestureDone;
     awaitingWasmTap.value = false;
     resetPlaybackState();
     showInstrument.value = false;
@@ -201,6 +202,7 @@ export function useWasmPreview() {
     knobs.value = [];
     knobMappings.value = [];
     if (session) {
+      session.setGestureCapture(false);
       await session.destroy();
       session = null;
     }
@@ -256,12 +258,19 @@ export function useWasmPreview() {
         phase.value = "gesture";
         message.value = window.crossOriginIsolated
           ? "Tap to start preview"
-          : "Tap to start preview (audio isolation unavailable on this browser)";
+          : "Tap to start preview (reload once if audio stays silent)";
         previewDebugLog("info", "Waiting for single tap to unlock audio and start wasm");
         await new Promise((resolve) => {
           pendingTapFinish = resolve;
+          window.__previewGestureDone = () => {
+            awaitingWasmTap.value = false;
+            resolve();
+          };
+          const captureTarget = previewShellRef?.value ?? null;
+          session.setGestureCapture(true, captureTarget);
         });
         pendingTapFinish = null;
+        delete window.__previewGestureDone;
         if (generation !== previewGeneration.value) {
           return;
         }
@@ -317,6 +326,7 @@ export function useWasmPreview() {
       return;
     }
     awaitingWasmTap.value = false;
+    session?.setGestureCapture(false);
     pendingTapFinish?.();
   }
 

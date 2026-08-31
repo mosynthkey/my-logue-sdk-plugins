@@ -19,6 +19,8 @@ const props = defineProps({
 
 const xyPadRef = ref(null);
 
+const previewShellRef = ref(null);
+
 const {
   message,
   layout,
@@ -42,7 +44,7 @@ const {
   onTouchEnded,
   onHoldToggle,
   startPreviewFromTap,
-} = useWasmPreview();
+} = useWasmPreview(previewShellRef);
 
 watch(
   () => [props.build, props.plugin],
@@ -80,14 +82,13 @@ function handleHoldToggle() {
 
 <template>
   <section class="detail__stage" aria-label="Preview">
-    <div class="preview-shell">
+    <div ref="previewShellRef" class="preview-shell">
       <p
         v-if="!showInstrument && message"
         class="preview-status"
         :class="{ 'preview-status--action': awaitingWasmTap }"
         :role="awaitingWasmTap ? 'button' : undefined"
         :tabindex="awaitingWasmTap ? 0 : -1"
-        @pointerdown="startPreviewFromTap"
         @keydown.enter.prevent="startPreviewFromTap"
         @keydown.space.prevent="startPreviewFromTap"
       >
