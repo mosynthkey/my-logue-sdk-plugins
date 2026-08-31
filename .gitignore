@@ -18,3 +18,5 @@ plugins/*/targets/*/*.mk2unit
 plugins/airhorn/assets/*.wav
 plugins/airhorn/assets/*.ogg
 plugins/airhorn/assets/*.mp3
+web/node_modules/
+web/dist/

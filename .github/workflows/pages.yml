@@ -124,6 +124,11 @@ jobs:
       - name: Build Wasm simulator
         run: make wasm EMCC_BIN_PATH="$(dirname "$(command -v emcc)")"
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - name: Assemble GitHub Pages site
         run: bash scripts/assemble-site.sh site
 
