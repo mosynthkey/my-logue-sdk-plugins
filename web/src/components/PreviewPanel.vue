@@ -25,7 +25,6 @@ const {
   knobs,
   showInstrument,
   showKnobs,
-  audioRunning,
   latchEnabled,
   holdEnabled,
   awaitingWasmTap,
@@ -33,7 +32,6 @@ const {
   mount,
   teardown,
   setKnobValue,
-  toggleAudio,
   onKeyboardDown,
   onKeyboardUp,
   onLatchToggle,
@@ -94,17 +92,8 @@ function handleHoldToggle() {
         {{ message }}
       </p>
 
-      <div v-show="showInstrument" class="preview-instrument">
+      <div v-if="showInstrument" class="preview-instrument">
         <div class="preview-toolbar">
-          <button
-            type="button"
-            class="preview-chip"
-            :class="{ 'is-on': audioRunning }"
-            @click="toggleAudio"
-          >
-            {{ audioRunning ? "Suspend audio" : "Start audio" }}
-          </button>
-
           <button
             v-if="layout === 'keyboard'"
             type="button"
