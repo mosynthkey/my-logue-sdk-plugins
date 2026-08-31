@@ -1,8 +1,10 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import PreviewDebugLog from "./preview/PreviewDebugLog.vue";
+import PreviewDepthPad from "./preview/PreviewDepthPad.vue";
 import PreviewKeyboard from "./preview/PreviewKeyboard.vue";
 import PreviewKnob from "./preview/PreviewKnob.vue";
+import PreviewScope from "./preview/PreviewScope.vue";
 import PreviewXyPad from "./preview/PreviewXyPad.vue";
 import SendButton from "./SendButton.vue";
 import { useWasmPreview } from "../preview/useWasmPreview.js";
@@ -40,11 +42,21 @@ const {
   showKnobs,
   latchEnabled,
   holdEnabled,
+  masterVolume,
+  bpm,
+  depthNormalized,
+  hasDepthMapping,
+  masterVolumeLabel,
+  bpmLabel,
   awaitingWasmTap,
   isReady,
   mount,
   teardown,
   setKnobValue,
+  setMasterVolume,
+  setBpm,
+  handleDepthChange,
+  readScopeSnapshot,
   onKeyboardDown,
   onKeyboardUp,
   onLatchToggle,
@@ -130,6 +142,30 @@ const showToolbar = computed(() => props.canSend || showInstrument.value);
           >
             Hold {{ holdEnabled ? "On" : "Off" }}
           </button>
+
+          <PreviewKnob
+            v-if="showInstrument"
+            knob-id="master-volume"
+            name="Volume"
+            :min="0"
+            :max="1"
+            :value="masterVolume"
+            :value-label="masterVolumeLabel"
+            :sensitivity="0.005"
+            @update:value="setMasterVolume"
+          />
+
+          <PreviewKnob
+            v-if="showInstrument"
+            knob-id="master-bpm"
+            name="BPM"
+            :min="30"
+            :max="240"
+            :value="bpm"
+            :value-label="bpmLabel"
+            :sensitivity="0.5"
+            @update:value="setBpm"
+          />
         </div>
 
         <SendButton
@@ -141,21 +177,42 @@ const showToolbar = computed(() => props.canSend || showInstrument.value);
       </div>
 
       <div v-if="showInstrument" class="preview-instrument">
-        <PreviewKeyboard
-          v-if="layout === 'keyboard'"
-          :enabled="isReady"
-          @note-down="onKeyboardDown"
-          @note-up="onKeyboardUp"
-        />
+        <div class="preview-instrument-row">
+          <div
+            v-if="layout === 'keyboard'"
+            class="preview-instrument-main"
+          >
+            <PreviewKeyboard
+              :enabled="isReady"
+              @note-down="onKeyboardDown"
+              @note-up="onKeyboardUp"
+            />
+          </div>
 
-        <PreviewXyPad
-          v-else
-          ref="xyPadRef"
-          :hold-enabled="holdEnabled"
-          @pointer-down="onXyPointerDown"
-          @pointer-move="onXyPointerMove"
-          @pointer-up="onXyPointerUp"
-        />
+          <div
+            v-else
+            class="preview-xypad-group"
+          >
+            <PreviewDepthPad
+              v-if="hasDepthMapping"
+              :depth-normalized="depthNormalized"
+              @update:depth="handleDepthChange"
+            />
+
+            <PreviewXyPad
+              ref="xyPadRef"
+              :hold-enabled="holdEnabled"
+              @pointer-down="onXyPointerDown"
+              @pointer-move="onXyPointerMove"
+              @pointer-up="onXyPointerUp"
+            />
+          </div>
+
+          <PreviewScope
+            :enabled="isReady"
+            :read-snapshot="readScopeSnapshot"
+          />
+        </div>
       </div>
 
       <div v-show="showKnobs" class="preview-knobs">

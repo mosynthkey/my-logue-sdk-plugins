@@ -44,11 +44,14 @@ export function useWasmPreview(previewShellRef) {
   const audioRunning = ref(false);
   const latchEnabled = ref(false);
   const holdEnabled = ref(false);
+  const masterVolume = ref(0.5);
+  const bpm = ref(120);
 
   const previewGeneration = ref(0);
   const knobMappings = shallowRef([]);
-  const paramAssign = shallowRef({ X: 1, Y: 2 });
+  const paramAssign = shallowRef({ X: 1, Y: 2, Depth: 3 });
   const frequencyStack = ref([]);
+  const depthNormalized = ref(0.5);
   const awaitingWasmTap = ref(false);
 
   let session = null;
@@ -57,6 +60,9 @@ export function useWasmPreview(previewShellRef) {
   const isLoading = computed(() => phase.value === "loading");
   const isReady = computed(() => phase.value === "ready");
   const hasWasm = computed(() => phase.value !== "no-wasm");
+  const hasDepthMapping = computed(() => knobMappings.value.some(
+    (mapping) => mapping.assign === paramAssign.value.Depth,
+  ));
 
   function host() {
     return session?.host ?? null;
@@ -86,6 +92,24 @@ export function useWasmPreview(previewShellRef) {
     }
   }
 
+  function setMasterVolume(nextValue) {
+    const clamped = Math.min(Math.max(nextValue, 0), 1);
+    masterVolume.value = clamped;
+    host()?.setMasterVolume(clamped);
+  }
+
+  function setBpm(nextValue) {
+    const clamped = Math.min(Math.max(nextValue, 30), 240);
+    bpm.value = clamped;
+    host()?.setBpm(clamped);
+  }
+
+  const masterVolumeLabel = computed(() => String(Math.round(masterVolume.value * 100)));
+  const bpmLabel = computed(() => {
+    const rounded = Math.round(bpm.value * 10) / 10;
+    return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  });
+
   function applyMappingValue(paramIndex, normalized, unipolar, curve) {
     const runtime = host();
     const knobIndex = knobs.value.findIndex((knob) => knob.index === paramIndex);
@@ -107,6 +131,20 @@ export function useWasmPreview(previewShellRef) {
         applyMappingValue(mapping.paramIndex, yFromBottom, mapping.unipolar, mapping.curve);
       }
     }
+  }
+
+  function handleDepthChange(nextDepthNormalized) {
+    const clamped = Math.min(Math.max(nextDepthNormalized, 0), 1);
+    depthNormalized.value = clamped;
+    for (const mapping of knobMappings.value) {
+      if (mapping.assign === paramAssign.value.Depth) {
+        applyMappingValue(mapping.paramIndex, clamped, mapping.unipolar, mapping.curve);
+      }
+    }
+  }
+
+  function readScopeSnapshot() {
+    return host()?.readScopeSnapshot() ?? null;
   }
 
   function syncAudioRunning() {
@@ -199,6 +237,9 @@ export function useWasmPreview(previewShellRef) {
     delete window.__previewGestureDone;
     awaitingWasmTap.value = false;
     resetPlaybackState();
+    masterVolume.value = 0.5;
+    bpm.value = 120;
+    depthNormalized.value = 0.5;
     showInstrument.value = false;
     showKnobs.value = false;
     knobs.value = [];
@@ -299,11 +340,16 @@ export function useWasmPreview(previewShellRef) {
             setKnobValue(knobIndex, mapping.init);
           }
         }
+        if (hasDepthMapping.value) {
+          handleDepthChange(depthNormalized.value);
+        }
       }
 
       showInstrument.value = true;
       phase.value = "ready";
       message.value = "";
+      runtime.setMasterVolume(masterVolume.value);
+      runtime.setBpm(bpm.value);
       runtime.resumeAudio();
       syncAudioRunning();
       audioRunning.value = true;
@@ -342,6 +388,12 @@ export function useWasmPreview(previewShellRef) {
     audioRunning,
     latchEnabled,
     holdEnabled,
+    masterVolume,
+    bpm,
+    depthNormalized,
+    hasDepthMapping,
+    masterVolumeLabel,
+    bpmLabel,
     awaitingWasmTap,
     isLoading,
     isReady,
@@ -349,6 +401,10 @@ export function useWasmPreview(previewShellRef) {
     mount,
     teardown,
     setKnobValue,
+    setMasterVolume,
+    setBpm,
+    handleDepthChange,
+    readScopeSnapshot,
     toggleAudio,
     onKeyboardDown,
     onKeyboardUp,

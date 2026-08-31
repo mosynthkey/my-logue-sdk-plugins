@@ -109,3 +109,67 @@ export function xyPadPointFromEvent(canvas, event) {
     yNormalized: rect.height ? y / rect.height : 0,
   };
 }
+
+export function drawDepthPadGrid(ctx, width, height) {
+  ctx.fillStyle = "#0d0d0d";
+  ctx.fillRect(0, 0, width, height);
+  ctx.strokeStyle = "#222222";
+  ctx.lineWidth = 1;
+  for (let gridIndex = 1; gridIndex < 8; gridIndex += 1) {
+    const y = (height / 8) * gridIndex;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(width, y);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = "#333333";
+  ctx.beginPath();
+  ctx.moveTo(width / 2, 0);
+  ctx.lineTo(width / 2, height);
+  ctx.stroke();
+}
+
+export function drawDepthPadMarker(ctx, width, y) {
+  const color = accentColor();
+  ctx.beginPath();
+  ctx.moveTo(4, y);
+  ctx.lineTo(width - 4, y);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(width / 2, y, 3.5, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+
+export function paintDepthPad(canvas, markerY) {
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width < 2 || rect.height < 2) {
+    return;
+  }
+  const cssWidth = rect.width;
+  const cssHeight = rect.height;
+  const dpr = window.devicePixelRatio || 1;
+  const pixelWidth = Math.max(1, Math.round(cssWidth * dpr));
+  const pixelHeight = Math.max(1, Math.round(cssHeight * dpr));
+  if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+    canvas.width = pixelWidth;
+    canvas.height = pixelHeight;
+  }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawDepthPadGrid(ctx, cssWidth, cssHeight);
+  if (Number.isFinite(markerY)) {
+    drawDepthPadMarker(ctx, cssWidth, markerY);
+  }
+}
+
+export function depthPadPointFromEvent(canvas, event) {
+  const rect = canvas.getBoundingClientRect();
+  const y = Math.min(Math.max(event.clientY - rect.top, 0), rect.height);
+  return {
+    y,
+    depthNormalized: rect.height ? 1 - y / rect.height : 0,
+  };
+}

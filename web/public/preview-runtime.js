@@ -6,6 +6,11 @@
 
   let audioContext = null;
   let wasmProcessor = null;
+  let masterVolumeNode = null;
+  let analyser = null;
+  let scopeTimeDomainBuffer = null;
+  let scopeFrequencyBuffer = null;
+  let referenceFrequency = 440;
   let envelope = null;
   let dryNodes = [];
   let layout = "keyboard";
@@ -146,7 +151,8 @@
     audioContext = context;
     wasmProcessor = processor;
     const volume = context.createGain();
-    volume.gain.value = 0.35;
+    volume.gain.value = 0.5;
+    masterVolumeNode = volume;
 
     if (layout === "keyboard") {
       envelope = context.createGain();
@@ -157,6 +163,11 @@
       processor.connect(volume);
     }
 
+    analyser = context.createAnalyser();
+    analyser.fftSize = 4096;
+    scopeTimeDomainBuffer = new Float32Array(analyser.fftSize);
+    scopeFrequencyBuffer = new Float32Array(analyser.frequencyBinCount);
+    volume.connect(analyser);
     volume.connect(context.destination);
     log("info", "setupWebAudioAndUI called", { state: context.state });
     audioWaiter?.resolve();
@@ -253,6 +264,7 @@
       paramAssign: {
         X: moduleRef.ParamAssign.X,
         Y: moduleRef.ParamAssign.Y,
+        Depth: moduleRef.ParamAssign.Depth,
       },
     };
   }
@@ -262,6 +274,38 @@
     if (audioParameter) {
       audioParameter.value = value;
     }
+  }
+
+  function setMasterVolume(value) {
+    if (!masterVolumeNode || !audioContext) {
+      return;
+    }
+    const clamped = Math.min(Math.max(value, 0), 1);
+    masterVolumeNode.gain.linearRampToValueAtTime(
+      clamped,
+      audioContext.currentTime + 0.1,
+    );
+  }
+
+  function setBpm(value) {
+    const moduleRef = window.Module;
+    if (typeof moduleRef?.fx_set_bpm === "function") {
+      moduleRef.fx_set_bpm(value);
+    }
+  }
+
+  function readScopeSnapshot() {
+    if (!analyser || !scopeTimeDomainBuffer || !scopeFrequencyBuffer) {
+      return null;
+    }
+    analyser.getFloatTimeDomainData(scopeTimeDomainBuffer);
+    analyser.getFloatFrequencyData(scopeFrequencyBuffer);
+    return {
+      timeDomain: scopeTimeDomainBuffer.slice(),
+      frequency: scopeFrequencyBuffer.slice(),
+      sampleRate: audioContext?.sampleRate ?? 44100,
+      referenceFrequency,
+    };
   }
 
   function resumeAudio() {
@@ -432,6 +476,9 @@
     formatKnobValue,
     readMappings,
     setParam,
+    setMasterVolume,
+    setBpm,
+    readScopeSnapshot,
     applyCurve(normalized, curve, unipolar) {
       return window.Module.applyCurveToParameter0to1(normalized, curve, unipolar);
     },
@@ -443,6 +490,7 @@
       return audioContext?.state || "closed";
     },
     setOscPitch(frequency) {
+      referenceFrequency = frequency;
       window.Module.setOscPitch(frequency);
     },
     noteOn(note, velocity) {
