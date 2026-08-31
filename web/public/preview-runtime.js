@@ -161,6 +161,26 @@
     audioWaiter = null;
   }
 
+  function rejectAudioWaiter(error) {
+    window.clearTimeout(audioTimeout);
+    audioTimeout = 0;
+    audioWaiter?.reject(error);
+    audioWaiter = null;
+  }
+
+  function restartAudioWaiterTimeout() {
+    if (!audioWaiter) {
+      return;
+    }
+    window.clearTimeout(audioTimeout);
+    audioTimeout = window.setTimeout(() => {
+      const coiHint = window.crossOriginIsolated
+        ? ""
+        : " Audio isolation is unavailable in this browser tab.";
+      rejectAudioWaiter(new Error(`Preview timed out waiting for AudioWorklet.${coiHint}`));
+    }, PREVIEW_TIMEOUT_MS);
+  }
+
   function createAudioWaiter() {
     let resolve;
     let reject;
@@ -168,10 +188,8 @@
       resolve = res;
       reject = rej;
     });
-    audioTimeout = window.setTimeout(() => {
-      reject(new Error("Preview timed out waiting for AudioWorklet."));
-    }, PREVIEW_TIMEOUT_MS);
     audioWaiter = { promise, resolve, reject };
+    restartAudioWaiterTimeout();
     return promise;
   }
 
@@ -303,8 +321,7 @@
         await loadWasmScript(jsUrl);
         await waitForRuntime();
       } catch (error) {
-        window.clearTimeout(audioTimeout);
-        audioWaiter?.reject(error);
+        rejectAudioWaiter(error);
         throw error;
       }
       if (!deferMain) {
@@ -321,6 +338,14 @@
       }
       if (mainStarted || moduleRef.__previewMainStarted) {
         return true;
+      }
+
+      restartAudioWaiterTimeout();
+      if (!window.crossOriginIsolated) {
+        log(
+          "warn",
+          "crossOriginIsolated is false — wasm AudioWorklet needs an isolated tab (reload once if prompted)",
+        );
       }
 
       moduleRef.__previewMainStarted = true;

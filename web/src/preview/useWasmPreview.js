@@ -9,6 +9,19 @@ function approximatelyEqual(a, b, epsilon = 1e-4) {
   return Math.abs(a - b) < epsilon;
 }
 
+function describePreviewError(error) {
+  if (!error) {
+    return "Preview failed.";
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  if (typeof error.message === "string" && error.message.length > 0) {
+    return error.message;
+  }
+  return String(error);
+}
+
 function buildPlaceholderKnobs(plugin) {
   return (plugin?.params || []).map((param) => ({
     name: param.name,
@@ -288,9 +301,9 @@ export function useWasmPreview() {
         return;
       }
       phase.value = "error";
-      message.value = error.message;
+      message.value = describePreviewError(error);
       showInstrument.value = false;
-      previewDebugLog("error", "Preview mount failed", error);
+      previewDebugLog("error", "Preview mount failed", describePreviewError(error));
     }
   }
 

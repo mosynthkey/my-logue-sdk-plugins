@@ -3,6 +3,15 @@
 <head>
   <meta charset="utf-8">
   <title>Plugin preview runtime</title>
+  <script>
+    window.coi = {
+      coepCredentialless: () => true,
+      coepDegrade: () => false,
+      quiet: true,
+      ...(window.coi || {}),
+    };
+  </script>
+  <script src="./coi-serviceworker.js"></script>
 </head>
 <body>
   <script src="./preview-runtime.js"></script>
