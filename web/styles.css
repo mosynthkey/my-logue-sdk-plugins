@@ -310,6 +310,22 @@ body.modal-open {
   text-align: center;
 }
 
+.preview-status--action {
+  margin: 0;
+  padding: 20px 16px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 2px;
+  color: var(--ink);
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.preview-status--action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .preview-instrument {
   display: flex;
   flex-direction: column;
