@@ -300,6 +300,9 @@
   var styleKey = function (key) {
     key.el.style.display = 'inline-block';
     key.el.style['-webkit-user-select'] = 'none';
+    key.el.style.userSelect = 'none';
+    key.el.style.touchAction = 'none';
+    key.el.style['-webkit-touch-callout'] = 'none';
 
     if (key.colour === 'white') {
       styleWhiteKey(key);
@@ -322,6 +325,9 @@
       el.style.listStyle = 'none';
       el.style.margin = settings.margin;
       el.style['-webkit-user-select'] = 'none';
+      el.style.userSelect = 'none';
+      el.style.touchAction = 'none';
+      el.style['-webkit-touch-callout'] = 'none';
       el.style.boxSizing = 'content-box';
     };
 
@@ -578,11 +584,13 @@
 
     // Mouse is clicked down on keyboard element.
     container.addEventListener('mousedown', function (event) {
+      event.preventDefault();
       mouseDown(event.target, that.keyDown);
     });
 
     // Mouse is released from keyboard element.
     container.addEventListener('mouseup', function (event) {
+      event.preventDefault();
       mouseUp(event.target, that.keyUp);
     });
 
@@ -596,23 +604,41 @@
       mouseOut(event.target, that.keyUp);
     });
 
+    container.addEventListener('contextmenu', function (event) {
+      event.preventDefault();
+    });
+
+    container.addEventListener('dragstart', function (event) {
+      event.preventDefault();
+    });
+
     // Device supports touch events.
     if ('ontouchstart' in document.documentElement) {
+      var touchOptions = { passive: false };
+
       container.addEventListener('touchstart', function (event) {
+        event.preventDefault();
         mouseDown(event.target, that.keyDown);
-      });
+      }, touchOptions);
+
+      container.addEventListener('touchmove', function (event) {
+        event.preventDefault();
+      }, touchOptions);
 
       container.addEventListener('touchend', function (event) {
+        event.preventDefault();
         mouseUp(event.target, that.keyUp);
-      });
+      }, touchOptions);
 
       container.addEventListener('touchleave', function (event) {
+        event.preventDefault();
         mouseOut(event.target, that.keyUp);
-      });
+      }, touchOptions);
 
       container.addEventListener('touchcancel', function (event) {
+        event.preventDefault();
         mouseOut(event.target, that.keyUp);
-      });
+      }, touchOptions);
     }
   };
 

@@ -91,6 +91,7 @@ function onPointerUp(event) {
 }
 
 function onPointerCancel(event) {
+  event.preventDefault();
   endDrag(event);
 }
 </script>
@@ -103,6 +104,8 @@ function onPointerCancel(event) {
       @pointermove="onPointerMove"
       @pointerup="onPointerUp"
       @pointercancel="onPointerCancel"
+      @contextmenu.prevent
+      @dragstart.prevent
     >
       <svg class="knob__svg" viewBox="0 0 48 48">
         <defs>

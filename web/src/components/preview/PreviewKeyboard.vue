@@ -99,9 +99,11 @@ function onOctaveKeyDown(event) {
     return;
   }
   if (event.key === "z") {
+    event.preventDefault();
     currentOctave = Math.max(0, currentOctave - 1);
     keyboard.setKeyOctave(currentOctave);
   } else if (event.key === "x") {
+    event.preventDefault();
     currentOctave = Math.min(7, currentOctave + 1);
     keyboard.setKeyOctave(currentOctave);
   }
