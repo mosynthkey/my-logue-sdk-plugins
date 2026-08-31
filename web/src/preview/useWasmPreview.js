@@ -98,11 +98,13 @@ export function useWasmPreview(previewShellRef) {
   }
 
   function handleXyPosition(xNormalized, yNormalized) {
+    // Match NTS-3 / SDK xypad: screen top = Y max (browser Y is top-origin).
+    const yFromBottom = 1 - yNormalized;
     for (const mapping of knobMappings.value) {
       if (mapping.assign === paramAssign.value.X) {
         applyMappingValue(mapping.paramIndex, xNormalized, mapping.unipolar, mapping.curve);
       } else if (mapping.assign === paramAssign.value.Y) {
-        applyMappingValue(mapping.paramIndex, yNormalized, mapping.unipolar, mapping.curve);
+        applyMappingValue(mapping.paramIndex, yFromBottom, mapping.unipolar, mapping.curve);
       }
     }
   }
