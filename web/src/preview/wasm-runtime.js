@@ -28,6 +28,10 @@ export function waitForWasmRuntime() {
   });
 }
 
+function isEmscriptenControlFlow(error) {
+  return error === "unwind" || error?.message === "unwind";
+}
+
 export function startWasmMainInGesture() {
   const moduleRef = window.Module;
   if (!moduleRef?.calledRun || typeof moduleRef._main !== "function") {
@@ -38,21 +42,28 @@ export function startWasmMainInGesture() {
     return true;
   }
 
+  moduleRef.__previewMainStarted = true;
+
   try {
     previewDebugLog("info", "Calling Module._main(0, 0) from user gesture");
-    moduleRef.__previewMainStarted = true;
     moduleRef._main(0, 0);
     wasmMainStarted = true;
     return true;
   } catch (error) {
+    if (isEmscriptenControlFlow(error)) {
+      wasmMainStarted = true;
+      previewDebugLog("info", "Module._main resumed async audio init (unwind)");
+      return true;
+    }
+
     moduleRef.__previewMainStarted = false;
     wasmMainStarted = false;
     const detail = error?.message || String(error);
     previewDebugLog("error", "Module._main(0, 0) failed", detail);
     if (!window.crossOriginIsolated) {
       previewDebugLog(
-        "error",
-        "crossOriginIsolated is false — AudioWorklet preview may not work on this browser",
+        "warn",
+        "crossOriginIsolated is false — preview may still work if AudioWorklet loads",
       );
     }
     return false;
