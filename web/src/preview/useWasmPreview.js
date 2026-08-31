@@ -44,6 +44,8 @@ export function useWasmPreview(previewShellRef) {
   const audioRunning = ref(false);
   const latchEnabled = ref(false);
   const holdEnabled = ref(false);
+  const masterVolume = ref(0.5);
+  const bpm = ref(120);
 
   const previewGeneration = ref(0);
   const knobMappings = shallowRef([]);
@@ -85,6 +87,24 @@ export function useWasmPreview(previewShellRef) {
       host()?.setParam(knob.index, clamped);
     }
   }
+
+  function setMasterVolume(nextValue) {
+    const clamped = Math.min(Math.max(nextValue, 0), 1);
+    masterVolume.value = clamped;
+    host()?.setMasterVolume(clamped);
+  }
+
+  function setBpm(nextValue) {
+    const clamped = Math.min(Math.max(nextValue, 30), 240);
+    bpm.value = clamped;
+    host()?.setBpm(clamped);
+  }
+
+  const masterVolumeLabel = computed(() => String(Math.round(masterVolume.value * 100)));
+  const bpmLabel = computed(() => {
+    const rounded = Math.round(bpm.value * 10) / 10;
+    return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  });
 
   function applyMappingValue(paramIndex, normalized, unipolar, curve) {
     const runtime = host();
@@ -199,6 +219,8 @@ export function useWasmPreview(previewShellRef) {
     delete window.__previewGestureDone;
     awaitingWasmTap.value = false;
     resetPlaybackState();
+    masterVolume.value = 0.5;
+    bpm.value = 120;
     showInstrument.value = false;
     showKnobs.value = false;
     knobs.value = [];
@@ -304,6 +326,8 @@ export function useWasmPreview(previewShellRef) {
       showInstrument.value = true;
       phase.value = "ready";
       message.value = "";
+      runtime.setMasterVolume(masterVolume.value);
+      runtime.setBpm(bpm.value);
       runtime.resumeAudio();
       syncAudioRunning();
       audioRunning.value = true;
@@ -342,6 +366,10 @@ export function useWasmPreview(previewShellRef) {
     audioRunning,
     latchEnabled,
     holdEnabled,
+    masterVolume,
+    bpm,
+    masterVolumeLabel,
+    bpmLabel,
     awaitingWasmTap,
     isLoading,
     isReady,
@@ -349,6 +377,8 @@ export function useWasmPreview(previewShellRef) {
     mount,
     teardown,
     setKnobValue,
+    setMasterVolume,
+    setBpm,
     toggleAudio,
     onKeyboardDown,
     onKeyboardUp,

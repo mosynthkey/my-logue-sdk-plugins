@@ -327,8 +327,8 @@ body.modal-open {
 .preview-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
+  gap: 6px 16px;
+  align-items: flex-end;
   justify-content: flex-start;
   width: 100%;
   padding-bottom: 12px;
@@ -562,17 +562,27 @@ body.modal-open {
 
 .knob__track {
   fill: none;
-  stroke: var(--knob-arc);
+  stroke: var(--knob-track);
   stroke-width: 3.5;
   stroke-linecap: butt;
-  stroke-opacity: 0.28;
+  stroke-opacity: 0.55;
 }
 
 .knob__value-arc {
   fill: none;
-  stroke: var(--knob-value);
+  stroke: var(--knob-arc);
   stroke-width: 3.5;
   stroke-linecap: butt;
+}
+
+.knob__center-value {
+  fill: var(--text);
+  font-family: var(--font-body);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  pointer-events: none;
+  user-select: none;
 }
 
 .knob__pointer {
@@ -589,21 +599,11 @@ body.modal-open {
   text-transform: uppercase;
   text-align: center;
   color: var(--muted);
+  margin-top: 4px;
   max-width: 56px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.knob__value {
-  font-family: var(--font-body);
-  font-size: 0.58rem;
-  font-weight: 400;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink);
-  text-align: center;
-  min-height: 1em;
-  opacity: 0.7;
 }
 
 .knob--placeholder .knob__value-arc {

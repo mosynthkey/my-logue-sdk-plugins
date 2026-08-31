@@ -6,6 +6,7 @@
 
   let audioContext = null;
   let wasmProcessor = null;
+  let masterVolumeNode = null;
   let envelope = null;
   let dryNodes = [];
   let layout = "keyboard";
@@ -146,7 +147,8 @@
     audioContext = context;
     wasmProcessor = processor;
     const volume = context.createGain();
-    volume.gain.value = 0.35;
+    volume.gain.value = 0.5;
+    masterVolumeNode = volume;
 
     if (layout === "keyboard") {
       envelope = context.createGain();
@@ -261,6 +263,24 @@
     const audioParameter = wasmProcessor?.parameters.get(`${index}`);
     if (audioParameter) {
       audioParameter.value = value;
+    }
+  }
+
+  function setMasterVolume(value) {
+    if (!masterVolumeNode || !audioContext) {
+      return;
+    }
+    const clamped = Math.min(Math.max(value, 0), 1);
+    masterVolumeNode.gain.linearRampToValueAtTime(
+      clamped,
+      audioContext.currentTime + 0.1,
+    );
+  }
+
+  function setBpm(value) {
+    const moduleRef = window.Module;
+    if (typeof moduleRef?.fx_set_bpm === "function") {
+      moduleRef.fx_set_bpm(value);
     }
   }
 
@@ -432,6 +452,8 @@
     formatKnobValue,
     readMappings,
     setParam,
+    setMasterVolume,
+    setBpm,
     applyCurve(normalized, curve, unipolar) {
       return window.Module.applyCurveToParameter0to1(normalized, curve, unipolar);
     },

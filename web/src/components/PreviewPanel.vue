@@ -29,11 +29,17 @@ const {
   showKnobs,
   latchEnabled,
   holdEnabled,
+  masterVolume,
+  bpm,
+  masterVolumeLabel,
+  bpmLabel,
   awaitingWasmTap,
   isReady,
   mount,
   teardown,
   setKnobValue,
+  setMasterVolume,
+  setBpm,
   onKeyboardDown,
   onKeyboardUp,
   onLatchToggle,
@@ -114,6 +120,28 @@ function handleHoldToggle() {
           >
             Hold {{ holdEnabled ? "On" : "Off" }}
           </button>
+
+          <PreviewKnob
+            knob-id="master-volume"
+            name="Volume"
+            :min="0"
+            :max="1"
+            :value="masterVolume"
+            :value-label="masterVolumeLabel"
+            :sensitivity="0.005"
+            @update:value="setMasterVolume"
+          />
+
+          <PreviewKnob
+            knob-id="master-bpm"
+            name="BPM"
+            :min="30"
+            :max="240"
+            :value="bpm"
+            :value-label="bpmLabel"
+            :sensitivity="0.5"
+            @update:value="setBpm"
+          />
         </div>
 
         <PreviewKeyboard

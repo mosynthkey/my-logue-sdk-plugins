@@ -6,7 +6,7 @@ import {
   KNOB_CENTER,
   KNOB_RADIUS,
 } from "../../preview/constants.js";
-import { arcPath, knobAngle, normalizeKnobValue, pointerPath } from "../../preview/geometry.js";
+import { arcPath, knobAngle, normalizeKnobValue } from "../../preview/geometry.js";
 
 const props = defineProps({
   knobId: {
@@ -37,6 +37,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  sensitivity: {
+    type: Number,
+    default: 0.4,
+  },
 });
 
 const emit = defineEmits(["update:value"]);
@@ -53,7 +57,6 @@ const valueArcPath = computed(() => {
   }
   return arcPath(KNOB_CENTER, KNOB_RADIUS, KNOB_ARC_START, angle.value);
 });
-const pointerArcPath = computed(() => pointerPath(KNOB_CENTER, KNOB_RADIUS, angle.value));
 const trackPath = computed(() => arcPath(
   KNOB_CENTER,
   KNOB_RADIUS,
@@ -74,7 +77,7 @@ function onPointerMove(event) {
     return;
   }
   event.preventDefault();
-  const delta = (dragStartY.value - event.clientY) * 0.4;
+  const delta = (dragStartY.value - event.clientY) * props.sensitivity;
   emit("update:value", dragStartValue.value + delta);
 }
 
@@ -108,25 +111,19 @@ function onPointerCancel(event) {
       @dragstart.prevent
     >
       <svg class="knob__svg" viewBox="0 0 48 48">
-        <defs>
-          <linearGradient :id="`${knobId}-cap`" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#3a3a3a" />
-            <stop offset="100%" stop-color="#222222" />
-          </linearGradient>
-        </defs>
         <path class="knob__track" :d="trackPath" />
         <path class="knob__value-arc" :d="valueArcPath" />
-        <circle
-          class="knob__cap"
-          :cx="KNOB_CENTER"
-          :cy="KNOB_CENTER"
-          r="13"
-          :fill="`url(#${knobId}-cap)`"
-        />
-        <path class="knob__pointer" :d="pointerArcPath" />
+        <text
+          class="knob__center-value"
+          :x="KNOB_CENTER"
+          :y="KNOB_CENTER"
+          text-anchor="middle"
+          dominant-baseline="central"
+        >
+          {{ valueLabel }}
+        </text>
       </svg>
     </div>
     <div class="knob__label">{{ name }}</div>
-    <div class="knob__value">{{ valueLabel }}</div>
   </div>
 </template>
