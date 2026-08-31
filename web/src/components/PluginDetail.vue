@@ -4,7 +4,7 @@ import PreviewPanel from "./PreviewPanel.vue";
 import SendButton from "./SendButton.vue";
 import TargetTabs from "./TargetTabs.vue";
 import { SENDABLE_TARGETS } from "../constants.js";
-import { sendableBuilds } from "../utils/plugin.js";
+import { buildForTarget, sendableBuilds } from "../utils/plugin.js";
 
 const props = defineProps({
   plugin: {
@@ -18,6 +18,8 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["select-target", "send"]);
+
+const activeBuild = computed(() => buildForTarget(props.plugin, props.activeTarget));
 
 const canSend = computed(() => {
   const builds = sendableBuilds(props.plugin);
@@ -37,7 +39,10 @@ const canSend = computed(() => {
       />
     </header>
 
-    <PreviewPanel />
+    <PreviewPanel
+      :build="activeBuild"
+      :plugin="plugin"
+    />
 
     <footer class="detail__foot">
       <div class="send-actions">

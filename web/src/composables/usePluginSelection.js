@@ -1,5 +1,4 @@
-import { onBeforeUnmount, ref, shallowRef } from "vue";
-import { mountPreview, teardownPreview } from "../../preview.js";
+import { ref, shallowRef } from "vue";
 import { buildForTarget, defaultTarget } from "../utils/plugin.js";
 
 export function usePluginSelection(catalog) {
@@ -7,23 +6,6 @@ export function usePluginSelection(catalog) {
   const selectedTargetByPlugin = ref(new Map());
   const activePlugin = shallowRef(null);
   const activeTarget = ref("nts-1_mkii");
-
-  let previewMountChain = Promise.resolve();
-
-  function enqueuePreviewMount(task) {
-    previewMountChain = previewMountChain.then(task).catch(() => {});
-    return previewMountChain;
-  }
-
-  async function mountActivePreview() {
-    const plugin = activePlugin.value;
-    if (!plugin) {
-      return;
-    }
-
-    const build = buildForTarget(plugin, activeTarget.value);
-    await enqueuePreviewMount(() => mountPreview(build, plugin));
-  }
 
   async function selectTarget(pluginId, target) {
     const nextTargets = new Map(selectedTargetByPlugin.value);
@@ -37,7 +19,6 @@ export function usePluginSelection(catalog) {
 
     activePlugin.value = plugin;
     activeTarget.value = target;
-    await mountActivePreview();
   }
 
   async function selectPlugin(pluginId) {
@@ -54,8 +35,6 @@ export function usePluginSelection(catalog) {
     nextTargets.set(pluginId, target);
     selectedTargetByPlugin.value = nextTargets;
     activeTarget.value = target;
-
-    await mountActivePreview();
   }
 
   function initializeSelection() {
@@ -67,10 +46,6 @@ export function usePluginSelection(catalog) {
     const initialPluginId = selectedPluginId.value || plugins[0].id;
     selectPlugin(initialPluginId);
   }
-
-  onBeforeUnmount(() => {
-    teardownPreview();
-  });
 
   return {
     selectedPluginId,
