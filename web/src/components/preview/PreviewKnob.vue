@@ -43,6 +43,7 @@ const emit = defineEmits(["update:value"]);
 
 const dragStartY = ref(0);
 const dragStartValue = ref(0);
+const isDragging = ref(false);
 
 const normalized = computed(() => normalizeKnobValue(props.value, props.min, props.max));
 const angle = computed(() => knobAngle(normalized.value));
@@ -61,21 +62,36 @@ const trackPath = computed(() => arcPath(
 ));
 
 function onPointerDown(event) {
+  event.preventDefault();
   event.currentTarget.setPointerCapture(event.pointerId);
+  isDragging.value = true;
   dragStartY.value = event.clientY;
   dragStartValue.value = props.value;
 }
 
 function onPointerMove(event) {
-  if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
+  if (!isDragging.value || !event.currentTarget.hasPointerCapture(event.pointerId)) {
     return;
   }
+  event.preventDefault();
   const delta = (dragStartY.value - event.clientY) * 0.4;
   emit("update:value", dragStartValue.value + delta);
 }
 
+function endDrag(event) {
+  if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+  isDragging.value = false;
+}
+
 function onPointerUp(event) {
-  event.currentTarget.releasePointerCapture(event.pointerId);
+  event.preventDefault();
+  endDrag(event);
+}
+
+function onPointerCancel(event) {
+  endDrag(event);
 }
 </script>
 
@@ -86,6 +102,7 @@ function onPointerUp(event) {
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"
       @pointerup="onPointerUp"
+      @pointercancel="onPointerCancel"
     >
       <svg class="knob__svg" viewBox="0 0 48 48">
         <defs>

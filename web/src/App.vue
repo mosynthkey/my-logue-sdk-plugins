@@ -1,5 +1,6 @@
 <script setup>
 import { onMounted, onUnmounted, watch } from "vue";
+import AudioUnlockOverlay from "./components/AudioUnlockOverlay.vue";
 import PluginDetail from "./components/PluginDetail.vue";
 import PluginSidebar from "./components/PluginSidebar.vue";
 import SendModal from "./components/SendModal.vue";
@@ -64,6 +65,8 @@ onUnmounted(() => {
 
 <template>
   <div class="app">
+    <AudioUnlockOverlay />
+
     <PluginSidebar
       v-if="catalog"
       :plugins="catalog.plugins"
