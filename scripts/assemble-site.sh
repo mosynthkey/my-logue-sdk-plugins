@@ -18,7 +18,7 @@ mkdir -p "$DEST/units" "$DEST/sim" "$DEST/vendor"
 )
 
 cp -r "$ROOT/web/dist/." "$DEST/"
-cp "$ROOT/web/styles.css" "$ROOT/web/preview.js" "$ROOT/web/preview-frame.html" "$ROOT/web/nts1-midi.js" "$DEST/"
+cp "$ROOT/web/styles.css" "$ROOT/web/nts1-midi.js" "$DEST/"
 cp "$ROOT/web/vendor/coi-serviceworker.js" "$ROOT/web/vendor/qwerty-hancock.js" "$DEST/vendor/"
 cp "$ROOT/web/vendor/coi-serviceworker.js" "$DEST/"
 
