@@ -1,11 +1,12 @@
 <script setup>
-import { onBeforeUnmount, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import PreviewDebugLog from "./preview/PreviewDebugLog.vue";
 import PreviewDepthPad from "./preview/PreviewDepthPad.vue";
 import PreviewKeyboard from "./preview/PreviewKeyboard.vue";
 import PreviewKnob from "./preview/PreviewKnob.vue";
 import PreviewScope from "./preview/PreviewScope.vue";
 import PreviewXyPad from "./preview/PreviewXyPad.vue";
+import SendButton from "./SendButton.vue";
 import { useWasmPreview } from "../preview/useWasmPreview.js";
 
 const props = defineProps({
@@ -17,7 +18,17 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  target: {
+    type: String,
+    default: "",
+  },
+  canSend: {
+    type: Boolean,
+    default: false,
+  },
 });
+
+const emit = defineEmits(["send"]);
 
 const xyPadRef = ref(null);
 
@@ -88,6 +99,8 @@ function handleHoldToggle() {
   const lastPointer = xyPadRef.value?.lastPointer?.value ?? null;
   onHoldToggle(lastPointer);
 }
+
+const showToolbar = computed(() => props.canSend || showInstrument.value);
 </script>
 
 <template>
@@ -105,10 +118,13 @@ function handleHoldToggle() {
         {{ message }}
       </p>
 
-      <div v-if="showInstrument" class="preview-instrument">
-        <div class="preview-toolbar">
+      <div
+        v-if="showToolbar"
+        class="preview-toolbar"
+      >
+        <div class="preview-toolbar__controls">
           <button
-            v-if="layout === 'keyboard'"
+            v-if="showInstrument && layout === 'keyboard'"
             type="button"
             class="preview-chip"
             :class="{ 'is-on': latchEnabled }"
@@ -118,7 +134,7 @@ function handleHoldToggle() {
           </button>
 
           <button
-            v-if="layout === 'xypad'"
+            v-if="showInstrument && layout === 'xypad'"
             type="button"
             class="preview-chip"
             :class="{ 'is-on': holdEnabled }"
@@ -128,6 +144,7 @@ function handleHoldToggle() {
           </button>
 
           <PreviewKnob
+            v-if="showInstrument"
             knob-id="master-volume"
             name="Volume"
             :min="0"
@@ -139,6 +156,7 @@ function handleHoldToggle() {
           />
 
           <PreviewKnob
+            v-if="showInstrument"
             knob-id="master-bpm"
             name="BPM"
             :min="30"
@@ -150,6 +168,15 @@ function handleHoldToggle() {
           />
         </div>
 
+        <SendButton
+          v-if="canSend"
+          :plugin="plugin"
+          :target="target"
+          @send="(pluginItem, sendTarget) => emit('send', pluginItem, sendTarget)"
+        />
+      </div>
+
+      <div v-if="showInstrument" class="preview-instrument">
         <div class="preview-instrument-row">
           <div
             v-if="layout === 'keyboard'"
