@@ -1,5 +1,6 @@
 {
   "id": "specwarp",
+  "experimental": true,
   "name": "SpecWarp",
   "type": "fx",
   "targets": ["nts-1_mkii", "nts-3_kaoss"],

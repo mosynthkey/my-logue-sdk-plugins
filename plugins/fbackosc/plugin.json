@@ -1,5 +1,6 @@
 {
   "id": "fbackosc",
+  "experimental": true,
   "name": "FbOsc",
   "type": "osc",
   "targets": ["nts-1_mkii", "microkorg2"],

@@ -6,16 +6,19 @@ import SendModal from "./components/SendModal.vue";
 import { useCatalog } from "./composables/useCatalog.js";
 import { useMidiSend } from "./composables/useMidiSend.js";
 import { usePluginSelection } from "./composables/usePluginSelection.js";
+import { useSiteQuery } from "./composables/useSiteQuery.js";
 
 const { catalog, loadError, loading } = useCatalog();
+const siteQuery = useSiteQuery();
 const {
   selectedPluginId,
   activePlugin,
   activeTarget,
+  sidebarPlugins,
   selectPlugin,
   selectTarget,
   initializeSelection,
-} = usePluginSelection(catalog);
+} = usePluginSelection(catalog, siteQuery);
 
 const {
   isOpen,
@@ -66,7 +69,7 @@ onUnmounted(() => {
   <div class="app">
     <PluginSidebar
       v-if="catalog"
-      :plugins="catalog.plugins"
+      :plugins="sidebarPlugins"
       :selected-plugin-id="selectedPluginId"
       @select-plugin="selectPlugin"
     />

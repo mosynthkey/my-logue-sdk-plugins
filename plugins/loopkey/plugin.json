@@ -1,5 +1,6 @@
 {
   "id": "loopkey",
+  "experimental": true,
   "name": "LoopKey",
   "type": "loopkey",
   "targets": ["nts-1_mkii"],
