@@ -1,26 +1,30 @@
 import { previewDebugLog } from "../composables/usePreviewDebugLog.js";
 
+const HIDDEN_FRAME_STYLE = [
+  "position:fixed",
+  "left:0",
+  "top:0",
+  "width:1px",
+  "height:1px",
+  "opacity:0",
+  "border:0",
+  "pointer-events:none",
+  "z-index:-1",
+].join(";");
+
 function assetUrl(relativePath) {
   return new URL(relativePath, window.location.href).href;
 }
 
 function runtimeBootstrapHtml() {
-  const coiUrl = assetUrl("coi-serviceworker.js");
   const runtimeUrl = assetUrl("preview-runtime.js");
+  // Do not register coi-serviceworker here — the parent page owns COI and nested
+  // registration breaks iOS Safari (see edbb59d).
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <title>Plugin preview runtime</title>
-  <script>
-    window.coi = {
-      coepCredentialless: () => true,
-      coepDegrade: () => false,
-      quiet: true,
-      ...(window.coi || {}),
-    };
-  <\/script>
-  <script src="${coiUrl}"><\/script>
 </head>
 <body>
   <script src="${runtimeUrl}"><\/script>
@@ -44,6 +48,7 @@ async function waitForPreviewHost(frameWindow, timeoutMs = 15000) {
 export class PreviewSession {
   constructor() {
     this.iframe = null;
+    this.gestureCaptureTarget = null;
   }
 
   get host() {
@@ -59,16 +64,7 @@ export class PreviewSession {
     iframe.setAttribute("aria-hidden", "true");
     iframe.setAttribute("allow", "autoplay");
     iframe.tabIndex = -1;
-    iframe.style.cssText = [
-      "position:fixed",
-      "left:0",
-      "top:0",
-      "width:1px",
-      "height:1px",
-      "opacity:0",
-      "border:0",
-      "pointer-events:none",
-    ].join(";");
+    iframe.style.cssText = HIDDEN_FRAME_STYLE;
 
     const loaded = new Promise((resolve, reject) => {
       iframe.addEventListener("load", resolve, { once: true });
@@ -102,7 +98,40 @@ export class PreviewSession {
     });
   }
 
+  setGestureCapture(enabled, captureTarget = null) {
+    if (!this.iframe) {
+      return;
+    }
+
+    this.gestureCaptureTarget = enabled ? captureTarget : null;
+    if (!enabled || !captureTarget) {
+      this.iframe.style.cssText = HIDDEN_FRAME_STYLE;
+      this.host?.disarmGestureStart?.();
+      return;
+    }
+
+    const bounds = captureTarget.getBoundingClientRect();
+    this.iframe.style.cssText = [
+      "position:fixed",
+      `left:${Math.max(0, bounds.left)}px`,
+      `top:${Math.max(0, bounds.top)}px`,
+      `width:${Math.max(1, bounds.width)}px`,
+      `height:${Math.max(1, bounds.height)}px`,
+      "opacity:0",
+      "border:0",
+      "pointer-events:auto",
+      "z-index:1000",
+      "background:transparent",
+    ].join(";");
+
+    this.host?.armGestureStart?.(() => {
+      this.setGestureCapture(false);
+      window.__previewGestureDone?.();
+    });
+  }
+
   async destroy() {
+    this.setGestureCapture(false);
     if (!this.iframe) {
       return;
     }
