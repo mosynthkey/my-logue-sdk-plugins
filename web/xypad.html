@@ -416,6 +416,9 @@
         );
       }
     };
+    window.Module = Object.assign(window.Module || {}, {
+      onAudioReady: window.setupWebAudioAndUI,
+    });
   </script>
 
   {{{ SCRIPT }}}

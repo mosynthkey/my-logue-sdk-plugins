@@ -261,6 +261,9 @@
         createSlider(wasmProcessor, parameters.get(paramIndex), paramIndex);
       }
     };
+    window.Module = Object.assign(window.Module || {}, {
+      onAudioReady: window.setupWebAudioAndUI,
+    });
   </script>
 
   {{{ SCRIPT }}}

@@ -247,7 +247,10 @@ void AudioWorkletProcessorCreated(EMSCRIPTEN_WEBAUDIO_T audioContext, bool succe
   EMSCRIPTEN_AUDIO_WORKLET_NODE_T wasmAudioWorklet = emscripten_create_wasm_audio_worklet_node(audioContext,
                                                                                                "logue-osc", &options, &ProcessAudio, 0);
 
-  EM_ASM({ setupWebAudioAndUI(emscriptenGetAudioObject($0), emscriptenGetAudioObject($1)); }, audioContext, wasmAudioWorklet);
+  EM_ASM({
+    var ready = (typeof Module !== "undefined" && Module.onAudioReady) ? Module.onAudioReady : setupWebAudioAndUI;
+    ready(emscriptenGetAudioObject($0), emscriptenGetAudioObject($1));
+  }, audioContext, wasmAudioWorklet);
 }
 
 void AudioThreadInitialized(EMSCRIPTEN_WEBAUDIO_T audioContext, bool success, void *userData)
