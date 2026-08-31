@@ -4,8 +4,9 @@
  * File: airhorn_engine.h
  *
  * Fixed-pitch DJ air horn: a 16-bit loop plus a pitch envelope that
- * recreates the opening drop, then fades naturally with a smoothed loop
- * crossfade instead of sustaining at full level.
+ * recreates the opening drop, then fades naturally instead of sustaining at
+ * full level. The loop wrap is crossfaded in the embedded PCM (see
+ * scripts/embed_pcm.py), so playback here is a plain wrapping read.
  */
 
 #include "airhorn_pcm.h"
@@ -32,8 +33,6 @@ struct AirHornVoice
   static constexpr float kMinAmp = 0.0005f;
   static constexpr uint32_t kSettledHoldSamples = 12000U; // 250 ms at 48 kHz
   static constexpr float kBaseRate = static_cast<float>(kAirhornSampleRate) / 48000.f;
-  static constexpr float kLoopCrossfade = 0.012f * static_cast<float>(kAirhornSampleRate);
-  static constexpr float kLoopCrossfadeFadeBoost = 0.5f;
   static constexpr float kSustainLpfCoeff = 0.48f; // ~8 kHz at 48 kHz
   static constexpr float kPitchSettled = 0.025f;
 
@@ -73,23 +72,6 @@ struct AirHornVoice
         pcmToFloat(kAirhornPcm16[offset + i2]),
         pcmToFloat(kAirhornPcm16[offset + i3]),
         frac);
-  }
-
-  static float loopSampleWithCrossfade(const AirhornSample &horn, float position, float crossfade)
-  {
-    const float loop_length = static_cast<float>(horn.length);
-    float output = sampleAt(horn, position);
-
-    if (crossfade <= 1.f)
-      return output;
-
-    const float dist_to_end = loop_length - position;
-    if (dist_to_end <= 0.f || dist_to_end >= crossfade)
-      return output;
-
-    const float blend = 1.f - dist_to_end / crossfade;
-    const float wrapped = sampleAt(horn, position - loop_length);
-    return output * (1.f - blend) + wrapped * blend;
   }
 
   bool pitchSettled() const
@@ -155,11 +137,7 @@ struct AirHornVoice
       return 0.f;
     }
 
-    float crossfade = kLoopCrossfade;
-    if (fading && amp < 1.f)
-      crossfade *= 1.f + kLoopCrossfadeFadeBoost * (1.f - amp);
-
-    float output = loopSampleWithCrossfade(horn, pos, crossfade) * gain * amp;
+    float output = sampleAt(horn, pos) * gain * amp;
 
     if (settled)
     {
