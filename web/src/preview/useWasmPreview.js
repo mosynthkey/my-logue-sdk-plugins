@@ -270,8 +270,8 @@ export function useWasmPreview() {
     showInstrument.value = false;
 
     try {
-      const readyPromise = waitForWasmReady(generation, previewGeneration);
       const { jsUrl } = configureWasmModule(build);
+      const readyPromise = waitForWasmReady(generation, previewGeneration);
       await loadWasmScript(jsUrl);
       if (generation !== previewGeneration.value) {
         return;
