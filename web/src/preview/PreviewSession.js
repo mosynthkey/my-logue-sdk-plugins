@@ -1,10 +1,44 @@
 import { previewDebugLog } from "../composables/usePreviewDebugLog.js";
 
-function runtimeDocumentUrl() {
-  const path = window.location.pathname.endsWith("/")
-    ? window.location.pathname
-    : window.location.pathname.replace(/\/[^/]*$/, "/");
-  return `${window.location.origin}${path}preview-runtime.html`;
+function assetUrl(relativePath) {
+  return new URL(relativePath, window.location.href).href;
+}
+
+function runtimeBootstrapHtml() {
+  const coiUrl = assetUrl("coi-serviceworker.js");
+  const runtimeUrl = assetUrl("preview-runtime.js");
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Plugin preview runtime</title>
+  <script>
+    window.coi = {
+      coepCredentialless: () => true,
+      coepDegrade: () => false,
+      quiet: true,
+      ...(window.coi || {}),
+    };
+  <\/script>
+  <script src="${coiUrl}"><\/script>
+</head>
+<body>
+  <script src="${runtimeUrl}"><\/script>
+</body>
+</html>`;
+}
+
+async function waitForPreviewHost(frameWindow, timeoutMs = 15000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (frameWindow?.__previewHost) {
+      return;
+    }
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, 50);
+    });
+  }
+  throw new Error("Preview runtime failed to initialize");
 }
 
 export class PreviewSession {
@@ -43,15 +77,22 @@ export class PreviewSession {
       }, { once: true });
     });
 
-    iframe.src = runtimeDocumentUrl();
+    iframe.src = "about:blank";
     document.body.append(iframe);
     this.iframe = iframe;
     await loaded;
 
-    const frameWindow = iframe.contentWindow;
-    if (!frameWindow?.__previewHost) {
-      throw new Error("Preview runtime failed to initialize");
+    const frameDocument = iframe.contentDocument;
+    if (!frameDocument) {
+      throw new Error("Preview runtime iframe is inaccessible");
     }
+
+    frameDocument.open();
+    frameDocument.write(runtimeBootstrapHtml());
+    frameDocument.close();
+
+    const frameWindow = iframe.contentWindow;
+    await waitForPreviewHost(frameWindow);
 
     frameWindow.addEventListener("error", (event) => {
       previewDebugLog("error", event.message || "Runtime error");
