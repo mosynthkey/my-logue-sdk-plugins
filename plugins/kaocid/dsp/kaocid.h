@@ -10,7 +10,9 @@
  * phrase key.
  *
  * Panel knobs follow the TB-303: waveform, cutoff, resonance, env mod, decay,
- * accent. Distortion/delay/reverb are left to other NTS-3 slots.
+ * accent. Accented steps use a fixed ~200 ms MEG decay, louder VCA, and a
+ * resonance-dependent Accent Sweep ("wapp") into the filter. Distortion /
+ * delay / reverb are left to other NTS-3 slots.
  *
  * Filter coefficients follow gsynth TB-303 (Andy Sloane, 2001), adapted for
  * 48 kHz: cutoff / resonance / env mod are the same 0..1 domain as gsynth.
@@ -33,8 +35,14 @@ public:
   static constexpr uint32_t kFilterEnvRecalcInterval = 64U;
   static constexpr float kOutputGain = 0.45f;
   static constexpr uint32_t kPhraseStyleCount = 8U;
-  static constexpr float kAccentVcaRange = 0.7f;
-  static constexpr float kAccentCutoffRange = 0.42f;
+  static constexpr float kAccentDecaySec = 0.2f;
+  static constexpr float kAccentVcaBoost = 0.9f;
+  static constexpr float kAccentEnvFeed = 0.4f;
+  static constexpr float kAccentSweepDepth = 0.55f;
+  static constexpr float kAccentCapRetain = 0.55f;
+  static constexpr float kAccentCapCharge = 0.85f;
+  static constexpr float kAccentLagMinSec = 0.002f;
+  static constexpr float kAccentLagMaxSec = 0.03f;
   static constexpr float kSlideTauSec = 100000.f * 0.00000022f;
   static constexpr float kSlideSettleSemitones = 0.01f;
   static constexpr float kVcaAttackSec = 0.004f;
@@ -155,6 +163,8 @@ public:
     slide_coeff_ = 1.f - fasterexpf(-1.f / (kSlideTauSec * sample_rate));
     vca_attack_ = 1.f - fasterexpf(-1.f / (kVcaAttackSec * sample_rate));
     vca_decay_ = fasterexpf(-1.f / (kVcaReleaseSec * sample_rate));
+    accent_release_coeff_ =
+        fasterexpf(-2.3025851f * static_cast<float>(kFilterEnvRecalcInterval) / (kAccentDecaySec * sample_rate));
     samples_per_tick_ = sample_rate * 15.f / bpm_;
     running_ = false;
     phrase_seed_ = 1U;
@@ -327,6 +337,10 @@ private:
     vcf_env_level_ = 0.f;
     vcf_env_end0_ = 0.f;
     vcf_env_span_ = 0.f;
+    accent_sweep_ = 0.f;
+    accent_sweep_target_ = 0.f;
+    accent_cap_ = 0.f;
+    accent_attack_coeff_ = 0.2f;
     vca_mode_ = 2;
     vca_level_ = 0.f;
     vca_target_ = 0.5f;
@@ -360,10 +374,35 @@ private:
     vcf_env_end0_ = env_end0 * sample_rate_scale;
     vcf_env_span_ = (env_end1 - env_end0) * sample_rate_scale;
 
-    const float decay_seconds = 0.2f + 2.3f * decay_norm_;
-    const float decay_samples = decay_seconds * getSampleRate();
-    vcf_env_decay_ = fasterexpf(-2.3025851f * static_cast<float>(kFilterEnvRecalcInterval) / decay_samples);
+    const float normal_decay_seconds = 0.2f + 2.3f * decay_norm_;
+    const float interval = static_cast<float>(kFilterEnvRecalcInterval);
+    vcf_env_decay_normal_ =
+        fasterexpf(-2.3025851f * interval / (normal_decay_seconds * getSampleRate()));
+    vcf_env_decay_accent_ =
+        fasterexpf(-2.3025851f * interval / (kAccentDecaySec * getSampleRate()));
+    vcf_env_decay_ = accent_active_ ? vcf_env_decay_accent_ : vcf_env_decay_normal_;
+
+    const float lag_sec = kAccentLagMinSec + resonance_norm_ * (kAccentLagMaxSec - kAccentLagMinSec);
+    accent_attack_coeff_ = 1.f - fasterexpf(-interval / (lag_sec * getSampleRate()));
     vcf_env_pos_ = kFilterEnvRecalcInterval;
+  }
+
+  void triggerAccentSweep()
+  {
+    // Resonance is the Accent Sweep lag pot: higher RES -> slower "wapp" rise.
+    const float charge = accent_norm_ * kAccentCapCharge * (0.35f + 0.65f * resonance_norm_);
+    accent_cap_ = clipRange(accent_cap_ * kAccentCapRetain + charge, 0.f, 1.5f);
+    accent_sweep_target_ = accent_cap_;
+    accent_sweep_ = 0.f;
+    const float lag_sec = kAccentLagMinSec + resonance_norm_ * (kAccentLagMaxSec - kAccentLagMinSec);
+    accent_attack_coeff_ =
+        1.f - fasterexpf(-static_cast<float>(kFilterEnvRecalcInterval) / (lag_sec * getSampleRate()));
+  }
+
+  void clearAccentSweep()
+  {
+    accent_sweep_target_ = 0.f;
+    accent_cap_ *= 0.85f;
   }
 
   void clearPhrase()
@@ -726,6 +765,8 @@ private:
       {
         gate_off_requested_ = true;
         current_degree_ = -1;
+        accent_active_ = false;
+        clearAccentSweep();
       }
       return;
     }
@@ -734,24 +775,35 @@ private:
     vco_pitch_target_ = static_cast<float>(root_note_ + step.degree);
     gate_off_requested_ = false;
 
+    const bool use_accent = step.accent;
+    accent_active_ = use_accent;
+    vcf_env_decay_ = use_accent ? vcf_env_decay_accent_ : vcf_env_decay_normal_;
+    vcf_env_level_ = vcf_env_span_;
+    vcf_env_pos_ = kFilterEnvRecalcInterval;
+
+    if (use_accent)
+    {
+      // Fixed short MEG + Accent Sweep into filter; VCA gets MEG feed.
+      triggerAccentSweep();
+      vca_target_ = 0.5f * (1.f + accent_norm_ * kAccentVcaBoost);
+    }
+    else
+    {
+      clearAccentSweep();
+      vca_target_ = 0.5f;
+    }
+
     if (arriving_via_slide && vco_phase_inc_ > 0.f)
     {
       slide_active_ = true;
+      vca_mode_ = 0;
       return;
     }
 
     slide_active_ = false;
     vco_pitch_ = vco_pitch_target_;
     vco_phase_inc_ = noteToPhaseInc(vco_pitch_);
-    accent_active_ = step.accent;
-    vca_target_ = 0.5f;
-    if (step.accent)
-      vca_target_ = 0.5f * (1.f + accent_norm_ * kAccentVcaRange);
     vca_mode_ = 0;
-    vcf_env_level_ = vcf_env_span_;
-    if (accent_active_)
-      vcf_env_level_ += vcf_env_span_ * (0.08f + accent_norm_ * kAccentCutoffRange);
-    vcf_env_pos_ = kFilterEnvRecalcInterval;
   }
 
   void advanceClockOneSample()
@@ -765,9 +817,30 @@ private:
     }
   }
 
+  void advanceAccentSweep()
+  {
+    if (accent_sweep_ < accent_sweep_target_)
+    {
+      accent_sweep_ += (accent_sweep_target_ - accent_sweep_) * accent_attack_coeff_;
+      if (accent_sweep_ > accent_sweep_target_ * 0.98f)
+        accent_sweep_target_ = 0.f;
+    }
+    else
+    {
+      accent_sweep_ *= accent_release_coeff_;
+      if (accent_sweep_ < 0.0001f)
+        accent_sweep_ = 0.f;
+      accent_cap_ *= 0.985f;
+    }
+  }
+
   void updateFilterCoefficients()
   {
-    float w = vcf_env_end0_ + vcf_env_level_;
+    advanceAccentSweep();
+
+    const float sweep_into_filter =
+        accent_sweep_ * kAccentSweepDepth * (0.25f + 0.75f * resonance_norm_) * accent_norm_;
+    float w = vcf_env_end0_ + vcf_env_level_ + sweep_into_filter;
     w = clipRange(w, 0.0002f, 1.2f);
 
     float res_coeff = vcf_res_coeff_;
@@ -853,7 +926,12 @@ private:
       gate_off_requested_ = false;
     }
 
-    const float voiced = filtered * vca_level_;
+    float amp = vca_level_;
+    if (accent_active_)
+      amp += accent_sweep_ * accent_norm_ * kAccentEnvFeed;
+    amp = clipRange(amp, 0.f, 1.35f);
+
+    const float voiced = filtered * amp;
     const float blocked = voiced - dc_prev_in_ + 0.99608f * dc_prev_out_;
     dc_prev_in_ = voiced;
     dc_prev_out_ = blocked;
@@ -885,6 +963,8 @@ private:
   float vcf_reso_ = 0.f;
   float vcf_res_coeff_ = 0.f;
   float vcf_env_decay_ = 0.f;
+  float vcf_env_decay_normal_ = 0.f;
+  float vcf_env_decay_accent_ = 0.f;
   float vcf_a_ = 0.f;
   float vcf_b_ = 0.f;
   float vcf_c_ = 1.f;
@@ -893,6 +973,11 @@ private:
   float vcf_env_level_ = 0.f;
   float vcf_env_end0_ = 0.f;
   float vcf_env_span_ = 0.f;
+  float accent_sweep_ = 0.f;
+  float accent_sweep_target_ = 0.f;
+  float accent_cap_ = 0.f;
+  float accent_attack_coeff_ = 0.2f;
+  float accent_release_coeff_ = 0.9f;
   float vca_level_ = 0.f;
   float vca_attack_ = 0.05f;
   float vca_decay_ = 0.999f;

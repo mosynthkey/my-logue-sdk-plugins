@@ -10,8 +10,8 @@
     { "name": "MIX", "role": "Depth", "detail": "Dry/wet" },
     { "name": "WAVE", "role": "Edit", "detail": "Saw or square" },
     { "name": "ENV", "role": "Edit", "detail": "Filter envelope modulation" },
-    { "name": "DEC", "role": "Edit", "detail": "Filter envelope decay (~200 ms to 2.5 s)" },
-    { "name": "ACC", "role": "Edit", "detail": "Accent amount (VCA + filter bump)" },
+    { "name": "DEC", "role": "Edit", "detail": "Filter envelope decay on non-accent notes (~200 ms to 2.5 s; accents fixed at ~200 ms)" },
+    { "name": "ACC", "role": "Edit", "detail": "Accent amount: louder VCA + resonance Accent Sweep (wapp)" },
     { "name": "ROOT", "role": "Edit", "detail": "Phrase root key (C1-C3, default C2)" }
   ]
 }
