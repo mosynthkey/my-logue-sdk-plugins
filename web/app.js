@@ -16,6 +16,7 @@ import { mountPreview, teardownPreview } from "./preview.js";
 
 const logEl = document.getElementById("log");
 const pluginListEl = document.getElementById("plugin-list");
+const pluginSelectEl = document.getElementById("plugin-select");
 const detailPanelEl = document.getElementById("plugin-detail");
 const detailEmptyEl = document.getElementById("detail-empty");
 const detailNameEl = document.getElementById("detail-name");
@@ -386,6 +387,8 @@ async function loadCatalog() {
 
 function renderPluginList(plugins) {
   pluginListEl.innerHTML = "";
+  pluginSelectEl.innerHTML = "";
+
   for (const [pluginIndex, plugin] of plugins.entries()) {
     const button = document.createElement("button");
     button.type = "button";
@@ -396,6 +399,11 @@ function renderPluginList(plugins) {
       selectPlugin(plugin.id);
     });
     pluginListEl.append(button);
+
+    const option = document.createElement("option");
+    option.value = plugin.id;
+    option.textContent = plugin.name;
+    pluginSelectEl.append(option);
 
     if (pluginIndex === 0 && !selectedPluginId) {
       selectedPluginId = plugin.id;
@@ -490,6 +498,10 @@ async function selectPlugin(pluginId) {
 
   for (const item of pluginListEl.querySelectorAll(".plugin-nav__item")) {
     item.classList.toggle("is-active", item.dataset.pluginId === pluginId);
+  }
+
+  if (pluginSelectEl.value !== pluginId) {
+    pluginSelectEl.value = pluginId;
   }
 
   detailEmptyEl.hidden = true;
@@ -624,6 +636,10 @@ async function main() {
   }
 
   renderPluginList(catalog.plugins);
+
+  pluginSelectEl.addEventListener("change", () => {
+    selectPlugin(pluginSelectEl.value);
+  });
 
   if (selectedPluginId) {
     await selectPlugin(selectedPluginId);
