@@ -5,6 +5,7 @@ import PreviewKeyboard from "./preview/PreviewKeyboard.vue";
 import PreviewKnob from "./preview/PreviewKnob.vue";
 import PreviewXyPad from "./preview/PreviewXyPad.vue";
 import { useWasmPreview } from "../preview/useWasmPreview.js";
+import { getModule } from "../preview/wasm.js";
 
 const props = defineProps({
   build: {
@@ -59,11 +60,10 @@ function onKnobUpdate(knobIndex, nextValue) {
 }
 
 function touchPhase(name) {
-  return window.Module?.TouchEvent?.[name];
+  return getModule()?.TouchEvent?.[name];
 }
 
 function onXyPointerDown(position) {
-  toggleAudio();
   const began = touchPhase("Began");
   if (began !== undefined) {
     onTouchEvent(began, position.xNormalized, position.yNormalized);

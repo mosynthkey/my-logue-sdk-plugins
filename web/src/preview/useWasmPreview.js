@@ -11,6 +11,7 @@ import { previewLayout } from "./layout.js";
 import {
   clearWasmGlobals,
   configureWasmModule,
+  getModule,
   loadWasmScript,
   waitForWasmReady,
 } from "./wasm.js";
@@ -38,7 +39,8 @@ function buildPlaceholderKnobs(plugin) {
 }
 
 function readWasmKnobs(wasmProcessor) {
-  const parameters = window.Module.getValidParameters();
+  const moduleRef = getModule();
+  const parameters = moduleRef.getValidParameters();
   const knobs = [];
   for (let paramIndex = 0; paramIndex < parameters.size(); paramIndex += 1) {
     const param = parameters.get(paramIndex);
@@ -57,14 +59,15 @@ function readWasmKnobs(wasmProcessor) {
 }
 
 function formatKnobValue(index, value) {
-  if (window.Module?.getParameterValueString) {
-    return window.Module.getParameterValueString(index, value);
+  const moduleRef = getModule();
+  if (moduleRef?.getParameterValueString) {
+    return moduleRef.getParameterValueString(index, value);
   }
   return String(Math.round(value));
 }
 
 function readKnobMappings(knobCount) {
-  const mappings = window.Module.getDefaultMapping();
+  const mappings = getModule().getDefaultMapping();
   const entries = [];
   for (let paramIndex = 0; paramIndex < knobCount; paramIndex += 1) {
     const mapping = mappings.get(paramIndex);
@@ -135,15 +138,16 @@ export function useWasmPreview() {
       return;
     }
     const knob = knobs.value[knobIndex];
-    const curved = window.Module.applyCurveToParameter0to1(normalized, curve, unipolar);
+    const curved = getModule().applyCurveToParameter0to1(normalized, curve, unipolar);
     setKnobValue(knobIndex, curved * (knob.max - knob.min) + knob.min);
   }
 
   function handleXyPosition(xNormalized, yNormalized) {
+    const moduleRef = getModule();
     for (const mapping of knobMappings.value) {
-      if (mapping.assign === window.Module.ParamAssign.X) {
+      if (mapping.assign === moduleRef.ParamAssign.X) {
         applyMappingValue(mapping.paramIndex, xNormalized, mapping.unipolar, mapping.curve);
-      } else if (mapping.assign === window.Module.ParamAssign.Y) {
+      } else if (mapping.assign === moduleRef.ParamAssign.Y) {
         applyMappingValue(mapping.paramIndex, yNormalized, mapping.unipolar, mapping.curve);
       }
     }
@@ -163,9 +167,10 @@ export function useWasmPreview() {
 
   function onKeyboardDown(note, frequency) {
     ensureAudioRunning(audioContext.value, audioRunning);
+    const moduleRef = getModule();
     frequencyStack.value = [...frequencyStack.value, frequency];
-    window.Module.setOscPitch(frequency);
-    window.Module.noteOn(note, 100);
+    moduleRef.setOscPitch(frequency);
+    moduleRef.noteOn(note, 100);
     if (envelope.value) {
       envelope.value.gain.cancelAndHoldAtTime(audioContext.value.currentTime);
       envelope.value.gain.linearRampToValueAtTime(1.0, audioContext.value.currentTime + AHREnvelopeTime);
@@ -183,13 +188,13 @@ export function useWasmPreview() {
     frequencyStack.value = nextStack;
 
     if (nextStack.length > 0) {
-      window.Module.setOscPitch(nextStack[nextStack.length - 1]);
+      getModule().setOscPitch(nextStack[nextStack.length - 1]);
     } else if (!latchEnabled.value && envelope.value) {
       envelope.value.gain.cancelAndHoldAtTime(audioContext.value.currentTime);
       envelope.value.gain.linearRampToValueAtTime(0.0, audioContext.value.currentTime + AHREnvelopeTime);
     }
 
-    window.Module.noteOff(note);
+    getModule().noteOff(note);
   }
 
   function onLatchToggle() {
@@ -201,14 +206,19 @@ export function useWasmPreview() {
   }
 
   function onTouchEvent(phase, xNormalized, yNormalized) {
-    window.Module.touchEvent(phase, xNormalized, yNormalized);
+    const moduleRef = getModule();
+    if (phase === moduleRef.TouchEvent?.Began) {
+      ensureAudioRunning(audioContext.value, audioRunning);
+    }
+    moduleRef.touchEvent(phase, xNormalized, yNormalized);
     handleXyPosition(xNormalized, yNormalized);
   }
 
   function onHoldToggle(lastPointerEvent) {
     holdEnabled.value = !holdEnabled.value;
     if (!holdEnabled.value && lastPointerEvent) {
-      onTouchEvent(window.Module.TouchEvent.Ended, lastPointerEvent.xNormalized, lastPointerEvent.yNormalized);
+      const moduleRef = getModule();
+      onTouchEvent(moduleRef.TouchEvent.Ended, lastPointerEvent.xNormalized, lastPointerEvent.yNormalized);
     }
   }
 
@@ -300,10 +310,12 @@ export function useWasmPreview() {
 
       audioContext.value = context;
       wasmProcessor.value = processor;
-      const volume = new GainNode(context, { gain: 0.35 });
+      const volume = context.createGain();
+      volume.gain.value = 0.35;
 
       if (layout.value === "keyboard") {
-        const gainEnvelope = new GainNode(context, { gain: 0.0 });
+        const gainEnvelope = context.createGain();
+        gainEnvelope.gain.value = 0.0;
         envelope.value = gainEnvelope;
         processor.connect(gainEnvelope).connect(volume);
       } else {

@@ -1,5 +1,6 @@
 import { previewDebugLog } from "../composables/usePreviewDebugLog.js";
 import { needsGestureForWasmStart } from "./gesture.js";
+import { getModule } from "./wasm-host.js";
 
 let wasmRuntimeReady = false;
 let wasmMainStarted = false;
@@ -33,7 +34,7 @@ function isEmscriptenControlFlow(error) {
 }
 
 export function startWasmMainInGesture() {
-  const moduleRef = window.Module;
+  const moduleRef = getModule();
   if (!moduleRef?.calledRun || typeof moduleRef._main !== "function") {
     previewDebugLog("info", "Wasm runtime not ready for main()");
     return false;
