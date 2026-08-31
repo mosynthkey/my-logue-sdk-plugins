@@ -1,5 +1,6 @@
 {
   "id": "hypersaw",
+  "experimental": true,
   "name": "HyperSaw",
   "type": "osc",
   "targets": ["nts-1_mkii", "microkorg2"],
