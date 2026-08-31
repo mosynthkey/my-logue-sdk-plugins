@@ -1,8 +1,10 @@
 <script setup>
 import { onBeforeUnmount, ref, watch } from "vue";
 import PreviewDebugLog from "./preview/PreviewDebugLog.vue";
+import PreviewDepthPad from "./preview/PreviewDepthPad.vue";
 import PreviewKeyboard from "./preview/PreviewKeyboard.vue";
 import PreviewKnob from "./preview/PreviewKnob.vue";
+import PreviewScope from "./preview/PreviewScope.vue";
 import PreviewXyPad from "./preview/PreviewXyPad.vue";
 import { useWasmPreview } from "../preview/useWasmPreview.js";
 
@@ -31,6 +33,8 @@ const {
   holdEnabled,
   masterVolume,
   bpm,
+  depthNormalized,
+  hasDepthMapping,
   masterVolumeLabel,
   bpmLabel,
   awaitingWasmTap,
@@ -40,6 +44,8 @@ const {
   setKnobValue,
   setMasterVolume,
   setBpm,
+  handleDepthChange,
+  readScopeSnapshot,
   onKeyboardDown,
   onKeyboardUp,
   onLatchToggle,
@@ -144,21 +150,42 @@ function handleHoldToggle() {
           />
         </div>
 
-        <PreviewKeyboard
-          v-if="layout === 'keyboard'"
-          :enabled="isReady"
-          @note-down="onKeyboardDown"
-          @note-up="onKeyboardUp"
-        />
+        <div class="preview-instrument-row">
+          <div
+            v-if="layout === 'keyboard'"
+            class="preview-instrument-main"
+          >
+            <PreviewKeyboard
+              :enabled="isReady"
+              @note-down="onKeyboardDown"
+              @note-up="onKeyboardUp"
+            />
+          </div>
 
-        <PreviewXyPad
-          v-else
-          ref="xyPadRef"
-          :hold-enabled="holdEnabled"
-          @pointer-down="onXyPointerDown"
-          @pointer-move="onXyPointerMove"
-          @pointer-up="onXyPointerUp"
-        />
+          <div
+            v-else
+            class="preview-xypad-group"
+          >
+            <PreviewDepthPad
+              v-if="hasDepthMapping"
+              :depth-normalized="depthNormalized"
+              @update:depth="handleDepthChange"
+            />
+
+            <PreviewXyPad
+              ref="xyPadRef"
+              :hold-enabled="holdEnabled"
+              @pointer-down="onXyPointerDown"
+              @pointer-move="onXyPointerMove"
+              @pointer-up="onXyPointerUp"
+            />
+          </div>
+
+          <PreviewScope
+            :enabled="isReady"
+            :read-snapshot="readScopeSnapshot"
+          />
+        </div>
       </div>
 
       <div v-show="showKnobs" class="preview-knobs">

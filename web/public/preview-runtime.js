@@ -7,6 +7,10 @@
   let audioContext = null;
   let wasmProcessor = null;
   let masterVolumeNode = null;
+  let analyser = null;
+  let scopeTimeDomainBuffer = null;
+  let scopeFrequencyBuffer = null;
+  let referenceFrequency = 440;
   let envelope = null;
   let dryNodes = [];
   let layout = "keyboard";
@@ -159,6 +163,11 @@
       processor.connect(volume);
     }
 
+    analyser = context.createAnalyser();
+    analyser.fftSize = 4096;
+    scopeTimeDomainBuffer = new Float32Array(analyser.fftSize);
+    scopeFrequencyBuffer = new Float32Array(analyser.frequencyBinCount);
+    volume.connect(analyser);
     volume.connect(context.destination);
     log("info", "setupWebAudioAndUI called", { state: context.state });
     audioWaiter?.resolve();
@@ -255,6 +264,7 @@
       paramAssign: {
         X: moduleRef.ParamAssign.X,
         Y: moduleRef.ParamAssign.Y,
+        Depth: moduleRef.ParamAssign.Depth,
       },
     };
   }
@@ -282,6 +292,20 @@
     if (typeof moduleRef?.fx_set_bpm === "function") {
       moduleRef.fx_set_bpm(value);
     }
+  }
+
+  function readScopeSnapshot() {
+    if (!analyser || !scopeTimeDomainBuffer || !scopeFrequencyBuffer) {
+      return null;
+    }
+    analyser.getFloatTimeDomainData(scopeTimeDomainBuffer);
+    analyser.getFloatFrequencyData(scopeFrequencyBuffer);
+    return {
+      timeDomain: scopeTimeDomainBuffer.slice(),
+      frequency: scopeFrequencyBuffer.slice(),
+      sampleRate: audioContext?.sampleRate ?? 44100,
+      referenceFrequency,
+    };
   }
 
   function resumeAudio() {
@@ -454,6 +478,7 @@
     setParam,
     setMasterVolume,
     setBpm,
+    readScopeSnapshot,
     applyCurve(normalized, curve, unipolar) {
       return window.Module.applyCurveToParameter0to1(normalized, curve, unipolar);
     },
@@ -465,6 +490,7 @@
       return audioContext?.state || "closed";
     },
     setOscPitch(frequency) {
+      referenceFrequency = frequency;
       window.Module.setOscPitch(frequency);
     },
     noteOn(note, velocity) {

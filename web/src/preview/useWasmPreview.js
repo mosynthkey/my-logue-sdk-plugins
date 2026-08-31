@@ -49,8 +49,9 @@ export function useWasmPreview(previewShellRef) {
 
   const previewGeneration = ref(0);
   const knobMappings = shallowRef([]);
-  const paramAssign = shallowRef({ X: 1, Y: 2 });
+  const paramAssign = shallowRef({ X: 1, Y: 2, Depth: 3 });
   const frequencyStack = ref([]);
+  const depthNormalized = ref(0.5);
   const awaitingWasmTap = ref(false);
 
   let session = null;
@@ -59,6 +60,9 @@ export function useWasmPreview(previewShellRef) {
   const isLoading = computed(() => phase.value === "loading");
   const isReady = computed(() => phase.value === "ready");
   const hasWasm = computed(() => phase.value !== "no-wasm");
+  const hasDepthMapping = computed(() => knobMappings.value.some(
+    (mapping) => mapping.assign === paramAssign.value.Depth,
+  ));
 
   function host() {
     return session?.host ?? null;
@@ -127,6 +131,20 @@ export function useWasmPreview(previewShellRef) {
         applyMappingValue(mapping.paramIndex, yFromBottom, mapping.unipolar, mapping.curve);
       }
     }
+  }
+
+  function handleDepthChange(nextDepthNormalized) {
+    const clamped = Math.min(Math.max(nextDepthNormalized, 0), 1);
+    depthNormalized.value = clamped;
+    for (const mapping of knobMappings.value) {
+      if (mapping.assign === paramAssign.value.Depth) {
+        applyMappingValue(mapping.paramIndex, clamped, mapping.unipolar, mapping.curve);
+      }
+    }
+  }
+
+  function readScopeSnapshot() {
+    return host()?.readScopeSnapshot() ?? null;
   }
 
   function syncAudioRunning() {
@@ -221,6 +239,7 @@ export function useWasmPreview(previewShellRef) {
     resetPlaybackState();
     masterVolume.value = 0.5;
     bpm.value = 120;
+    depthNormalized.value = 0.5;
     showInstrument.value = false;
     showKnobs.value = false;
     knobs.value = [];
@@ -321,6 +340,9 @@ export function useWasmPreview(previewShellRef) {
             setKnobValue(knobIndex, mapping.init);
           }
         }
+        if (hasDepthMapping.value) {
+          handleDepthChange(depthNormalized.value);
+        }
       }
 
       showInstrument.value = true;
@@ -368,6 +390,8 @@ export function useWasmPreview(previewShellRef) {
     holdEnabled,
     masterVolume,
     bpm,
+    depthNormalized,
+    hasDepthMapping,
     masterVolumeLabel,
     bpmLabel,
     awaitingWasmTap,
@@ -379,6 +403,8 @@ export function useWasmPreview(previewShellRef) {
     setKnobValue,
     setMasterVolume,
     setBpm,
+    handleDepthChange,
+    readScopeSnapshot,
     toggleAudio,
     onKeyboardDown,
     onKeyboardUp,
