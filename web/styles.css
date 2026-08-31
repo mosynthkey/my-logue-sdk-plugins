@@ -357,9 +357,9 @@ body.modal-open {
 
 .preview-keyboard-shell {
   width: 100%;
-  padding: 16px 12px 12px;
+  padding: 20px 16px 16px;
   border: 1px solid var(--line-strong);
-  background: linear-gradient(180deg, #161616 0%, #101010 100%);
+  background: #000000;
 }
 
 .preview-keyboard-wrap--mk2 {
@@ -368,26 +368,49 @@ body.modal-open {
 }
 
 .preview-keyboard-wrap--mk2 #preview-keyboard {
-  display: inline-block;
-  padding: 10px 12px 8px;
-  border: 1px solid #2a2a2a;
-  border-radius: 4px;
-  background: #0a0a0a;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --pad-size: 40px;
+  --pad-gap: 10px;
+  --pad-columns: 10;
+  display: block !important;
+  width: max-content !important;
+  height: auto !important;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
-.preview-keyboard-wrap--mk2 .white-key,
-.preview-keyboard-wrap--mk2 li.white-key {
-  border: 1px solid #bbb6aa !important;
-  border-radius: 0 0 3px 3px !important;
-  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.12) !important;
+.preview-keyboard-wrap--mk2 #preview-keyboard ul {
+  display: grid !important;
+  grid-template-columns: repeat(var(--pad-columns), var(--pad-size));
+  grid-template-rows: var(--pad-size) var(--pad-size);
+  column-gap: var(--pad-gap);
+  row-gap: var(--pad-gap);
+  width: max-content !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  padding-right: calc(var(--pad-size) / 2 + var(--pad-gap) / 2) !important;
+  list-style: none;
 }
 
-.preview-keyboard-wrap--mk2 .black-key,
-.preview-keyboard-wrap--mk2 li.black-key {
-  border: 1px solid #000 !important;
-  border-radius: 0 0 2px 2px !important;
-  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.08) !important;
+.preview-keyboard-wrap--mk2 #preview-keyboard li {
+  display: block !important;
+  position: relative !important;
+  left: auto !important;
+  z-index: 1 !important;
+  box-sizing: border-box !important;
+  width: var(--pad-size) !important;
+  height: var(--pad-size) !important;
+  border: 1.5px solid var(--accent) !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+  cursor: pointer;
+}
+
+.preview-keyboard-wrap--mk2 #preview-keyboard li[data-note-type="black"] {
+  z-index: 2 !important;
+  transform: translateX(calc(50% + var(--pad-gap) / 2));
 }
 
 .preview-xypad-shell {
@@ -398,8 +421,10 @@ body.modal-open {
 }
 
 .preview-xypad {
+  display: block;
   width: min(360px, 100%);
-  height: 240px;
+  aspect-ratio: 3 / 2;
+  height: auto;
   border: 1px solid var(--line-strong);
   border-radius: 0;
   background: #0d0d0d;
@@ -905,7 +930,7 @@ input[type="number"] {
   }
 
   .preview-xypad {
-    height: min(200px, 50vw);
+    width: min(360px, 100%);
   }
 
   .preview-knobs {

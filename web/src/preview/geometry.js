@@ -33,6 +33,10 @@ export function pointerPath(center, radius, angleDeg) {
   return `M ${inner.x.toFixed(2)} ${inner.y.toFixed(2)} L ${outer.x.toFixed(2)} ${outer.y.toFixed(2)}`;
 }
 
+function accentColor() {
+  return getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#b6b2a1";
+}
+
 export function drawXypadGrid(ctx, width, height) {
   ctx.fillStyle = "#0d0d0d";
   ctx.fillRect(0, 0, width, height);
@@ -57,4 +61,48 @@ export function drawXypadGrid(ctx, width, height) {
   ctx.moveTo(0, height / 2);
   ctx.lineTo(width, height / 2);
   ctx.stroke();
+}
+
+export function drawXypadMarker(ctx, x, y) {
+  const color = accentColor();
+  ctx.beginPath();
+  ctx.arc(x, y, 16, 0, Math.PI * 2);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+
+export function paintXypad(canvas, marker) {
+  const rect = canvas.getBoundingClientRect();
+  const cssWidth = Math.max(1, rect.width);
+  const cssHeight = Math.max(1, rect.height);
+  const dpr = window.devicePixelRatio || 1;
+  const pixelWidth = Math.max(1, Math.round(cssWidth * dpr));
+  const pixelHeight = Math.max(1, Math.round(cssHeight * dpr));
+  if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+    canvas.width = pixelWidth;
+    canvas.height = pixelHeight;
+  }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawXypadGrid(ctx, cssWidth, cssHeight);
+  if (marker) {
+    drawXypadMarker(ctx, marker.x, marker.y);
+  }
+}
+
+export function xyPadPointFromEvent(canvas, event) {
+  const rect = canvas.getBoundingClientRect();
+  const x = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
+  const y = Math.min(Math.max(event.clientY - rect.top, 0), rect.height);
+  return {
+    x,
+    y,
+    xNormalized: rect.width ? x / rect.width : 0,
+    yNormalized: rect.height ? y / rect.height : 0,
+  };
 }

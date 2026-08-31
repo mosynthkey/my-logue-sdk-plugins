@@ -1,6 +1,6 @@
 <script setup>
-import { onMounted, ref } from "vue";
-import { drawXypadGrid } from "../../preview/geometry.js";
+import { onMounted, ref, watch } from "vue";
+import { paintXypad, xyPadPointFromEvent } from "../../preview/geometry.js";
 
 const props = defineProps({
   holdEnabled: {
@@ -13,45 +13,22 @@ const emit = defineEmits(["pointer-down", "pointer-move", "pointer-up"]);
 
 const canvasEl = ref(null);
 const lastPointer = ref(null);
+let marker = null;
 
-function redraw(x, y, active) {
+function redraw() {
   const canvas = canvasEl.value;
   if (!canvas) {
     return;
   }
-  const ctx = canvas.getContext("2d");
-  drawXypadGrid(ctx, canvas.width, canvas.height);
-  if (active) {
-    ctx.beginPath();
-    ctx.arc(x, y, 6, 0, 2 * Math.PI);
-    ctx.fillStyle = "#b6b2a1";
-    ctx.fill();
-    ctx.strokeStyle = "#b6b2a1";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-  }
-}
-
-function pointerPosition(event) {
-  const canvas = canvasEl.value;
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
-  const x = Math.min(Math.max((event.clientX - rect.left) * scaleX, 0), canvas.width);
-  const y = Math.min(Math.max((event.clientY - rect.top) * scaleY, 0), canvas.height);
-  return {
-    x,
-    y,
-    xNormalized: x / canvas.width,
-    yNormalized: y / canvas.height,
-  };
+  paintXypad(canvas, marker);
 }
 
 function onPointerDown(event) {
   canvasEl.value.setPointerCapture(event.pointerId);
-  const position = pointerPosition(event);
+  const position = xyPadPointFromEvent(canvasEl.value, event);
   lastPointer.value = position;
-  redraw(position.x, position.y, true);
+  marker = { x: position.x, y: position.y };
+  redraw();
   emit("pointer-down", position);
 }
 
@@ -59,28 +36,40 @@ function onPointerMove(event) {
   if (!canvasEl.value.hasPointerCapture(event.pointerId)) {
     return;
   }
-  const position = pointerPosition(event);
+  const position = xyPadPointFromEvent(canvasEl.value, event);
   lastPointer.value = position;
-  redraw(position.x, position.y, true);
+  marker = { x: position.x, y: position.y };
+  redraw();
   emit("pointer-move", position);
 }
 
 function onPointerUp(event) {
-  canvasEl.value.releasePointerCapture(event.pointerId);
-  const position = pointerPosition(event);
+  if (canvasEl.value.hasPointerCapture(event.pointerId)) {
+    canvasEl.value.releasePointerCapture(event.pointerId);
+  }
+  const position = xyPadPointFromEvent(canvasEl.value, event);
   lastPointer.value = position;
-  redraw(position.x, position.y, false);
   if (!props.holdEnabled) {
+    marker = null;
+    redraw();
     emit("pointer-up", position);
   }
 }
+
+watch(() => props.holdEnabled, (hold) => {
+  if (!hold) {
+    marker = null;
+    redraw();
+  }
+});
 
 defineExpose({
   lastPointer,
 });
 
 onMounted(() => {
-  redraw(0, 0, false);
+  redraw();
+  requestAnimationFrame(redraw);
 });
 </script>
 
@@ -94,6 +83,7 @@ onMounted(() => {
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"
       @pointerup="onPointerUp"
+      @pointercancel="onPointerUp"
     />
   </div>
 </template>
