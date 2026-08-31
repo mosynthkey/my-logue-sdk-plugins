@@ -6,6 +6,7 @@
   "description": "DJ air horn at the original recorded pitch. A pitch envelope recreates the opening drop, then a long 16-bit loop holds the settled tone.",
   "params": [
     { "name": "LEVEL", "role": "A", "detail": "Output level" },
+    { "name": "FADE", "role": "Edit", "detail": "Sustain loop fade time (0 = flat hold; center = 1.8 s)" },
     { "name": "MIX", "role": "NTS-3 Mix", "detail": "Dry/wet (NTS-3 only)" }
   ]
 }
