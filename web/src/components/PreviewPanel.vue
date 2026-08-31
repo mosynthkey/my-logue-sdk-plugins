@@ -142,30 +142,6 @@ const showToolbar = computed(() => props.canSend || showInstrument.value);
           >
             Hold {{ holdEnabled ? "On" : "Off" }}
           </button>
-
-          <PreviewKnob
-            v-if="showInstrument"
-            knob-id="master-volume"
-            name="Volume"
-            :min="0"
-            :max="1"
-            :value="masterVolume"
-            :value-label="masterVolumeLabel"
-            :sensitivity="0.005"
-            @update:value="setMasterVolume"
-          />
-
-          <PreviewKnob
-            v-if="showInstrument"
-            knob-id="master-bpm"
-            name="BPM"
-            :min="30"
-            :max="240"
-            :value="bpm"
-            :value-label="bpmLabel"
-            :sensitivity="0.5"
-            @update:value="setBpm"
-          />
         </div>
 
         <SendButton
@@ -215,7 +191,29 @@ const showToolbar = computed(() => props.canSend || showInstrument.value);
         </div>
       </div>
 
-      <div v-show="showKnobs" class="preview-knobs">
+      <div v-if="showInstrument" class="preview-knobs">
+        <PreviewKnob
+          knob-id="master-volume"
+          name="Volume"
+          :min="0"
+          :max="1"
+          :value="masterVolume"
+          :value-label="masterVolumeLabel"
+          :sensitivity="0.005"
+          @update:value="setMasterVolume"
+        />
+
+        <PreviewKnob
+          knob-id="master-bpm"
+          name="BPM"
+          :min="30"
+          :max="240"
+          :value="bpm"
+          :value-label="bpmLabel"
+          :sensitivity="0.5"
+          @update:value="setBpm"
+        />
+
         <PreviewKnob
           v-for="(knob, knobIndex) in knobs"
           :key="`${knob.name}-${knobIndex}`"
