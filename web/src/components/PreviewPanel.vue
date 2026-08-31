@@ -39,7 +39,7 @@ const {
   onLatchToggle,
   onTouchEvent,
   onHoldToggle,
-  confirmWasmStartFromTap,
+  startPreviewFromTap,
 } = useWasmPreview();
 
 watch(
@@ -99,9 +99,9 @@ function handleHoldToggle() {
         :class="{ 'preview-status--action': awaitingWasmTap }"
         :role="awaitingWasmTap ? 'button' : undefined"
         :tabindex="awaitingWasmTap ? 0 : -1"
-        @pointerdown="confirmWasmStartFromTap"
-        @keydown.enter.prevent="confirmWasmStartFromTap"
-        @keydown.space.prevent="confirmWasmStartFromTap"
+        @pointerdown="startPreviewFromTap"
+        @keydown.enter.prevent="startPreviewFromTap"
+        @keydown.space.prevent="startPreviewFromTap"
       >
         {{ message }}
       </p>

@@ -1,5 +1,6 @@
 import { PREVIEW_TIMEOUT_MS } from "./constants.js";
 import { previewDebugLog } from "../composables/usePreviewDebugLog.js";
+import { needsGestureForWasmStart } from "./gesture.js";
 import { onWasmRuntimeInitialized } from "./wasm-runtime.js";
 
 let activeScript = null;
@@ -72,10 +73,11 @@ export function removeActiveWasmScript() {
 export function configureWasmModule(build) {
   const baseUrl = wasmBaseUrl(build.wasm);
   const jsUrl = `${wasmJsUrl(build.wasm)}?v=${Date.now()}`;
+  const deferMain = needsGestureForWasmStart();
   const moduleConfig = {
     locateFile: (path) => baseUrl + path,
     mainScriptUrlOrBlob: jsUrl,
-    noInitialRun: true,
+    noInitialRun: deferMain,
     printErr: (message) => previewDebugLog("error", `[wasm] ${message}`),
     onRuntimeInitialized: () => {
       onWasmRuntimeInitialized();
@@ -88,6 +90,7 @@ export function configureWasmModule(build) {
     wasm: build.wasm,
     crossOriginIsolated: window.crossOriginIsolated,
     hasAudioContext: typeof AudioContext !== "undefined" || typeof webkitAudioContext !== "undefined",
+    deferMain,
   });
   return { baseUrl, jsUrl };
 }
