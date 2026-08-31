@@ -313,6 +313,10 @@ body.modal-open {
   gap: 16px;
   width: 100%;
   min-width: 0;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .preview-instrument[hidden],
@@ -374,6 +378,10 @@ body.modal-open {
   padding: 12px;
   border: 1px solid var(--line-strong);
   background: #000000;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .preview-keyboard-head {
@@ -409,7 +417,10 @@ body.modal-open {
   overscroll-behavior-x: contain;
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
+  touch-action: pan-x;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .preview-keyboard-wrap--mk2 {
@@ -443,6 +454,9 @@ body.modal-open {
   border-radius: 4px;
   cursor: pointer;
   touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .preview-key--white {
@@ -474,6 +488,10 @@ body.modal-open {
   justify-content: center;
   width: 100%;
   padding: 8px 0;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .preview-xypad {
@@ -485,6 +503,9 @@ body.modal-open {
   border-radius: 0;
   background: #0d0d0d;
   touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
   cursor: crosshair;
 }
 
@@ -496,6 +517,9 @@ body.modal-open {
   padding-top: 16px;
   border-top: 1px solid var(--line);
   touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .knob {
@@ -505,6 +529,8 @@ body.modal-open {
   gap: 4px;
   width: 56px;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .knob__dial {
@@ -513,6 +539,9 @@ body.modal-open {
   height: 48px;
   cursor: ns-resize;
   touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .knob__dial:active {

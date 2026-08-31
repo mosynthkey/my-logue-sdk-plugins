@@ -206,6 +206,7 @@ function onPointerMove(event) {
   if (event.pointerId !== pointerId) {
     return;
   }
+  event.preventDefault();
   pointerX = event.clientX;
   pointerY = event.clientY;
   playMidi(midiFromEvent(event));
@@ -317,10 +318,12 @@ function onTypingDown(event) {
     return;
   }
   if (event.key === "z") {
+    event.preventDefault();
     onOctaveDown();
     return;
   }
   if (event.key === "x") {
+    event.preventDefault();
     onOctaveUp();
     return;
   }
@@ -420,6 +423,8 @@ onBeforeUnmount(() => {
       @pointermove="onPointerMove"
       @pointerup="onPointerUp"
       @pointercancel="onPointerUp"
+      @contextmenu.prevent
+      @dragstart.prevent
     >
       <div
         id="preview-keyboard"

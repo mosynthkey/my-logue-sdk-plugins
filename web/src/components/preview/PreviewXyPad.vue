@@ -25,6 +25,7 @@ function redraw() {
 }
 
 function onPointerDown(event) {
+  event.preventDefault();
   canvasEl.value.setPointerCapture(event.pointerId);
   const position = xyPadPointFromEvent(canvasEl.value, event);
   lastPointer.value = position;
@@ -37,6 +38,7 @@ function onPointerMove(event) {
   if (!canvasEl.value.hasPointerCapture(event.pointerId)) {
     return;
   }
+  event.preventDefault();
   const position = xyPadPointFromEvent(canvasEl.value, event);
   lastPointer.value = position;
   marker = { x: position.x, y: position.y };
@@ -45,6 +47,7 @@ function onPointerMove(event) {
 }
 
 function onPointerUp(event) {
+  event.preventDefault();
   if (canvasEl.value.hasPointerCapture(event.pointerId)) {
     canvasEl.value.releasePointerCapture(event.pointerId);
   }
@@ -96,6 +99,8 @@ onBeforeUnmount(() => {
       @pointermove="onPointerMove"
       @pointerup="onPointerUp"
       @pointercancel="onPointerUp"
+      @contextmenu.prevent
+      @dragstart.prevent
     />
   </div>
 </template>
