@@ -1,5 +1,5 @@
 import { computed, ref, shallowRef } from "vue";
-import { whenAudioUnlocked } from "../composables/useAudioSession.js";
+import { unlockAudioSessionSync } from "../composables/useAudioSession.js";
 import { previewDebugLog } from "../composables/usePreviewDebugLog.js";
 import { AHREnvelopeTime } from "./constants.js";
 import {
@@ -15,10 +15,10 @@ import {
   waitForWasmReady,
 } from "./wasm.js";
 import {
-  ensureWasmStarted,
   needsGestureForWasmStart,
   resetWasmRuntimeState,
   startWasmMainInGesture,
+  waitForWasmRuntime,
 } from "./wasm-runtime.js";
 
 function approximatelyEqual(a, b, epsilon = 1e-4) {
@@ -235,6 +235,7 @@ export function useWasmPreview() {
     showKnobs.value = false;
     knobs.value = [];
     awaitingWasmTap.value = false;
+    delete window.__previewWasmTapFinish;
   }
 
   async function mount(build, plugin) {
@@ -259,13 +260,6 @@ export function useWasmPreview() {
     showInstrument.value = false;
 
     try {
-      await whenAudioUnlocked();
-      if (generation !== previewGeneration.value) {
-        return;
-      }
-
-      phase.value = "loading";
-      message.value = "Loading preview…";
       const readyPromise = waitForWasmReady(generation, previewGeneration);
       const { jsUrl } = configureWasmModule(build);
       await loadWasmScript(jsUrl);
@@ -273,12 +267,18 @@ export function useWasmPreview() {
         return;
       }
 
-      const started = await ensureWasmStarted();
-      if (!started && needsGestureForWasmStart()) {
+      await waitForWasmRuntime();
+      if (generation !== previewGeneration.value) {
+        return;
+      }
+
+      if (needsGestureForWasmStart()) {
         awaitingWasmTap.value = true;
         phase.value = "gesture";
-        message.value = "Tap to start preview";
-        previewDebugLog("warn", "Waiting for tap to call wasm main()");
+        message.value = window.crossOriginIsolated
+          ? "Tap to start preview"
+          : "Tap to start preview (audio isolation unavailable on this browser)";
+        previewDebugLog("info", "Waiting for single tap to unlock audio and start wasm");
         await new Promise((resolve) => {
           window.__previewWasmTapFinish = () => {
             awaitingWasmTap.value = false;
@@ -289,8 +289,6 @@ export function useWasmPreview() {
         if (generation !== previewGeneration.value) {
           return;
         }
-      } else if (!started) {
-        await ensureWasmStarted();
       }
 
       phase.value = "loading";
@@ -342,10 +340,13 @@ export function useWasmPreview() {
     }
   }
 
-  function confirmWasmStartFromTap() {
-    if (startWasmMainInGesture()) {
-      window.__previewWasmTapFinish?.();
+  function startPreviewFromTap() {
+    unlockAudioSessionSync();
+    if (!startWasmMainInGesture()) {
+      previewDebugLog("warn", "Tap ignored — wasm not ready yet");
+      return;
     }
+    window.__previewWasmTapFinish?.();
   }
 
   return {
@@ -373,7 +374,7 @@ export function useWasmPreview() {
     onLatchToggle,
     onTouchEvent,
     onHoldToggle,
-    confirmWasmStartFromTap,
+    startPreviewFromTap,
     handleXyPosition,
   };
 }

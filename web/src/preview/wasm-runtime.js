@@ -1,8 +1,9 @@
-import { whenAudioUnlocked } from "../composables/useAudioSession.js";
 import { previewDebugLog } from "../composables/usePreviewDebugLog.js";
+import { needsGestureForWasmStart } from "./gesture.js";
 
 let wasmRuntimeReady = false;
 let wasmMainStarted = false;
+let runtimeWaiter = null;
 
 export function isWasmRuntimeReady() {
   return wasmRuntimeReady;
@@ -15,11 +16,16 @@ export function isWasmMainStarted() {
 export function resetWasmRuntimeState() {
   wasmRuntimeReady = false;
   wasmMainStarted = false;
+  runtimeWaiter = null;
 }
 
-export function needsGestureForWasmStart() {
-  const mobileLayout = window.matchMedia("(max-width: 820px), (pointer: coarse)").matches;
-  return mobileLayout || !window.crossOriginIsolated;
+export function waitForWasmRuntime() {
+  if (wasmRuntimeReady) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    runtimeWaiter = resolve;
+  });
 }
 
 export function startWasmMainInGesture() {
@@ -33,40 +39,40 @@ export function startWasmMainInGesture() {
   }
 
   try {
+    previewDebugLog("info", "Calling Module._main(0, 0) from user gesture");
     moduleRef.__previewMainStarted = true;
+    moduleRef._main(0, 0);
     wasmMainStarted = true;
-    previewDebugLog("info", "Calling Module._main() from user gesture");
-    moduleRef._main();
     return true;
   } catch (error) {
-    wasmMainStarted = false;
     moduleRef.__previewMainStarted = false;
-    previewDebugLog("error", "Module._main() failed", error);
+    wasmMainStarted = false;
+    const detail = error?.message || String(error);
+    previewDebugLog("error", "Module._main(0, 0) failed", detail);
+    if (!window.crossOriginIsolated) {
+      previewDebugLog(
+        "error",
+        "crossOriginIsolated is false — AudioWorklet preview may not work on this browser",
+      );
+    }
     return false;
   }
 }
 
 export async function ensureWasmStarted() {
-  await whenAudioUnlocked();
-
-  if (startWasmMainInGesture()) {
+  if (!needsGestureForWasmStart()) {
     return true;
   }
 
-  if (!wasmRuntimeReady) {
-    previewDebugLog("info", "Waiting for wasm runtime");
-    return false;
-  }
-
-  if (needsGestureForWasmStart()) {
-    previewDebugLog("warn", "Wasm ready but needs another tap to start main()");
-    return false;
-  }
-
-  return startWasmMainInGesture();
+  await waitForWasmRuntime();
+  return wasmMainStarted;
 }
 
 export function onWasmRuntimeInitialized() {
   wasmRuntimeReady = true;
   previewDebugLog("info", "Wasm runtime initialized");
+  runtimeWaiter?.();
+  runtimeWaiter = null;
 }
+
+export { needsGestureForWasmStart };

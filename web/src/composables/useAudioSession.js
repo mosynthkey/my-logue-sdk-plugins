@@ -1,6 +1,6 @@
 import { ref } from "vue";
 import { previewDebugLog } from "./usePreviewDebugLog.js";
-import { startWasmMainInGesture } from "../preview/wasm-runtime.js";
+import { needsGestureForWasmStart } from "../preview/gesture.js";
 
 const unlocked = ref(false);
 let unlockPromise = null;
@@ -14,6 +14,12 @@ function resetUnlockPromise() {
 
 resetUnlockPromise();
 
+if (!needsGestureForWasmStart()) {
+  unlocked.value = true;
+  resolveUnlock?.();
+  resolveUnlock = null;
+}
+
 export function isAudioUnlocked() {
   return unlocked.value;
 }
@@ -25,7 +31,7 @@ export function whenAudioUnlocked() {
   return unlockPromise;
 }
 
-export async function unlockAudioSession() {
+export function unlockAudioSessionSync() {
   if (unlocked.value) {
     return;
   }
@@ -34,13 +40,16 @@ export async function unlockAudioSession() {
   if (AudioContextClass) {
     const unlockContext = new AudioContextClass();
     if (unlockContext.state === "suspended") {
-      await unlockContext.resume();
+      unlockContext.resume();
     }
-    await unlockContext.close();
+    window.setTimeout(() => {
+      if (unlockContext.state !== "closed") {
+        unlockContext.close();
+      }
+    }, 1000);
   }
 
   unlocked.value = true;
-  startWasmMainInGesture();
   previewDebugLog("info", "Audio session unlocked");
   resolveUnlock?.();
   resolveUnlock = null;
@@ -49,7 +58,7 @@ export async function unlockAudioSession() {
 export function useAudioSession() {
   return {
     unlocked,
-    unlockAudioSession,
+    unlockAudioSessionSync,
     whenAudioUnlocked,
   };
 }
