@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Extract loopable 16-bit horn PCM plus pitch-envelope metadata."""
+"""Extract a long 16-bit DJ horn loop plus pitch-envelope metadata."""
 
 from __future__ import annotations
 
@@ -118,7 +118,7 @@ def stable_region(track: list[tuple[int, float, float]], sample_count: int) -> t
         return start, sample_count, median
 
     region_start = stable_starts[0]
-    region_end = min(sample_count, stable_starts[-1] + int(0.04 * 48000))
+    region_end = min(sample_count, stable_starts[-1] + int(0.04 * HOST_RATE))
     if region_end - region_start < 1024:
         region_end = min(sample_count, region_start + 4096)
     return region_start, region_end, median
@@ -144,7 +144,7 @@ def best_loop(samples: list[float], period: float, min_periods: int, max_periods
 
     for period_count in range(min_periods, max_periods + 1):
         loop_length = period_samples * period_count
-        compare_count = min(period_samples * 2, 256, loop_length // 2)
+        compare_count = min(period_samples * 4, 512, loop_length // 2)
         if loop_length + compare_count > len(samples):
             break
         step = max(1, period_samples // 8)
@@ -155,7 +155,16 @@ def best_loop(samples: list[float], period: float, min_periods: int, max_periods
             for sample_index in range(compare_count):
                 acc += samples[start + sample_index] * samples[start + loop_length + sample_index]
             score = acc / float(compare_count)
+            head = samples[start : start + compare_count]
+            tail = samples[start + loop_length : start + loop_length + compare_count]
             score -= seam_cost(samples[start : start + loop_length], loop_length) * 3.0
+            head_rms = rms(head)
+            tail_rms = rms(tail)
+            if head_rms > 1e-6 and tail_rms > 1e-6:
+                ratio = head_rms / tail_rms
+                if ratio < 1.0:
+                    ratio = 1.0 / ratio
+                score -= (ratio - 1.0) * 0.8
             if score > best_score:
                 best_score = score
                 best_start = start
@@ -195,52 +204,6 @@ def crossfade_loop(samples: list[float], xfade: int) -> list[float]:
     return out
 
 
-def gentle_lowpass(samples: list[float], sample_rate: int, cutoff_hz: float) -> list[float]:
-    coeff = math.exp((-2.0 * math.pi * cutoff_hz) / sample_rate)
-    state = samples[0] if samples else 0.0
-    out: list[float] = []
-    for sample in samples:
-        state = coeff * state + (1.0 - coeff) * sample
-        out.append(state)
-    return out
-
-
-def fade_edges(samples: list[float], fade_in: int, fade_out: int) -> list[float]:
-    out = list(samples)
-    fade_in = min(fade_in, len(out) // 4)
-    fade_out = min(fade_out, len(out) // 4)
-    for sample_index in range(fade_in):
-        out[sample_index] *= sample_index / float(fade_in)
-    for sample_index in range(fade_out):
-        out[len(out) - 1 - sample_index] *= sample_index / float(fade_out)
-    return out
-
-
-def trim_first_burst(samples: list[float], sample_rate: int, max_seconds: float) -> list[float]:
-    hop = max(1, sample_rate // 200)
-    threshold = 0.04
-    start = 0
-    for sample_index in range(0, len(samples), hop):
-        if abs(samples[sample_index]) > threshold:
-            start = max(0, sample_index - hop)
-            break
-    max_length = int(sample_rate * max_seconds)
-    end = min(len(samples), start + max_length)
-    quiet_needed = int(sample_rate * 0.04)
-    quiet_run = 0
-    for sample_index in range(start + int(sample_rate * 0.08), end):
-        if abs(samples[sample_index]) < threshold * 0.5:
-            quiet_run += 1
-            if quiet_run >= quiet_needed:
-                end = sample_index - quiet_needed + hop
-                break
-        else:
-            quiet_run = 0
-    if end <= start:
-        end = min(len(samples), start + max_length)
-    return samples[start:end]
-
-
 def to_pcm16(samples: list[float]) -> list[int]:
     peak = max((abs(sample) for sample in samples), default=1.0)
     scale = 0.97 / peak if peak > 0.0 else 1.0
@@ -255,53 +218,46 @@ def to_pcm16(samples: list[float]) -> list[int]:
     return packed
 
 
-def extract_horn(path: pathlib.Path, sample_rate: int, looping: bool, start_ratio: float, tau: float) -> dict:
+def extract_dj_loop(path: pathlib.Path, sample_rate: int, max_samples: int, start_ratio: float, tau: float) -> dict:
     samples = load_mono_wav(path, sample_rate)
     track = pitch_track(samples, sample_rate)
+    region_start, region_end, settled_hz = stable_region(track, len(samples))
+    region = samples[region_start:region_end]
+    print(
+        f"  region {region_start}:{region_end} ({len(region)} samples) "
+        f"settled={settled_hz:.1f} Hz"
+    )
+    period = sample_rate / settled_hz if settled_hz > 1.0 else 64.0
+    measured = yin_period(region[: min(len(region), int(sample_rate * 0.08))], sample_rate, 80.0, 1600.0)
+    if measured:
+        period = measured
+    period_samples = max(8, int(round(period)))
 
-    if looping:
-        region_start, region_end, settled_hz = stable_region(track, len(samples))
-        max_region = int(sample_rate * 0.9)
-        if region_end - region_start > max_region:
-            region_end = region_start + max_region
-        region = samples[region_start:region_end]
-        print(
-            f"  region {region_start}:{region_end} ({len(region)} samples) "
-            f"settled={settled_hz:.1f} Hz"
-        )
-        period = sample_rate / settled_hz if settled_hz > 1.0 else 64.0
-        measured = yin_period(region[: min(len(region), int(sample_rate * 0.08))], sample_rate, 80.0, 1600.0)
-        if measured:
-            period = measured
-        period_samples = max(8, int(round(period)))
-        min_periods = max(16, int(math.ceil(0.15 * sample_rate / period_samples)))
-        max_periods = max(min_periods + 4, int(math.floor(0.22 * sample_rate / period_samples)))
-        loop_start, loop_length = best_loop(region, period, min_periods, max_periods)
-        loop = list(region[loop_start : loop_start + loop_length])
-        loop = rotate_to_best_seam(loop, period_samples)
-        if seam_cost(loop, len(loop)) > 0.02:
-            loop = crossfade_loop(loop, 96)
-        loop = gentle_lowpass(loop, sample_rate, 9000.0)
-        if len(loop) < 64:
-            loop = region[: min(len(region), period_samples * 16)]
-        pcm = to_pcm16(loop)
-        attack_hz = track[0][1] if track else settled_hz
-        ratio = start_ratio if start_ratio > 0.0 else attack_hz / settled_hz
-    else:
-        oneshot = trim_first_burst(samples, sample_rate, 0.22)
-        pcm = to_pcm16(fade_edges(oneshot, 16, int(sample_rate * 0.03)))
-        ratio = 1.0
-        settled_hz = track[len(track) // 2][1] if track else 0.0
-
+    min_seconds = 0.42
+    max_seconds = max_samples / float(sample_rate)
+    min_periods = max(24, int(math.ceil(min_seconds * sample_rate / period_samples)))
+    max_periods = max(min_periods + 4, int(math.floor(max_seconds * sample_rate / period_samples)))
+    loop_start, loop_length = best_loop(region, period, min_periods, max_periods)
+    if loop_length > max_samples:
+        loop_length = (max_samples // period_samples) * period_samples
+    loop = list(region[loop_start : loop_start + loop_length])
+    loop = rotate_to_best_seam(loop, period_samples)
+    if seam_cost(loop, len(loop)) > 0.015:
+        loop = crossfade_loop(loop, max(period_samples, 128))
+    pcm = to_pcm16(loop)
+    attack_hz = track[0][1] if track else settled_hz
+    ratio = start_ratio if start_ratio > 0.0 else attack_hz / settled_hz
     env_coeff = math.exp(-1.0 / (tau * HOST_RATE)) if tau > 0.0 else 0.0
     return {
-        "name": path.stem.upper().replace("-", "_")[:8],
+        "name": "DJ",
         "pcm": pcm,
-        "looping": looping,
+        "looping": True,
         "start_ratio": ratio,
         "env_coeff": env_coeff,
         "settled_hz": settled_hz,
         "length": len(pcm),
+        "seam": seam_cost(loop, len(loop)),
+        "period_samples": period_samples,
     }
 
 
@@ -309,7 +265,7 @@ def write_header(path: pathlib.Path, horns: list[dict], sample_rate: int) -> Non
     lines = [
         "#pragma once",
         "",
-        "// Auto-generated 16-bit PCM loops / one-shots with pitch-envelope metadata.",
+        "// Auto-generated 16-bit PCM loop with pitch-envelope metadata.",
         f"// Embedded sample rate: {sample_rate} Hz (host playback is {HOST_RATE} Hz).",
         "",
         "#include <stdint.h>",
@@ -362,30 +318,21 @@ def write_header(path: pathlib.Path, horns: list[dict], sample_rate: int) -> Non
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--rate", type=int, default=24000)
+    parser.add_argument("--max-bytes", type=int, default=28000)
     parser.add_argument("--out", type=pathlib.Path, required=True)
-    parser.add_argument("wav", nargs="+", type=pathlib.Path)
+    parser.add_argument("wav", type=pathlib.Path)
     args = parser.parse_args()
 
-    specs = [
-        {"looping": True, "start_ratio": 0.0, "tau": 0.12},
-        {"looping": True, "start_ratio": 1.0, "tau": 0.08},
-        {"looping": False, "start_ratio": 1.0, "tau": 0.0},
-    ]
-
-    horns: list[dict] = []
-    for wav_path, spec in zip(args.wav, specs):
-        horn = extract_horn(wav_path, args.rate, spec["looping"], spec["start_ratio"], spec["tau"])
-        horns.append(horn)
-        kind = "loop" if horn["looping"] else "oneshot"
-        duration_ms = 1000.0 * horn["length"] / args.rate
-        print(
-            f"{horn['name']}: {kind} {horn['length']} samples ({duration_ms:.0f} ms) "
-            f"ratio={horn['start_ratio']:.3f} settled={horn['settled_hz']:.1f} Hz"
-        )
-
-    write_header(args.out, horns, args.rate)
-    total_bytes = sum(horn["length"] * 2 for horn in horns)
-    print(f"Wrote {args.out} ({total_bytes} bytes PCM16)")
+    max_samples = max(64, args.max_bytes // 2)
+    horn = extract_dj_loop(args.wav, args.rate, max_samples, start_ratio=0.0, tau=0.12)
+    duration_ms = 1000.0 * horn["length"] / args.rate
+    print(
+        f"{horn['name']}: loop {horn['length']} samples ({duration_ms:.0f} ms) "
+        f"ratio={horn['start_ratio']:.3f} settled={horn['settled_hz']:.1f} Hz "
+        f"seam={horn['seam']:.4f} period={horn['period_samples']}"
+    )
+    write_header(args.out, [horn], args.rate)
+    print(f"Wrote {args.out} ({horn['length'] * 2} bytes PCM16)")
     return 0
 
 

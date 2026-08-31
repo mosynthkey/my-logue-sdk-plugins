@@ -33,8 +33,8 @@ __unit_callback int8_t unit_init(const unit_runtime_desc_t *desc)
 
   context = static_cast<const unit_runtime_osc_context_t *>(desc->hooks.runtime_context);
 
-  s_airhorn_instance.setStereoMix(false);
   s_airhorn_instance.init(nullptr);
+  s_airhorn_instance.setStereoMix(false);
 
   for (uint8_t paramIndex = 0; paramIndex < UNIT_OSC_MAX_PARAM_COUNT; ++paramIndex)
     cached_values[paramIndex] = static_cast<int32_t>(unit_header.params[paramIndex].init);
