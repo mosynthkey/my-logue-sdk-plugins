@@ -1,5 +1,19 @@
 #!/usr/bin/env python3
-"""Extract a long 16-bit DJ horn loop plus pitch-envelope metadata."""
+"""Extract a seamless 16-bit DJ horn loop plus pitch-envelope metadata.
+
+The sustained horn tone drifts slowly in pitch and brightness, so a loop cut
+straight out of the recording restarts on material that no longer matches what
+preceded it and that step is heard as a click once per loop. Two things keep the
+wrap inaudible here:
+
+* the loop length is picked so the material one loop later still lines up with
+  the loop start, both in phase and in level;
+* the last stretch of the loop is folded back into its head as a crossfade, so
+  the wrap lands in the middle of a gradual blend instead of on a hard edge.
+
+Because the crossfade is baked into the PCM, playback stays a plain wrapping
+read - no per-sample crossfade work on the MCU.
+"""
 
 from __future__ import annotations
 
@@ -107,12 +121,19 @@ def pitch_track(samples: list[float], sample_rate: int) -> list[tuple[int, float
 
 
 def stable_region(track: list[tuple[int, float, float]], sample_count: int) -> tuple[int, int, float]:
+    """Span where both pitch and level have settled, i.e. after the drop and before the release."""
     if not track:
         return 0, sample_count, 1.0
 
     frequencies = [freq for _, freq, _ in track]
     median = sorted(frequencies)[len(frequencies) // 2]
-    stable_starts = [start for start, freq, _ in track if abs(1200.0 * math.log2(freq / median)) < 25.0]
+    energies = sorted(energy for _, _, energy in track)
+    sustain_level = energies[len(energies) // 2]
+    stable_starts = [
+        start
+        for start, freq, energy in track
+        if abs(1200.0 * math.log2(freq / median)) < 25.0 and energy > 0.6 * sustain_level
+    ]
     if not stable_starts:
         start = track[len(track) // 2][0]
         return start, sample_count, median
@@ -124,84 +145,168 @@ def stable_region(track: list[tuple[int, float, float]], sample_count: int) -> t
     return region_start, region_end, median
 
 
-def seam_cost(samples: list[float], loop_length: int) -> float:
-    if loop_length < 2:
-        return 1.0
-    head = samples[0]
-    tail = samples[loop_length - 1]
-    head_slope = samples[1] - samples[0]
-    tail_slope = samples[loop_length - 1] - samples[loop_length - 2]
-    return abs(head - tail) + 0.35 * abs(head_slope - tail_slope)
+def refine_period(samples: list[float], start: int, sample_rate: int, window: int = 4096) -> float:
+    """Autocorrelation period of the settled tone, in fractional samples.
 
+    Plain autocorrelation happily locks onto an octave (or two) below the real
+    pitch, which would make every loop-length candidate that much coarser, so the
+    best lag is pulled back to the shortest submultiple that correlates nearly as
+    well.
+    """
+    chunk = [value for value in samples[start : start + window]]
+    if len(chunk) < 64:
+        return 64.0
+    mean = sum(chunk) / len(chunk)
+    chunk = [value - mean for value in chunk]
 
-def best_loop(samples: list[float], period: float, min_periods: int, max_periods: int) -> tuple[int, int]:
-    period_samples = max(8, int(round(period)))
-    best_score = -1.0
-    best_start = 0
-    best_length = min(len(samples), period_samples * min_periods)
-    if best_length < 32:
-        return 0, len(samples)
+    tau_min = max(2, int(sample_rate / 800.0))
+    tau_max = min(len(chunk) - 2, int(sample_rate / 100.0))
+    energy = sum(value * value for value in chunk)
+    if energy <= 0.0:
+        return 64.0
 
-    for period_count in range(min_periods, max_periods + 1):
-        loop_length = period_samples * period_count
-        compare_count = min(period_samples * 4, 512, loop_length // 2)
-        if loop_length + compare_count > len(samples):
+    correlation = [0.0] * (tau_max + 2)
+    for tau in range(tau_min, tau_max + 2):
+        acc = 0.0
+        for sample_index in range(len(chunk) - tau):
+            acc += chunk[sample_index] * chunk[sample_index + tau]
+        correlation[tau] = acc / energy
+
+    best_tau = max(range(tau_min, tau_max + 1), key=lambda tau: correlation[tau])
+    for divisor in range(8, 1, -1):
+        candidate = int(round(best_tau / divisor))
+        if candidate < tau_min + 1 or candidate + 1 > tau_max:
+            continue
+        neighbourhood = range(candidate - 1, candidate + 2)
+        local = max(neighbourhood, key=lambda tau: correlation[tau])
+        if correlation[local] >= 0.92 * correlation[best_tau]:
+            best_tau = local
             break
-        step = max(1, period_samples // 8)
-        last_start = len(samples) - loop_length - compare_count
-        start = 0
-        while start <= last_start:
-            acc = 0.0
-            for sample_index in range(compare_count):
-                acc += samples[start + sample_index] * samples[start + loop_length + sample_index]
-            score = acc / float(compare_count)
-            head = samples[start : start + compare_count]
-            tail = samples[start + loop_length : start + loop_length + compare_count]
-            score -= seam_cost(samples[start : start + loop_length], loop_length) * 3.0
-            head_rms = rms(head)
-            tail_rms = rms(tail)
-            if head_rms > 1e-6 and tail_rms > 1e-6:
-                ratio = head_rms / tail_rms
-                if ratio < 1.0:
-                    ratio = 1.0 / ratio
-                score -= (ratio - 1.0) * 0.8
-            if score > best_score:
-                best_score = score
-                best_start = start
-                best_length = loop_length
-            start += step
 
-    if best_start + best_length > len(samples):
-        best_length = len(samples) - best_start
-    return best_start, best_length
+    s0, s1, s2 = correlation[best_tau - 1], correlation[best_tau], correlation[best_tau + 1]
+    denom = s0 - 2.0 * s1 + s2
+    period = float(best_tau)
+    if denom != 0.0:
+        period += 0.5 * (s0 - s2) / denom
+    return period
 
 
-def rotate_to_best_seam(samples: list[float], period_samples: int) -> list[float]:
-    if len(samples) < period_samples * 2:
-        return samples
-    best_offset = 0
-    best_cost = seam_cost(samples, len(samples))
-    for offset in range(period_samples, len(samples) - period_samples, period_samples):
-        rotated = samples[offset:] + samples[:offset]
-        cost = seam_cost(rotated, len(rotated))
-        if cost < best_cost:
-            best_cost = cost
-            best_offset = offset
-    if best_offset == 0:
-        return samples
-    return samples[best_offset:] + samples[:best_offset]
+def match_score(samples: list[float], start: int, length: int, window: int, stride: int = 1) -> float:
+    """Similarity between the loop head and the material one loop later.
+
+    Returns the correlation scaled by how well the two levels agree, so a candidate
+    only wins when the crossfade will be both phase coherent and level neutral.
+    """
+    head_end = start + window
+    tail_start = start + length
+    if tail_start + window > len(samples):
+        return -1.0
+
+    dot = head_energy = tail_energy = 0.0
+    for sample_index in range(0, window, stride):
+        head = samples[start + sample_index]
+        tail = samples[tail_start + sample_index]
+        dot += head * tail
+        head_energy += head * head
+        tail_energy += tail * tail
+    if head_energy <= 1e-12 or tail_energy <= 1e-12:
+        return -1.0
+
+    head_norm = math.sqrt(head_energy)
+    tail_norm = math.sqrt(tail_energy)
+    correlation = dot / (head_norm * tail_norm)
+    level_match = min(head_norm, tail_norm) / max(head_norm, tail_norm)
+    return correlation * level_match
 
 
-def crossfade_loop(samples: list[float], xfade: int) -> list[float]:
-    if xfade < 4 or len(samples) <= xfade * 2:
-        return samples
-    body_length = len(samples) - xfade
-    out = samples[:body_length]
-    for fade_index in range(xfade):
-        fade = fade_index / float(xfade)
-        tail = samples[body_length + fade_index]
-        out[fade_index] = out[fade_index] * (1.0 - fade) + tail * fade
-    return out
+def find_loop(
+    samples: list[float],
+    region: tuple[int, int],
+    period: float,
+    crossfade: int,
+    min_cycles: int,
+    max_cycles: int,
+) -> tuple[int, int, float]:
+    """Pick the loop start and length whose head and tail match best."""
+    region_start, region_end = region
+    period_samples = max(8, int(round(period)))
+    start_step = period_samples * 4
+    last_start = region_end - int(min_cycles * period) - crossfade
+    starts = list(range(region_start, max(region_start + 1, last_start), start_step))
+
+    coarse_window = min(crossfade, period_samples * 2)
+    candidates: list[tuple[float, int, int]] = []
+    for start in starts:
+        for cycles in range(min_cycles, max_cycles + 1):
+            center = int(round(cycles * period))
+            for length in range(center - period_samples, center + period_samples + 1):
+                if start + length + crossfade > len(samples):
+                    continue
+                score = match_score(samples, start, length, coarse_window, stride=2)
+                candidates.append((score, start, length))
+
+    if not candidates:
+        return region_start, min(len(samples) - region_start, int(min_cycles * period)), 0.0
+
+    candidates.sort(reverse=True)
+    best = max(
+        ((match_score(samples, start, length, crossfade), start, length) for _, start, length in candidates[:64]),
+    )
+    return best[1], best[2], best[0]
+
+
+def bake_crossfade(samples: list[float], start: int, length: int, crossfade: int) -> list[float]:
+    """Fold the loop tail back into the loop head with a raised-cosine crossfade.
+
+    The gain correction keeps the blend at constant power: two partly correlated
+    takes of the same tone would otherwise dip in the middle of the fade.
+    """
+    loop = list(samples[start : start + length])
+    tail = list(samples[start + length : start + length + crossfade])
+    if len(tail) < crossfade or crossfade < 8:
+        return loop
+
+    head_rms = rms(loop[:crossfade])
+    tail_rms = rms(tail)
+    if tail_rms > 1e-9:
+        gain = head_rms / tail_rms
+        tail = [value * gain for value in tail]
+
+    dot = sum(loop[i] * tail[i] for i in range(crossfade))
+    norm = math.sqrt(sum(v * v for v in loop[:crossfade]) * sum(v * v for v in tail))
+    correlation = dot / norm if norm > 1e-12 else 0.0
+
+    for fade_index in range(crossfade):
+        phase = fade_index / float(crossfade)
+        fade_in = 0.5 - 0.5 * math.cos(math.pi * phase)
+        fade_out = 1.0 - fade_in
+        power = fade_in * fade_in + fade_out * fade_out + 2.0 * fade_in * fade_out * correlation
+        compensation = 1.0 / math.sqrt(power) if power > 1e-9 else 1.0
+        loop[fade_index] = (loop[fade_index] * fade_in + tail[fade_index] * fade_out) * compensation
+    return loop
+
+
+def seam_report(loop: list[float], period: float) -> dict:
+    """Numbers that describe how much the wrap stands out from the loop interior."""
+    length = len(loop)
+    step = max(1, int(round(period)))
+
+    def residual_at(index: int) -> float:
+        acc = 0.0
+        for offset in range(step):
+            here = loop[(index + offset) % length]
+            prev = loop[(index + offset - step) % length]
+            acc += (here - prev) ** 2
+        return math.sqrt(acc / step)
+
+    seam = max(residual_at(index) for index in range(length - step, length + step))
+    interior = sorted(residual_at(index) for index in range(step, length - 2 * step, step))
+    reference = interior[int(len(interior) * 0.99)] if interior else 1e-9
+    return {
+        "sample_jump": abs(loop[0] - loop[-1]),
+        "seam_excess_db": 20.0 * math.log10(max(seam, 1e-9) / max(reference, 1e-9)),
+        "cycles": length / period,
+    }
 
 
 def to_pcm16(samples: list[float]) -> list[int]:
@@ -218,34 +323,48 @@ def to_pcm16(samples: list[float]) -> list[int]:
     return packed
 
 
-def extract_dj_loop(path: pathlib.Path, sample_rate: int, max_samples: int, start_ratio: float, tau: float) -> dict:
+def extract_dj_loop(
+    path: pathlib.Path,
+    sample_rate: int,
+    max_samples: int,
+    start_ratio: float,
+    tau: float,
+    crossfade_cycles: float,
+    min_seconds: float,
+) -> dict:
     samples = load_mono_wav(path, sample_rate)
     track = pitch_track(samples, sample_rate)
     region_start, region_end, settled_hz = stable_region(track, len(samples))
-    region = samples[region_start:region_end]
     print(
-        f"  region {region_start}:{region_end} ({len(region)} samples) "
+        f"  region {region_start}:{region_end} ({(region_end - region_start) / sample_rate * 1000:.0f} ms) "
         f"settled={settled_hz:.1f} Hz"
     )
-    period = sample_rate / settled_hz if settled_hz > 1.0 else 64.0
-    measured = yin_period(region[: min(len(region), int(sample_rate * 0.08))], sample_rate, 80.0, 1600.0)
-    if measured:
-        period = measured
-    period_samples = max(8, int(round(period)))
 
-    min_seconds = 0.42
-    max_seconds = max_samples / float(sample_rate)
-    min_periods = max(24, int(math.ceil(min_seconds * sample_rate / period_samples)))
-    max_periods = max(min_periods + 4, int(math.floor(max_seconds * sample_rate / period_samples)))
-    loop_start, loop_length = best_loop(region, period, min_periods, max_periods)
-    if loop_length > max_samples:
-        loop_length = (max_samples // period_samples) * period_samples
-    loop = list(region[loop_start : loop_start + loop_length])
-    loop = rotate_to_best_seam(loop, period_samples)
-    if seam_cost(loop, len(loop)) > 0.015:
-        loop = crossfade_loop(loop, max(period_samples, 128))
+    # The tone drifts a little across the sustain, so take the median of several probes.
+    probes = sorted(
+        refine_period(samples, region_start + (region_end - region_start) * step // 8, sample_rate)
+        for step in range(1, 7)
+    )
+    period = probes[len(probes) // 2]
+    crossfade = int(round(crossfade_cycles * period))
+    print(f"  period={period:.3f} samples ({sample_rate / period:.2f} Hz) crossfade={crossfade} samples")
+
+    min_cycles = max(8, int(math.ceil(min_seconds * sample_rate / period)))
+    max_cycles = max(min_cycles, int(math.floor((max_samples - crossfade) / period)))
+    loop_start, loop_length, match = find_loop(
+        samples, (region_start, region_end), period, crossfade, min_cycles, max_cycles
+    )
+    print(
+        f"  loop start={loop_start} ({loop_start / sample_rate * 1000:.0f} ms) "
+        f"length={loop_length} cycles={loop_length / period:.2f} match={match:.3f}"
+    )
+
+    loop = bake_crossfade(samples, loop_start, loop_length, crossfade)
+    report = seam_report(loop, period)
     pcm = to_pcm16(loop)
+
     attack_hz = track[0][1] if track else settled_hz
+    settled_hz = sample_rate / period
     ratio = start_ratio if start_ratio > 0.0 else attack_hz / settled_hz
     env_coeff = math.exp(-1.0 / (tau * HOST_RATE)) if tau > 0.0 else 0.0
     return {
@@ -256,8 +375,10 @@ def extract_dj_loop(path: pathlib.Path, sample_rate: int, max_samples: int, star
         "env_coeff": env_coeff,
         "settled_hz": settled_hz,
         "length": len(pcm),
-        "seam": seam_cost(loop, len(loop)),
-        "period_samples": period_samples,
+        "period_samples": period,
+        "crossfade": crossfade,
+        "match": match,
+        "report": report,
     }
 
 
@@ -267,6 +388,8 @@ def write_header(path: pathlib.Path, horns: list[dict], sample_rate: int) -> Non
         "",
         "// Auto-generated 16-bit PCM loop with pitch-envelope metadata.",
         f"// Embedded sample rate: {sample_rate} Hz (host playback is {HOST_RATE} Hz).",
+        "// The loop wrap is already crossfaded into the head, so playback is a plain",
+        "// wrapping read; do not add another crossfade at run time.",
         "",
         "#include <stdint.h>",
         "",
@@ -319,17 +442,39 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--rate", type=int, default=24000)
     parser.add_argument("--max-bytes", type=int, default=28000)
+    parser.add_argument(
+        "--crossfade-cycles",
+        type=float,
+        default=12.0,
+        help="loop crossfade length in fundamental periods",
+    )
+    parser.add_argument("--min-seconds", type=float, default=0.40, help="shortest acceptable loop")
+    parser.add_argument("--start-ratio", type=float, default=1.448008, help="0 = derive from the attack")
+    parser.add_argument("--pitch-tau", type=float, default=0.12, help="pitch envelope time constant")
     parser.add_argument("--out", type=pathlib.Path, required=True)
     parser.add_argument("wav", type=pathlib.Path)
     args = parser.parse_args()
 
     max_samples = max(64, args.max_bytes // 2)
-    horn = extract_dj_loop(args.wav, args.rate, max_samples, start_ratio=0.0, tau=0.12)
+    horn = extract_dj_loop(
+        args.wav,
+        args.rate,
+        max_samples,
+        start_ratio=args.start_ratio,
+        tau=args.pitch_tau,
+        crossfade_cycles=args.crossfade_cycles,
+        min_seconds=args.min_seconds,
+    )
     duration_ms = 1000.0 * horn["length"] / args.rate
+    report = horn["report"]
     print(
         f"{horn['name']}: loop {horn['length']} samples ({duration_ms:.0f} ms) "
         f"ratio={horn['start_ratio']:.3f} settled={horn['settled_hz']:.1f} Hz "
-        f"seam={horn['seam']:.4f} period={horn['period_samples']}"
+        f"cycles={report['cycles']:.2f}"
+    )
+    print(
+        f"  seam: sample jump={report['sample_jump']:.5f} "
+        f"excess over loop interior={report['seam_excess_db']:+.2f} dB"
     )
     write_header(args.out, [horn], args.rate)
     print(f"Wrote {args.out} ({horn['length'] * 2} bytes PCM16)")
