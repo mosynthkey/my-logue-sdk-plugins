@@ -1,5 +1,6 @@
 import { computed, ref, shallowRef } from "vue";
 import { whenAudioUnlocked } from "../composables/useAudioSession.js";
+import { previewDebugLog } from "../composables/usePreviewDebugLog.js";
 import { AHREnvelopeTime } from "./constants.js";
 import {
   connectWasmProcessor,
@@ -13,6 +14,12 @@ import {
   loadWasmScript,
   waitForWasmReady,
 } from "./wasm.js";
+import {
+  ensureWasmStarted,
+  needsGestureForWasmStart,
+  resetWasmRuntimeState,
+  startWasmMainInGesture,
+} from "./wasm-runtime.js";
 
 function approximatelyEqual(a, b, epsilon = 1e-4) {
   return Math.abs(a - b) < epsilon;
@@ -93,6 +100,7 @@ export function useWasmPreview() {
   const knobMappings = shallowRef([]);
 
   const frequencyStack = ref([]);
+  const awaitingWasmTap = ref(false);
 
   const isLoading = computed(() => phase.value === "loading");
   const isReady = computed(() => phase.value === "ready");
@@ -207,6 +215,7 @@ export function useWasmPreview() {
   async function teardown() {
     previewGeneration.value += 1;
     clearWasmGlobals();
+    resetWasmRuntimeState();
     stopDryInputNodes();
     resetPlaybackState();
 
@@ -225,11 +234,13 @@ export function useWasmPreview() {
     showInstrument.value = false;
     showKnobs.value = false;
     knobs.value = [];
+    awaitingWasmTap.value = false;
   }
 
   async function mount(build, plugin) {
     await teardown();
     const generation = previewGeneration.value;
+    previewDebugLog("info", "Mount preview", { plugin: plugin?.id, target: build?.target });
 
     if (!build?.wasm) {
       phase.value = "no-wasm";
@@ -247,8 +258,6 @@ export function useWasmPreview() {
     showKnobs.value = knobs.value.length > 0;
     showInstrument.value = false;
 
-    configureWasmModule(build);
-
     try {
       await whenAudioUnlocked();
       if (generation !== previewGeneration.value) {
@@ -260,6 +269,32 @@ export function useWasmPreview() {
       const readyPromise = waitForWasmReady(generation, previewGeneration);
       const { jsUrl } = configureWasmModule(build);
       await loadWasmScript(jsUrl);
+      if (generation !== previewGeneration.value) {
+        return;
+      }
+
+      const started = await ensureWasmStarted();
+      if (!started && needsGestureForWasmStart()) {
+        awaitingWasmTap.value = true;
+        phase.value = "gesture";
+        message.value = "Tap to start preview";
+        previewDebugLog("warn", "Waiting for tap to call wasm main()");
+        await new Promise((resolve) => {
+          window.__previewWasmTapFinish = () => {
+            awaitingWasmTap.value = false;
+            resolve();
+          };
+        });
+        delete window.__previewWasmTapFinish;
+        if (generation !== previewGeneration.value) {
+          return;
+        }
+      } else if (!started) {
+        await ensureWasmStarted();
+      }
+
+      phase.value = "loading";
+      message.value = "Loading preview…";
       const { context, wasmProcessor: processor } = await readyPromise;
       if (generation !== previewGeneration.value) {
         return;
@@ -303,6 +338,13 @@ export function useWasmPreview() {
       phase.value = "error";
       message.value = error.message;
       showInstrument.value = false;
+      previewDebugLog("error", "Preview mount failed", error);
+    }
+  }
+
+  function confirmWasmStartFromTap() {
+    if (startWasmMainInGesture()) {
+      window.__previewWasmTapFinish?.();
     }
   }
 
@@ -316,6 +358,7 @@ export function useWasmPreview() {
     audioRunning,
     latchEnabled,
     holdEnabled,
+    awaitingWasmTap,
     isLoading,
     isReady,
     hasWasm,
@@ -330,6 +373,7 @@ export function useWasmPreview() {
     onLatchToggle,
     onTouchEvent,
     onHoldToggle,
+    confirmWasmStartFromTap,
     handleXyPosition,
   };
 }

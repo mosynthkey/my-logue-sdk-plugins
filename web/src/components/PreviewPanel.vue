@@ -1,5 +1,6 @@
 <script setup>
 import { onBeforeUnmount, ref, watch } from "vue";
+import PreviewDebugLog from "./preview/PreviewDebugLog.vue";
 import PreviewKeyboard from "./preview/PreviewKeyboard.vue";
 import PreviewKnob from "./preview/PreviewKnob.vue";
 import PreviewXyPad from "./preview/PreviewXyPad.vue";
@@ -27,6 +28,7 @@ const {
   audioRunning,
   latchEnabled,
   holdEnabled,
+  awaitingWasmTap,
   isReady,
   mount,
   teardown,
@@ -37,6 +39,7 @@ const {
   onLatchToggle,
   onTouchEvent,
   onHoldToggle,
+  confirmWasmStartFromTap,
 } = useWasmPreview();
 
 watch(
@@ -93,6 +96,12 @@ function handleHoldToggle() {
       <p
         v-if="!showInstrument && message"
         class="preview-status"
+        :class="{ 'preview-status--action': awaitingWasmTap }"
+        :role="awaitingWasmTap ? 'button' : undefined"
+        :tabindex="awaitingWasmTap ? 0 : -1"
+        @pointerdown="confirmWasmStartFromTap"
+        @keydown.enter.prevent="confirmWasmStartFromTap"
+        @keydown.space.prevent="confirmWasmStartFromTap"
       >
         {{ message }}
       </p>
@@ -160,6 +169,8 @@ function handleHoldToggle() {
           @update:value="onKnobUpdate(knobIndex, $event)"
         />
       </div>
+
+      <PreviewDebugLog />
     </div>
   </section>
 </template>

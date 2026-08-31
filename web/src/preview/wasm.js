@@ -1,4 +1,6 @@
 import { PREVIEW_TIMEOUT_MS } from "./constants.js";
+import { previewDebugLog } from "../composables/usePreviewDebugLog.js";
+import { onWasmRuntimeInitialized } from "./wasm-runtime.js";
 
 let activeScript = null;
 
@@ -29,7 +31,11 @@ export function installWorkletModuleBase(baseUrl) {
     ) {
       moduleURL = new URL(moduleURL, resolvedBase).href;
     }
-    return originalAddModule.call(this, moduleURL, options);
+    previewDebugLog("info", `AudioWorklet.addModule ${moduleURL}`);
+    return originalAddModule.call(this, moduleURL, options).catch((error) => {
+      previewDebugLog("error", "AudioWorklet.addModule failed", error);
+      throw error;
+    });
   };
 
   audioWorkletPrototype.__previewOriginalAddModule = originalAddModule;
@@ -37,12 +43,20 @@ export function installWorkletModuleBase(baseUrl) {
 }
 
 export function loadWasmScript(url) {
+  previewDebugLog("info", `Loading wasm script ${url}`);
   return new Promise((resolve, reject) => {
     const script = document.createElement("script");
     script.src = url;
     script.async = true;
-    script.onload = () => resolve(script);
-    script.onerror = () => reject(new Error(`Failed to load ${url}`));
+    script.onload = () => {
+      previewDebugLog("info", "Wasm script loaded");
+      resolve(script);
+    };
+    script.onerror = () => {
+      const error = new Error(`Failed to load ${url}`);
+      previewDebugLog("error", error.message);
+      reject(error);
+    };
     document.body.append(script);
     activeScript = script;
   });
@@ -61,18 +75,29 @@ export function configureWasmModule(build) {
   const moduleConfig = {
     locateFile: (path) => baseUrl + path,
     mainScriptUrlOrBlob: jsUrl,
-    printErr: (message) => console.error("[preview wasm]", message),
+    noInitialRun: true,
+    printErr: (message) => previewDebugLog("error", `[wasm] ${message}`),
+    onRuntimeInitialized: () => {
+      onWasmRuntimeInitialized();
+    },
   };
   window.Module = moduleConfig;
   globalThis.Module = moduleConfig;
   installWorkletModuleBase(baseUrl);
+  previewDebugLog("info", "Configured wasm module", {
+    wasm: build.wasm,
+    crossOriginIsolated: window.crossOriginIsolated,
+    hasAudioContext: typeof AudioContext !== "undefined" || typeof webkitAudioContext !== "undefined",
+  });
   return { baseUrl, jsUrl };
 }
 
 export function waitForWasmReady(generation, previewGenerationRef) {
   return new Promise((resolve, reject) => {
     const timeout = window.setTimeout(() => {
-      reject(new Error("Preview timed out. Tap to start preview, then try again."));
+      const hint = "Add ?previewDebug=1 to the URL for an on-screen log. "
+        + "On Mac, use Safari > Develop > [device] to inspect.";
+      reject(new Error(`Preview timed out. ${hint}`));
     }, PREVIEW_TIMEOUT_MS);
 
     const handler = (context, wasmProcessor) => {
@@ -80,6 +105,9 @@ export function waitForWasmReady(generation, previewGenerationRef) {
         return;
       }
       window.clearTimeout(timeout);
+      previewDebugLog("info", "setupWebAudioAndUI called", {
+        state: context?.state,
+      });
       resolve({ context, wasmProcessor });
     };
 

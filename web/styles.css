@@ -595,6 +595,57 @@ body.modal-open {
   min-width: 160px;
 }
 
+.preview-debug {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  background: #0a0a0a;
+}
+
+.preview-debug__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.preview-debug__head h3 {
+  margin: 0;
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.preview-debug__body {
+  margin: 0;
+  max-height: 180px;
+  overflow: auto;
+  padding: 10px 12px;
+  font-family: IBM Plex Mono, monospace;
+  font-size: 10px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.preview-debug__line {
+  display: block;
+}
+
+.preview-debug__line--error {
+  color: var(--err);
+}
+
+.preview-debug__line--warn {
+  color: var(--warn);
+}
+
+.preview-debug__line--info {
+  color: var(--muted);
+}
+
 .modal {
   position: fixed;
   inset: 0;

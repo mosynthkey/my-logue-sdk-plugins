@@ -1,4 +1,6 @@
 import { ref } from "vue";
+import { previewDebugLog } from "./usePreviewDebugLog.js";
+import { startWasmMainInGesture } from "../preview/wasm-runtime.js";
 
 const unlocked = ref(false);
 let unlockPromise = null;
@@ -38,6 +40,8 @@ export async function unlockAudioSession() {
   }
 
   unlocked.value = true;
+  startWasmMainInGesture();
+  previewDebugLog("info", "Audio session unlocked");
   resolveUnlock?.();
   resolveUnlock = null;
 }
