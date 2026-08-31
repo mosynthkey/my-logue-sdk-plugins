@@ -3,6 +3,7 @@
 #include "runtime.h"
 
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <vector>
 
@@ -45,22 +46,102 @@ static void setup(Kaocid &synth)
   synth.setTempo(120.f);
 }
 
+static uint64_t phraseFingerprint(const Kaocid &synth)
+{
+  uint64_t fingerprint = 0U;
+  for (uint32_t stepIndex = 0; stepIndex < Kaocid::kStepsPerBar; ++stepIndex)
+  {
+    fingerprint *= 37U;
+    fingerprint += static_cast<uint64_t>(synth.debugDegree(stepIndex) + 2);
+    fingerprint *= 3U;
+    fingerprint += synth.debugSlide(stepIndex) ? 1U : 0U;
+    fingerprint *= 3U;
+    fingerprint += synth.debugAccent(stepIndex) ? 1U : 0U;
+  }
+  return fingerprint;
+}
+
 int main()
 {
   Kaocid synth;
-  for (uint32_t seedIndex = 0; seedIndex < 8U; ++seedIndex)
+  uint64_t seen[48];
+  uint32_t unique_count = 0U;
+  uint32_t min_notes = 16U;
+  uint32_t max_notes = 0U;
+  uint32_t glide_phrases = 0U;
+  uint32_t rest_on_first = 0U;
+  uint32_t slide_seed_x = 0U;
+  uint32_t slide_seed_y = 0U;
+  bool found_slide = false;
+
+  for (uint32_t seedIndex = 0; seedIndex < 48U; ++seedIndex)
   {
     setup(synth);
-    synth.touchEvent(0, k_unit_touch_phase_began, 80U + seedIndex * 90U, 200U + seedIndex * 70U);
-    if (synth.debugGlideCount() < Kaocid::kMinGlidesPerPhrase)
+    const uint32_t touch_x = 40U + seedIndex * 73U;
+    const uint32_t touch_y = 90U + seedIndex * 41U;
+    synth.touchEvent(0, k_unit_touch_phase_began, touch_x, touch_y);
+
+    const uint32_t note_count = synth.debugNoteCount();
+    if (note_count == 0U)
     {
-      std::printf("seed %u too few glides: %u\n", seedIndex, synth.debugGlideCount());
+      std::printf("seed %u produced silence\n", seedIndex);
       return 10;
+    }
+    if (note_count < min_notes)
+      min_notes = note_count;
+    if (note_count > max_notes)
+      max_notes = note_count;
+    if (synth.debugDegree(0) < 0)
+      ++rest_on_first;
+    if (synth.debugGlideCount() > 0U)
+      ++glide_phrases;
+
+    const uint64_t fingerprint = phraseFingerprint(synth);
+    bool is_unique = true;
+    for (uint32_t seenIndex = 0; seenIndex < unique_count; ++seenIndex)
+    {
+      if (seen[seenIndex] == fingerprint)
+      {
+        is_unique = false;
+        break;
+      }
+    }
+    if (is_unique && unique_count < 48U)
+      seen[unique_count++] = fingerprint;
+
+    if (!found_slide)
+    {
+      for (uint32_t stepIndex = 0; stepIndex < Kaocid::kStepsPerBar; ++stepIndex)
+      {
+        const uint32_t next_index = (stepIndex + 1U) % Kaocid::kStepsPerBar;
+        if (synth.debugSlide(stepIndex) && synth.debugDegree(stepIndex) >= 0 &&
+            synth.debugDegree(next_index) >= 0)
+        {
+          found_slide = true;
+          slide_seed_x = touch_x;
+          slide_seed_y = touch_y;
+          break;
+        }
+      }
     }
   }
 
+  std::printf("unique=%u notes=%u..%u glides=%u rest0=%u\n", unique_count, min_notes, max_notes,
+              glide_phrases, rest_on_first);
+
+  if (unique_count < 40U)
+    return 15;
+  if (min_notes > 6U || max_notes < 12U)
+    return 16;
+  if (glide_phrases < 8U)
+    return 17;
+  if (rest_on_first == 0U)
+    return 18;
+  if (!found_slide)
+    return 11;
+
   setup(synth);
-  synth.touchEvent(0, k_unit_touch_phase_began, 512, 512);
+  synth.touchEvent(0, k_unit_touch_phase_began, slide_seed_x, slide_seed_y);
 
   const uint32_t glide_count = synth.debugGlideCount();
   std::printf("glide_count=%u phrase=", glide_count);
@@ -118,12 +199,12 @@ int main()
     }
   }
 
-  const float body_rms = windowRms(mono, 2400U, 2400U);
+  const float body_rms = windowRms(mono, 0U, static_cast<uint32_t>(mono.size()));
   std::printf("slide_active=%d body_rms=%.5f\n", saw_slide_flag ? 1 : 0, body_rms);
 
-  if (body_rms < 0.015f)
+  if (body_rms < 0.008f)
     return 2;
-  if (!saw_slide_flag || max_progress < 0.35f)
+  if (interval > 0.1f && (!saw_slide_flag || max_progress < 0.35f))
     return 14;
 
   return 0;

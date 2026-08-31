@@ -5,17 +5,19 @@
  *
  * TB-303 style monophonic acid bass with automatic 16-step phrase generator
  * for NTS-3 kaoss pad. Hold the pad to run the sequencer; each new touch
- * regenerates a random acid pattern with guaranteed pitch glides. X = cutoff,
- * Y = resonance, Depth = mix. ROOT sets the phrase key.
+ * regenerates a random acid pattern (rhythm, scale, accent, and slide style
+ * vary per touch). X = cutoff, Y = resonance, Depth = mix. ROOT sets the
+ * phrase key.
  *
  * Panel knobs follow the TB-303: waveform, cutoff, resonance, env mod, decay,
  * accent. Distortion/delay/reverb are left to other NTS-3 slots.
  *
  * Filter coefficients follow gsynth TB-303 (Andy Sloane, 2001), adapted for
- * 48 kHz. NTS-3 genericfx cannot resolve libm, so pitch/env/filter use
- * logue-sdk float_math.h. VCA is after the VCF (analog 303 order) so the
- * note body remains after the envelope; gsynth fed the VCA into the filter
- * which collapsed to attack pings on device.
+ * 48 kHz: cutoff / resonance / env mod are the same 0..1 domain as gsynth.
+ * NTS-3 genericfx cannot resolve libm, so pitch/env/filter use logue-sdk
+ * float_math.h. VCA is after the VCF (analog 303 order) so the note body
+ * remains after the envelope; gsynth fed the VCA into the filter which
+ * collapsed to attack pings on device.
  */
 
 #include "macros.h"
@@ -30,7 +32,7 @@ public:
   static constexpr uint32_t kStepsPerBar = 16U;
   static constexpr uint32_t kFilterEnvRecalcInterval = 64U;
   static constexpr float kOutputGain = 0.45f;
-  static constexpr uint32_t kMinGlidesPerPhrase = 3U;
+  static constexpr uint32_t kPhraseStyleCount = 8U;
   static constexpr float kAccentVcaRange = 0.7f;
   static constexpr float kAccentCutoffRange = 0.42f;
   static constexpr float kSlideTauSec = 100000.f * 0.00000022f;
@@ -241,6 +243,17 @@ public:
   }
   int8_t debugDegree(uint32_t step_index) const { return phrase_[step_index].degree; }
   bool debugSlide(uint32_t step_index) const { return phrase_[step_index].slide; }
+  bool debugAccent(uint32_t step_index) const { return phrase_[step_index].accent; }
+  uint32_t debugNoteCount() const
+  {
+    uint32_t note_count = 0U;
+    for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
+    {
+      if (phrase_[stepIndex].degree >= 0)
+        ++note_count;
+    }
+    return note_count;
+  }
 #endif
 
 private:
@@ -260,6 +273,13 @@ private:
   {
     state = state * 1664525U + 1013904223U;
     return state;
+  }
+
+  static uint32_t randomIndex(uint32_t &state, uint32_t count)
+  {
+    if (count <= 1U)
+      return 0U;
+    return (nextRandom(state) >> 8) % count;
   }
 
   static float randomFloat(uint32_t &state)
@@ -322,13 +342,9 @@ private:
 
   void updateFilterTargets()
   {
-    vcf_cutoff_ = 0.12f + cutoff_norm_ * 0.78f;
-    if (vcf_cutoff_ > 1.f)
-      vcf_cutoff_ = 1.f;
-    vcf_reso_ = 0.05f + resonance_norm_ * 0.9f;
-    if (vcf_reso_ > 1.f)
-      vcf_reso_ = 1.f;
-    vcf_env_mod_ = 0.08f + env_mod_norm_ * 0.92f;
+    vcf_cutoff_ = clipRange(cutoff_norm_, 0.f, 1.f);
+    vcf_reso_ = clipRange(resonance_norm_, 0.f, 1.f);
+    vcf_env_mod_ = clipRange(env_mod_norm_, 0.f, 1.f);
 
     vcf_res_coeff_ = fasterexpf(-1.20f + 3.455f * vcf_reso_);
     recalcFilterEnvelope();
@@ -350,90 +366,133 @@ private:
     vcf_env_pos_ = kFilterEnvRecalcInterval;
   }
 
-  void generatePhrase(uint32_t seed)
+  void clearPhrase()
   {
-    uint32_t rng = seed;
-
-    static const int8_t kScaleDegrees[] = {0, 3, 5, 7, 10, 12, 15, 17};
-    static constexpr uint32_t kScaleLength = sizeof(kScaleDegrees) / sizeof(kScaleDegrees[0]);
-
-    const uint32_t pulse_count = 7U + (nextRandom(rng) % 4U);
-
     for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
     {
-      Step &step = phrase_[stepIndex];
-      step.accent = false;
-      step.slide = false;
-      step.degree = -1;
-
-      if (!euclideanGate(stepIndex, pulse_count, kStepsPerBar))
-        continue;
-
-      const uint32_t degree_index = nextRandom(rng) % kScaleLength;
-      step.degree = kScaleDegrees[degree_index];
-
-      if ((stepIndex % 4U) == 0U || randomFloat(rng) > 0.62f)
-        step.accent = true;
-    }
-
-    if (phrase_[0].degree < 0)
-    {
-      phrase_[0].degree = 0;
-      phrase_[0].accent = true;
-    }
-
-    uint32_t glide_count = 0U;
-    for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
-    {
-      const uint32_t next_index = (stepIndex + 1U) % kStepsPerBar;
-      if (phrase_[stepIndex].degree < 0 || phrase_[next_index].degree < 0)
-        continue;
-
-      if (randomFloat(rng) < 0.42f)
-        continue;
-
-      applyGlideLeap(stepIndex, next_index, rng);
-      phrase_[stepIndex].slide = true;
-      ++glide_count;
-    }
-
-    for (uint32_t search_index = 0; glide_count < kMinGlidesPerPhrase && search_index < kStepsPerBar;
-         ++search_index)
-    {
-      if (phrase_[search_index].slide || phrase_[search_index].degree < 0)
-        continue;
-
-      const uint32_t next_index = (search_index + 1U) % kStepsPerBar;
-      if (phrase_[next_index].degree < 0)
-        phrase_[next_index].degree = 12;
-
-      applyGlideLeap(search_index, next_index, rng);
-      phrase_[search_index].slide = true;
-      ++glide_count;
-    }
-
-    for (uint32_t force_index = 0; glide_count < kMinGlidesPerPhrase && force_index < kStepsPerBar;
-         force_index += 4U)
-    {
-      if (phrase_[force_index].degree < 0)
-        phrase_[force_index].degree = 0;
-
-      const uint32_t next_index = (force_index + 1U) % kStepsPerBar;
-      if (phrase_[next_index].degree < 0)
-        phrase_[next_index].degree = 12;
-
-      if (phrase_[force_index].slide)
-        continue;
-
-      applyGlideLeap(force_index, next_index, rng);
-      phrase_[force_index].slide = true;
-      ++glide_count;
+      phrase_[stepIndex].degree = -1;
+      phrase_[stepIndex].accent = false;
+      phrase_[stepIndex].slide = false;
     }
   }
 
-  void applyGlideLeap(uint32_t source_index, uint32_t dest_index, uint32_t &rng)
+  int8_t randomScaleDegree(uint32_t &rng, uint32_t scale_id) const
   {
-    static const int8_t kGlideLeaps[] = {5, 7, 10, 12, -5, -7, -12};
+    static const int8_t kMinorPent[] = {0, 3, 5, 7, 10, 12, 15, 17};
+    static const int8_t kNaturalMinor[] = {0, 2, 3, 5, 7, 8, 10, 12, 15};
+    static const int8_t kDorian[] = {0, 2, 3, 5, 7, 9, 10, 12, 14};
+    static const int8_t kBlues[] = {0, 3, 5, 6, 7, 10, 12, 15};
+    static const int8_t kPhrygian[] = {0, 1, 3, 5, 7, 8, 10, 12};
+    static const int8_t kMajorPent[] = {0, 2, 4, 7, 9, 12, 14, 16};
+    static const int8_t kFifthOctave[] = {0, 7, 12, 17};
+    static const int8_t kChromaticAcid[] = {0, 1, 3, 5, 6, 7, 10, 12, 13};
+
+    const int8_t *degrees = kMinorPent;
+    uint32_t length = 8U;
+    switch (scale_id % 8U)
+    {
+    case 1:
+      degrees = kNaturalMinor;
+      length = 9U;
+      break;
+    case 2:
+      degrees = kDorian;
+      length = 9U;
+      break;
+    case 3:
+      degrees = kBlues;
+      length = 8U;
+      break;
+    case 4:
+      degrees = kPhrygian;
+      length = 8U;
+      break;
+    case 5:
+      degrees = kMajorPent;
+      length = 8U;
+      break;
+    case 6:
+      degrees = kFifthOctave;
+      length = 4U;
+      break;
+    case 7:
+      degrees = kChromaticAcid;
+      length = 9U;
+      break;
+    default:
+      break;
+    }
+    return degrees[randomIndex(rng, length)];
+  }
+
+  int8_t clampDegree(int32_t degree) const
+  {
+    while (degree < 0)
+      degree += 12;
+    while (degree > 17)
+      degree -= 12;
+    return static_cast<int8_t>(degree);
+  }
+
+  void ensureAnyNote(uint32_t &rng, uint32_t scale_id)
+  {
+    for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
+    {
+      if (phrase_[stepIndex].degree >= 0)
+        return;
+    }
+    const uint32_t fallback_index = randomIndex(rng, kStepsPerBar);
+    phrase_[fallback_index].degree = randomScaleDegree(rng, scale_id);
+    phrase_[fallback_index].accent = true;
+  }
+
+  void placeEuclideanNotes(uint32_t &rng, uint32_t scale_id, uint32_t pulses)
+  {
+    for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
+    {
+      if (!euclideanGate(stepIndex, pulses, kStepsPerBar))
+        continue;
+      phrase_[stepIndex].degree = randomScaleDegree(rng, scale_id);
+    }
+  }
+
+  void applyAccents(uint32_t &rng, uint32_t accent_style)
+  {
+    for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
+    {
+      if (phrase_[stepIndex].degree < 0)
+      {
+        phrase_[stepIndex].accent = false;
+        continue;
+      }
+
+      bool accent = false;
+      switch (accent_style % 5U)
+      {
+      case 0:
+        accent = (stepIndex % 4U) == 0U || randomFloat(rng) > 0.78f;
+        break;
+      case 1:
+        accent = (stepIndex % 4U) == 2U || randomFloat(rng) > 0.72f;
+        break;
+      case 2:
+        accent = ((stepIndex & 1U) != 0U) && randomFloat(rng) > 0.35f;
+        break;
+      case 3:
+        accent = randomFloat(rng) > 0.55f;
+        break;
+      default:
+        accent = (stepIndex == 0U || stepIndex == 3U || stepIndex == 7U || stepIndex == 10U ||
+                  stepIndex == 14U);
+        break;
+      }
+      phrase_[stepIndex].accent = accent;
+    }
+  }
+
+  void maybeWidenSlideInterval(uint32_t source_index, uint32_t dest_index, uint32_t &rng)
+  {
+    static const int8_t kGlideLeaps[] = {2, 3, 5, 7, 10, 12, -2, -3, -5, -7, -12};
     static constexpr uint32_t kLeapCount = sizeof(kGlideLeaps) / sizeof(kGlideLeaps[0]);
 
     const int8_t source_degree = phrase_[source_index].degree;
@@ -442,17 +501,216 @@ private:
     if (interval < 0)
       interval = -interval;
 
-    if (interval < 5)
+    if (interval >= 5 || randomFloat(rng) < 0.55f)
+      return;
+
+    const int8_t leap = kGlideLeaps[randomIndex(rng, kLeapCount)];
+    dest_degree = clampDegree(source_degree + leap);
+    phrase_[dest_index].degree = dest_degree;
+  }
+
+  void applySlides(uint32_t &rng, float probability, uint32_t min_glides, bool prefer_leaps)
+  {
+    uint32_t glide_count = 0U;
+    for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
     {
-      const int8_t leap = kGlideLeaps[nextRandom(rng) % kLeapCount];
-      dest_degree = static_cast<int8_t>(source_degree + leap);
-      if (dest_degree < 0 || dest_degree > 17)
-        dest_degree = static_cast<int8_t>(source_degree - leap);
-      if (dest_degree < 0 || dest_degree > 17)
-        dest_degree = (source_degree <= 5) ? static_cast<int8_t>(source_degree + 12)
-                                           : static_cast<int8_t>(source_degree - 12);
-      phrase_[dest_index].degree = dest_degree;
+      const uint32_t next_index = (stepIndex + 1U) % kStepsPerBar;
+      if (phrase_[stepIndex].degree < 0 || phrase_[next_index].degree < 0)
+        continue;
+      if (randomFloat(rng) >= probability)
+        continue;
+
+      phrase_[stepIndex].slide = true;
+      if (prefer_leaps)
+        maybeWidenSlideInterval(stepIndex, next_index, rng);
+      ++glide_count;
     }
+
+    for (uint32_t searchIndex = 0; glide_count < min_glides && searchIndex < kStepsPerBar; ++searchIndex)
+    {
+      if (phrase_[searchIndex].slide || phrase_[searchIndex].degree < 0)
+        continue;
+      const uint32_t next_index = (searchIndex + 1U) % kStepsPerBar;
+      if (phrase_[next_index].degree < 0)
+        continue;
+      phrase_[searchIndex].slide = true;
+      ++glide_count;
+    }
+  }
+
+  void copyHalfBar(uint32_t dest_offset, int32_t degree_shift)
+  {
+    for (uint32_t stepIndex = 0; stepIndex < 8U; ++stepIndex)
+    {
+      const Step &source = phrase_[stepIndex];
+      Step &dest = phrase_[dest_offset + stepIndex];
+      dest.accent = source.accent;
+      dest.slide = source.slide;
+      if (source.degree < 0)
+        dest.degree = -1;
+      else
+        dest.degree = clampDegree(source.degree + degree_shift);
+    }
+  }
+
+  void generatePhrase(uint32_t seed)
+  {
+    uint32_t rng = seed;
+    clearPhrase();
+
+    const uint32_t style = randomIndex(rng, kPhraseStyleCount);
+    const uint32_t scale_id = randomIndex(rng, 8U);
+    const uint32_t accent_style = randomIndex(rng, 5U);
+    float slide_probability = 0.28f;
+    uint32_t min_glides = 0U;
+    bool prefer_leaps = randomFloat(rng) > 0.5f;
+
+    switch (style)
+    {
+    case 0:
+      placeEuclideanNotes(rng, scale_id, 3U + randomIndex(rng, 8U));
+      slide_probability = 0.18f + randomFloat(rng) * 0.35f;
+      min_glides = (randomFloat(rng) > 0.55f) ? 2U : 0U;
+      break;
+    case 1:
+    {
+      const uint32_t hit_count = 3U + randomIndex(rng, 4U);
+      uint32_t placed = 0U;
+      uint32_t guard = 0U;
+      while (placed < hit_count && guard < 48U)
+      {
+        const uint32_t stepIndex = randomIndex(rng, kStepsPerBar);
+        ++guard;
+        if (phrase_[stepIndex].degree >= 0)
+          continue;
+        phrase_[stepIndex].degree = randomScaleDegree(rng, scale_id);
+        ++placed;
+      }
+      slide_probability = 0.45f + randomFloat(rng) * 0.4f;
+      min_glides = 1U;
+      break;
+    }
+    case 2:
+    {
+      const uint32_t pulses = 6U + randomIndex(rng, 5U);
+      for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
+      {
+        if (!euclideanGate(stepIndex, pulses, kStepsPerBar))
+          continue;
+        phrase_[stepIndex].degree = (randomFloat(rng) > 0.45f) ? 12 : 0;
+      }
+      slide_probability = 0.55f;
+      min_glides = 2U;
+      prefer_leaps = false;
+      break;
+    }
+    case 3:
+    {
+      const uint32_t gallop_id = randomIndex(rng, 3U);
+      for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
+      {
+        const uint32_t cell = stepIndex % 4U;
+        bool hit = false;
+        if (gallop_id == 0U)
+          hit = cell != 3U;
+        else if (gallop_id == 1U)
+          hit = cell < 2U;
+        else
+          hit = cell != 1U;
+        if (!hit)
+          continue;
+        phrase_[stepIndex].degree = randomScaleDegree(rng, scale_id);
+      }
+      slide_probability = 0.22f;
+      break;
+    }
+    case 4:
+      for (uint32_t stepIndex = 1; stepIndex < kStepsPerBar; stepIndex += 2U)
+        phrase_[stepIndex].degree = randomScaleDegree(rng, scale_id);
+      if (randomFloat(rng) > 0.4f)
+        phrase_[0].degree = 0;
+      slide_probability = 0.12f;
+      break;
+    case 5:
+    {
+      const uint32_t motif_hits = 3U + randomIndex(rng, 3U);
+      uint32_t placed = 0U;
+      uint32_t guard = 0U;
+      while (placed < motif_hits && guard < 24U)
+      {
+        const uint32_t stepIndex = randomIndex(rng, 8U);
+        ++guard;
+        if (phrase_[stepIndex].degree >= 0)
+          continue;
+        phrase_[stepIndex].degree = randomScaleDegree(rng, scale_id);
+        ++placed;
+      }
+      int32_t answer_shift = 0;
+      const uint32_t answer_id = randomIndex(rng, 4U);
+      if (answer_id == 1U)
+        answer_shift = 12;
+      else if (answer_id == 2U)
+        answer_shift = -12;
+      else if (answer_id == 3U)
+        answer_shift = 3;
+      copyHalfBar(8U, answer_shift);
+      slide_probability = 0.3f;
+      min_glides = 1U;
+      break;
+    }
+    case 6:
+    {
+      const int8_t pitch_a = randomScaleDegree(rng, scale_id);
+      int8_t pitch_b = randomScaleDegree(rng, scale_id);
+      if (pitch_b == pitch_a)
+        pitch_b = clampDegree(pitch_a + ((randomFloat(rng) > 0.5f) ? 7 : 12));
+      for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
+      {
+        if ((stepIndex % 4U) == 3U && randomFloat(rng) > 0.35f)
+          continue;
+        phrase_[stepIndex].degree = ((stepIndex & 1U) == 0U) ? pitch_a : pitch_b;
+      }
+      slide_probability = 0.6f;
+      min_glides = 3U;
+      prefer_leaps = false;
+      break;
+    }
+    default:
+    {
+      int32_t cursor = (randomFloat(rng) > 0.5f) ? 0 : 12;
+      const int32_t walk = (cursor == 0) ? 1 : -1;
+      for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
+      {
+        if ((stepIndex % 3U) == 2U && randomFloat(rng) > 0.4f)
+          continue;
+        phrase_[stepIndex].degree = clampDegree(cursor);
+        cursor += walk * (2 + static_cast<int32_t>(randomIndex(rng, 3U)));
+      }
+      slide_probability = 0.38f;
+      min_glides = 2U;
+      prefer_leaps = true;
+      break;
+    }
+    }
+
+    ensureAnyNote(rng, scale_id);
+    if (phrase_[0].degree >= 0 && randomFloat(rng) > 0.78f)
+    {
+      uint32_t other_notes = 0U;
+      for (uint32_t stepIndex = 1; stepIndex < kStepsPerBar; ++stepIndex)
+      {
+        if (phrase_[stepIndex].degree >= 0)
+          ++other_notes;
+      }
+      if (other_notes >= 2U)
+      {
+        phrase_[0].degree = -1;
+        phrase_[0].accent = false;
+        phrase_[0].slide = false;
+      }
+    }
+    applyAccents(rng, accent_style);
+    applySlides(rng, slide_probability, min_glides, prefer_leaps);
   }
 
   void triggerStep(uint32_t step_index, bool allow_slide_in)
