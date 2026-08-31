@@ -19,6 +19,7 @@ public:
   enum
   {
     kLevel = 0U,
+    kFade = 1U,
     kNumParams
   };
 
@@ -107,7 +108,7 @@ private:
 
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
-      const float mono = voices_[voiceIndex].render() * engine_.outputLevel();
+      const float mono = voices_[voiceIndex].render(engine_.naturalDecayCoeff()) * engine_.outputLevel();
       write_oscillator_output_x1(out, mono, offset, context->outputStride, sampleIndex, voiceIndex);
     }
   }

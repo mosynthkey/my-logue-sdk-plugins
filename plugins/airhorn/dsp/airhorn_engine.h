@@ -10,6 +10,7 @@
  */
 
 #include "airhorn_pcm.h"
+#include <math.h>
 #include <stdint.h>
 
 struct AirHornVoice
@@ -27,7 +28,6 @@ struct AirHornVoice
   uint32_t settled_age = 0U;
 
   static constexpr float kAttackInc = 1.f / (48000.f * 0.004f);
-  static constexpr float kNaturalDecayCoeff = 0.99998843f; // tau 1.8 s @ 48 kHz
   static constexpr float kReleaseDecayCoeff = 0.99994048f; // tau 0.35 s after note off
   static constexpr float kEndDecayCoeff = 0.999792f; // one-shot tail ~100 ms
   static constexpr float kMinAmp = 0.0005f;
@@ -103,7 +103,7 @@ struct AirHornVoice
     gated = false;
   }
 
-  float render()
+  float render(float natural_decay_coeff)
   {
     if (!active)
       return 0.f;
@@ -120,7 +120,7 @@ struct AirHornVoice
       fading = true;
 
     if (fading)
-      amp *= gated ? kNaturalDecayCoeff : kReleaseDecayCoeff;
+      amp *= gated ? natural_decay_coeff : kReleaseDecayCoeff;
     else if (releasing)
       amp *= kEndDecayCoeff;
     else
@@ -187,6 +187,7 @@ public:
   enum
   {
     LEVEL = 0U,
+    FADE,
     MIX,
     NUM_PARAMS
   };
@@ -194,6 +195,7 @@ public:
   void init()
   {
     level_ = 1.f;
+    natural_decay_coeff_ = kDefaultNaturalDecayCoeff;
     mix_ = 1.f;
     next_voice_ = 0U;
     clearVoices();
@@ -207,6 +209,9 @@ public:
     {
     case LEVEL:
       level_ = param10BitToFloat(value);
+      break;
+    case FADE:
+      natural_decay_coeff_ = fadeParamToDecayCoeff(value);
       break;
     case MIX:
       mix_ = value / 1000.f;
@@ -252,18 +257,34 @@ public:
   {
     float wet = 0.f;
     for (uint32_t voiceIndex = 0; voiceIndex < kMaxVoices; ++voiceIndex)
-      wet += voices_[voiceIndex].render();
+      wet += voices_[voiceIndex].render(natural_decay_coeff_);
     return wet;
   }
 
   float outputLevel() const { return level_ * kOutputGain; }
 
+  float naturalDecayCoeff() const { return natural_decay_coeff_; }
+
   float mix() const { return mix_; }
 
 private:
+  static constexpr float kDefaultNaturalDecayCoeff = 0.99998843f; // tau 1.8 s @ 48 kHz
+  static constexpr float kFadeTauMinSec = 0.25f;
+  static constexpr float kFadeTauMaxSec = 12.f;
+
   static float param10BitToFloat(int32_t value)
   {
     return static_cast<uint16_t>(value) * 9.77517106549365e-004f;
+  }
+
+  static float fadeParamToDecayCoeff(int32_t value)
+  {
+    if (value <= 0)
+      return 1.f;
+
+    const float norm = static_cast<float>(value) * (1.f / 1023.f);
+    const float tau = kFadeTauMinSec * powf(kFadeTauMaxSec / kFadeTauMinSec, 1.f - norm);
+    return expf(-1.f / (tau * kHostSampleRate));
   }
 
   void clearVoices()
@@ -274,6 +295,7 @@ private:
 
   uint8_t next_voice_ = 0U;
   float level_ = 1.f;
+  float natural_decay_coeff_ = kDefaultNaturalDecayCoeff;
   float mix_ = 1.f;
   mutable AirHornVoice voices_[kMaxVoices];
 };
