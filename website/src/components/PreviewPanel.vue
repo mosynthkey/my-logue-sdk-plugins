@@ -1,12 +1,11 @@
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { onBeforeUnmount, ref, watch } from "vue";
 import PreviewDebugLog from "./preview/PreviewDebugLog.vue";
 import PreviewDepthPad from "./preview/PreviewDepthPad.vue";
 import PreviewKeyboard from "./preview/PreviewKeyboard.vue";
 import PreviewKnob from "./preview/PreviewKnob.vue";
 import PreviewScope from "./preview/PreviewScope.vue";
 import PreviewXyPad from "./preview/PreviewXyPad.vue";
-import SendButton from "./SendButton.vue";
 import { useWasmPreview } from "../preview/useWasmPreview.js";
 
 const props = defineProps({
@@ -18,17 +17,7 @@ const props = defineProps({
     type: Object,
     default: null,
   },
-  target: {
-    type: String,
-    default: "",
-  },
-  canSend: {
-    type: Boolean,
-    default: false,
-  },
 });
-
-const emit = defineEmits(["send"]);
 
 const xyPadRef = ref(null);
 
@@ -100,7 +89,6 @@ function handleHoldToggle() {
   onHoldToggle(lastPointer);
 }
 
-const showToolbar = computed(() => props.canSend || showInstrument.value);
 </script>
 
 <template>
@@ -119,7 +107,7 @@ const showToolbar = computed(() => props.canSend || showInstrument.value);
       </p>
 
       <div
-        v-if="showToolbar"
+        v-if="showInstrument"
         class="preview-toolbar"
       >
         <div class="preview-toolbar__controls">
@@ -143,13 +131,6 @@ const showToolbar = computed(() => props.canSend || showInstrument.value);
             Hold {{ holdEnabled ? "On" : "Off" }}
           </button>
         </div>
-
-        <SendButton
-          v-if="canSend"
-          :plugin="plugin"
-          :target="target"
-          @send="(pluginItem, sendTarget) => emit('send', pluginItem, sendTarget)"
-        />
       </div>
 
       <div v-if="showInstrument" class="preview-instrument">

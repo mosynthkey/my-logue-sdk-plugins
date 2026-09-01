@@ -217,6 +217,23 @@ body.modal-open {
   color: var(--muted);
 }
 
+.detail__actions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.detail__actions .target-tabs {
+  margin-top: 0;
+}
+
+.detail__actions .send-button {
+  margin-left: auto;
+}
+
 .target-tabs {
   display: inline-flex;
   flex-wrap: wrap;
@@ -1155,18 +1172,14 @@ input[type="number"] {
     align-items: center;
   }
 
-  .preview-toolbar .send-button {
-    width: auto;
-    margin-left: auto;
-    justify-content: center;
-  }
-
-  .target-tabs {
+  .detail__actions .target-tabs {
     display: flex;
-    width: 100%;
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
   }
 
-  .target-tabs__item {
+  .detail__actions .target-tabs__item {
     flex: 1;
     justify-content: center;
     padding: 10px 12px;
