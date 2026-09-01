@@ -1,7 +1,7 @@
 import { computed, ref, shallowRef } from "vue";
 import { unlockAudioSessionSync } from "../composables/useAudioSession.js";
 import { previewDebugLog } from "../composables/usePreviewDebugLog.js";
-import { previewLayout, usesDryInput } from "./layout.js";
+import { previewLayout, usesDryInput, usesKickDemo } from "./layout.js";
 import { needsGestureForWasmStart } from "./gesture.js";
 import { PreviewSession } from "./PreviewSession.js";
 
@@ -53,6 +53,7 @@ export function useWasmPreview(previewShellRef) {
   const frequencyStack = ref([]);
   const depthNormalized = ref(0.5);
   const awaitingWasmTap = ref(false);
+  const kickDemoActive = ref(false);
 
   let session = null;
   let pendingTapFinish = null;
@@ -266,6 +267,7 @@ export function useWasmPreview(previewShellRef) {
     }
 
     layout.value = previewLayout(build);
+    kickDemoActive.value = usesKickDemo(plugin);
     phase.value = "loading";
     message.value = "Loading preview…";
     knobs.value = buildPlaceholderKnobs(plugin);
@@ -289,6 +291,7 @@ export function useWasmPreview(previewShellRef) {
         wasmHref,
         layoutName: layout.value,
         dryInput: usesDryInput(plugin, build),
+        kickDemo: kickDemoActive.value,
         target: build.target,
         deferMain,
       });
@@ -395,6 +398,7 @@ export function useWasmPreview(previewShellRef) {
     masterVolumeLabel,
     bpmLabel,
     awaitingWasmTap,
+    kickDemoActive,
     isLoading,
     isReady,
     hasWasm,

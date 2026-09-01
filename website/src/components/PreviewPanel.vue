@@ -40,6 +40,7 @@ const {
   masterVolumeLabel,
   bpmLabel,
   awaitingWasmTap,
+  kickDemoActive,
   isReady,
   mount,
   teardown,
@@ -114,7 +115,7 @@ function handleHoldToggle() {
       >
         <div class="preview-toolbar__controls">
           <button
-            v-if="showInstrument && layout === 'keyboard'"
+            v-if="showInstrument && layout === 'keyboard' && !kickDemoActive"
             type="button"
             class="preview-chip"
             :class="{ 'is-on': latchEnabled }"
@@ -138,7 +139,7 @@ function handleHoldToggle() {
       <div v-if="showInstrument" class="preview-instrument">
         <div class="preview-instrument-row">
           <div
-            v-if="layout === 'keyboard'"
+            v-if="layout === 'keyboard' && !kickDemoActive"
             class="preview-instrument-main"
           >
             <PreviewKeyboard
