@@ -92,6 +92,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="preview-depth-shell">
+    <div class="preview-depth-label">Depth</div>
     <canvas
       ref="canvasEl"
       class="preview-depth-pad"
@@ -103,6 +104,5 @@ onBeforeUnmount(() => {
       @contextmenu.prevent
       @dragstart.prevent
     />
-    <div class="preview-depth-label">Depth</div>
   </div>
 </template>

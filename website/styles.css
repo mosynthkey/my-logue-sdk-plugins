@@ -450,10 +450,10 @@ body.modal-open {
 }
 
 .preview-depth-label {
-  margin-top: 4px;
+  margin-bottom: 4px;
   color: var(--muted);
   font-family: var(--font-body);
-  font-size: 0.58rem;
+  font-size: var(--control-font-size);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1142,7 +1142,8 @@ input[type="number"] {
 
   .preview-scope {
     flex: 0 0 auto;
-    flex-direction: row;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     max-width: none;
     width: 100%;
     min-height: 96px;
@@ -1153,6 +1154,7 @@ input[type="number"] {
   }
 
   .preview-xypad-group {
+    width: 100%;
     max-width: 100%;
   }
 

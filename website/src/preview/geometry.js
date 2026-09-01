@@ -118,23 +118,9 @@ export function xyPadPointFromEvent(canvas, event) {
   };
 }
 
-export function drawDepthPadGrid(ctx, width, height) {
+export function drawDepthPadBackground(ctx, width, height) {
   ctx.fillStyle = "#0d0d0d";
   ctx.fillRect(0, 0, width, height);
-  ctx.strokeStyle = "#222222";
-  ctx.lineWidth = 1;
-  for (let gridIndex = 1; gridIndex < 8; gridIndex += 1) {
-    const y = (height / 8) * gridIndex;
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(width, y);
-    ctx.stroke();
-  }
-  ctx.strokeStyle = "#333333";
-  ctx.beginPath();
-  ctx.moveTo(width / 2, 0);
-  ctx.lineTo(width / 2, height);
-  ctx.stroke();
 }
 
 export function drawDepthPadMarker(ctx, width, y) {
@@ -167,7 +153,7 @@ export function paintDepthPad(canvas, markerY) {
   }
   const ctx = canvas.getContext("2d");
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  drawDepthPadGrid(ctx, cssWidth, cssHeight);
+  drawDepthPadBackground(ctx, cssWidth, cssHeight);
   if (Number.isFinite(markerY)) {
     drawDepthPadMarker(ctx, cssWidth, markerY);
   }
