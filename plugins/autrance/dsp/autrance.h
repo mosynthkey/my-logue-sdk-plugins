@@ -28,6 +28,9 @@ public:
   static constexpr float kReleaseSec = 0.05f;
   static constexpr float kMinDecaySec = 0.12f;
   static constexpr float kMaxDecaySec = 0.65f;
+  static constexpr float kGateFraction = 0.72f;
+  static constexpr float kEnvelopeFloor = 0.0001f;
+  static constexpr float kEnvelopeLogFloor = -9.21034037f;
   static constexpr float kParamSmoothCoeff = 0.0015f;
   static constexpr uint32_t kPhraseStyleCount = 6U;
 
@@ -235,6 +238,7 @@ private:
     float phase_inc = 0.f;
     float env = 0.f;
     float velocity = 1.f;
+    float gate_samples_remaining = 0.f;
     float filter_state = 0.f;
   };
 
@@ -285,8 +289,8 @@ private:
   {
     const float decay_sec = kMinDecaySec + decay_norm_ * (kMaxDecaySec - kMinDecaySec);
     const float sample_rate = getSampleRate();
-    amp_decay_coeff_ = fasterexpf(-1.f / (decay_sec * sample_rate));
-    release_coeff_ = fasterexpf(-1.f / (kReleaseSec * sample_rate));
+    amp_decay_coeff_ = fasterexpf(kEnvelopeLogFloor / (decay_sec * sample_rate));
+    release_coeff_ = fasterexpf(kEnvelopeLogFloor / (kReleaseSec * sample_rate));
   }
 
   void releaseVoice(Voice &voice)
@@ -582,6 +586,7 @@ private:
     voice.phase_inc = noteToPhaseInc(midi_note);
     voice.env = 0.f;
     voice.velocity = clipRange(velocity, 0.25f, 1.f);
+    voice.gate_samples_remaining = samples_per_tick_ * kGateFraction;
     voice.filter_state = 0.f;
   }
 
@@ -655,7 +660,14 @@ private:
     else
       voice.env *= amp_decay_coeff_;
 
-    if (voice.env < 0.0001f)
+    if (!voice.releasing)
+    {
+      voice.gate_samples_remaining -= 1.f;
+      if (voice.gate_samples_remaining <= 0.f)
+        voice.releasing = true;
+    }
+
+    if (voice.env < kEnvelopeFloor)
     {
       voice.active = false;
       voice.env = 0.f;

@@ -31,6 +31,21 @@ static void renderBlock(Autrance &synth, uint32_t frames, std::vector<float> &mo
     mono_accum.push_back(block[sampleIndex * 2U]);
 }
 
+static void windowedRmsRange(const std::vector<float> &mono, uint32_t start_sample, uint32_t end_sample,
+                             uint32_t window_size, float &min_rms, float &max_rms)
+{
+  min_rms = 1e9f;
+  max_rms = 0.f;
+  for (uint32_t start = start_sample; start + window_size <= end_sample; start += window_size)
+  {
+    const float rms = windowRms(mono, start, window_size);
+    if (rms < min_rms)
+      min_rms = rms;
+    if (rms > max_rms)
+      max_rms = rms;
+  }
+}
+
 int main()
 {
   Autrance synth;
@@ -53,8 +68,12 @@ int main()
   const float attack_rms = windowRms(mono, 200U, 400U);
   const float body_rms = windowRms(mono, 2000U, 4000U);
   const float tail_rms = windowRms(mono, 8000U, 4000U);
+  float held_min_rms = 0.f;
+  float held_max_rms = 0.f;
+  windowedRmsRange(mono, 4800U, 43200U, 240U, held_min_rms, held_max_rms);
 
-  std::printf("attack_rms=%.6f body_rms=%.6f tail_rms=%.6f\n", attack_rms, body_rms, tail_rms);
+  std::printf("attack_rms=%.6f body_rms=%.6f tail_rms=%.6f held_min_rms=%.6f held_max_rms=%.6f\n",
+              attack_rms, body_rms, tail_rms, held_min_rms, held_max_rms);
 
   if (body_rms < 0.002f)
   {
@@ -66,6 +85,25 @@ int main()
   {
     std::printf("body too weak relative to attack (click-only symptom)\n");
     return 11;
+  }
+
+  if (held_min_rms > held_max_rms * 0.35f)
+  {
+    std::printf("held pad output is too continuous; expected articulated note gaps\n");
+    return 12;
+  }
+
+  synth.touchEvent(0, k_unit_touch_phase_ended, 512U, 512U);
+  std::vector<float> released;
+  for (uint32_t frameOffset = 0; frameOffset < 14400U; frameOffset += block_frames)
+    renderBlock(synth, block_frames, released);
+
+  const float released_tail_rms = windowRms(released, 12000U, 2400U);
+  std::printf("released_tail_rms=%.6f\n", released_tail_rms);
+  if (released_tail_rms > 0.0002f)
+  {
+    std::printf("pad release tail is too long\n");
+    return 13;
   }
 
   return 0;
