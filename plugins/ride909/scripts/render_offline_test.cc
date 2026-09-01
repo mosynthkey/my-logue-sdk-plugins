@@ -18,6 +18,16 @@ int main()
 
   constexpr uint32_t kBlockSize = 128U;
   std::vector<float> buffer(kBlockSize * 2U, 0.f);
+  float early_peak = 0.f;
+  for (uint32_t counter = 1U; counter < 3U; ++counter)
+  {
+    ride.tempo4ppqnTick(counter);
+    ride.process(buffer.data(), buffer.data(), kBlockSize);
+    for (float sample : buffer)
+      early_peak = std::fmax(early_peak, std::fabs(sample));
+  }
+
+  ride.tempo4ppqnTick(3U);
   float peak = 0.f;
   double sum_squares = 0.0;
   uint64_t sample_count = 0U;
@@ -37,6 +47,11 @@ int main()
   }
 
   const double rms = std::sqrt(sum_squares / static_cast<double>(sample_count));
-  std::printf("peak=%.6f rms=%.6f\n", peak, rms);
-  return peak > 0.01f ? 0 : 1;
+  std::printf("early_peak=%.6f ride_step_peak=%.6f rms=%.6f\n", early_peak, peak, rms);
+  if (early_peak > 0.000001f)
+  {
+    std::printf("ride triggered before scheduled step 3\n");
+    return 1;
+  }
+  return peak > 0.01f ? 0 : 2;
 }

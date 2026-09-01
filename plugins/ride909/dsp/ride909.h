@@ -148,10 +148,7 @@ public:
         phase == k_unit_touch_phase_stationary)
     {
       if (!running_)
-      {
         running_ = true;
-        triggerRide();
-      }
       return;
     }
 
@@ -318,7 +315,7 @@ private:
 
   void advanceInternalClock(uint32_t frames)
   {
-    if (!running_ || bpm_ <= 0.f)
+    if (bpm_ <= 0.f)
       return;
 
     const float sample_rate = getSampleRate();

@@ -25,6 +25,7 @@ TailMetrics measureTail(Ride909 &ride, int32_t pitch_value, uint32_t sample_rate
   // Slow enough that 3-7-11-15 does not retrigger during one ROM playthrough.
   ride.setTempo(21.f);
   ride.touchEvent(0, k_unit_touch_phase_began, 512, 0);
+  ride.tempo4ppqnTick(3U);
 
   constexpr uint32_t kBlockSize = 128U;
   constexpr uint32_t kBlockCount = 500U;
