@@ -1,0 +1,15 @@
+{
+  "id": "technorumble",
+  "experimental": true,
+  "name": "TechnoRumble",
+  "type": "fx",
+  "targets": ["nts-1_mkii", "nts-3_kaoss"],
+  "description": "Techno rumble kick processor: long reverb tail, sub LPF, drive, and transient-triggered sidechain duck. Feed a kick on AUDIO IN (NTS-3) or synth output (mkII). X/TIME = decay, Y/DEPTH = cutoff, Depth/MIX = dry/wet. DRIVE adds grit, PUMP ducks the rumble on each kick hit.",
+  "params": [
+    { "name": "DECAY", "role": "X", "detail": "Reverb tail length (short rumble to long warehouse wash)" },
+    { "name": "CUTOFF", "role": "Y", "detail": "Low-pass cutoff (~40–500 Hz, lower = deeper sub)" },
+    { "name": "MIX", "role": "Depth", "detail": "Dry/wet mix" },
+    { "name": "DRIVE", "role": "Edit", "detail": "Saturation / distortion amount" },
+    { "name": "PUMP", "role": "Edit", "detail": "Sidechain duck depth on kick transients" }
+  ]
+}
