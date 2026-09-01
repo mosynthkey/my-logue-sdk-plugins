@@ -25,9 +25,11 @@ public:
   static constexpr float kEleventhInterval = 17.f;
   static constexpr float kThirteenthInterval = 21.f;
   static constexpr float kAttackSec = 0.003f;
-  static constexpr float kReleaseSec = 0.028f;
-  static constexpr float kMinDecaySec = 0.08f;
-  static constexpr float kMaxDecaySec = 1.8f;
+  static constexpr float kReleaseSec = 0.04f;
+  static constexpr float kMinDecaySec = 0.06f;
+  static constexpr float kMaxDecaySec = 1.4f;
+  static constexpr float kGateFraction = 0.88f;
+  static constexpr float kParamSmoothCoeff = 0.0015f;
   static constexpr uint32_t kPhraseStyleCount = 6U;
 
   enum class VoiceStage : uint8_t
@@ -56,10 +58,10 @@ public:
     switch (index)
     {
     case CUT:
-      cutoff_norm_ = param_10bit_to_f32(value);
+      cutoff_norm_target_ = param_10bit_to_f32(value);
       break;
     case RES:
-      resonance_norm_ = param_10bit_to_f32(value);
+      resonance_norm_target_ = param_10bit_to_f32(value);
       break;
     case MIX:
       mix_ = value / 1000.f;
@@ -125,8 +127,10 @@ public:
 
   void init(float *) override final
   {
-    cutoff_norm_ = 0.58f;
-    resonance_norm_ = 0.42f;
+    cutoff_norm_target_ = 0.58f;
+    resonance_norm_target_ = 0.42f;
+    cutoff_norm_smooth_ = 0.58f;
+    resonance_norm_smooth_ = 0.42f;
     mix_ = 1.f;
     decay_norm_ = 0.45f;
     env_mod_norm_ = 0.65f;
@@ -190,7 +194,13 @@ public:
     samples_until_tick_ = samples_per_tick_;
     active_root_degree_ = 0;
     running_ = true;
-    triggerStep(0U, false);
+    triggerStep(0U);
+  }
+
+  void smoothPanelParams()
+  {
+    cutoff_norm_smooth_ += (cutoff_norm_target_ - cutoff_norm_smooth_) * kParamSmoothCoeff;
+    resonance_norm_smooth_ += (resonance_norm_target_ - resonance_norm_smooth_) * kParamSmoothCoeff;
   }
 
   void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final
@@ -200,6 +210,8 @@ public:
 
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
+      smoothPanelParams();
+
       if (running_)
         advanceClockOneSample();
 
@@ -232,9 +244,8 @@ private:
     float phase_inc = 0.f;
     float amp = 0.f;
     float amp_target = 0.f;
+    float gate_samples_remaining_ = 0.f;
     float svf_low = 0.f;
-    float dc_in = 0.f;
-    float dc_out = 0.f;
   };
 
   static uint32_t mixSeed(uint32_t counter, uint32_t x, uint32_t y)
@@ -284,9 +295,12 @@ private:
   {
     const float step_sec = 15.f / bpm_;
     const float manual_decay_sec = kMinDecaySec + decay_norm_ * (kMaxDecaySec - kMinDecaySec);
+    const float gate_sec = step_sec * kGateFraction;
     float decay_sec = manual_decay_sec;
-    if (decay_sec > step_sec * 0.9f)
-      decay_sec = step_sec * 0.9f;
+    if (decay_sec > gate_sec)
+      decay_sec = gate_sec;
+    if (decay_sec < kMinDecaySec)
+      decay_sec = kMinDecaySec;
 
     const float sample_rate = getSampleRate();
     amp_decay_coeff_ = fasterexpf(-1.f / (decay_sec * sample_rate));
@@ -588,9 +602,8 @@ private:
     voice.phase_inc = noteToPhaseInc(midi_note);
     voice.amp = 0.f;
     voice.amp_target = clipRange(velocity, 0.2f, 1.f);
+    voice.gate_samples_remaining_ = samples_per_tick_ * kGateFraction;
     voice.svf_low = 0.f;
-    voice.dc_in = 0.f;
-    voice.dc_out = 0.f;
   }
 
   void triggerRoot(int8_t degree)
@@ -617,11 +630,8 @@ private:
       startVoice(root_pitch + kThirteenthInterval, 0.64f);
   }
 
-  void triggerStep(uint32_t step_index, bool release_previous)
+  void triggerStep(uint32_t step_index)
   {
-    if (release_previous)
-      releaseAllVoices();
-
     const RootStep &root = root_steps_[step_index];
     const ChordStep &chord = chord_steps_[step_index];
     const bool has_chord = chord.ninth || chord.eleventh || chord.thirteenth;
@@ -640,11 +650,13 @@ private:
   void advanceClockOneSample()
   {
     samples_until_tick_ -= 1.f;
-    while (samples_until_tick_ <= 0.f)
+    uint32_t guard = 0U;
+    while (samples_until_tick_ <= 0.f && guard < 4U)
     {
       samples_until_tick_ += samples_per_tick_;
       step_index_ = (step_index_ + 1U) % kStepsPerBar;
-      triggerStep(step_index_, true);
+      triggerStep(step_index_);
+      ++guard;
     }
   }
 
@@ -672,6 +684,13 @@ private:
       return 0.f;
     }
 
+    if (voice.stage == VoiceStage::Attack || voice.stage == VoiceStage::Decay)
+    {
+      voice.gate_samples_remaining_ -= 1.f;
+      if (voice.gate_samples_remaining_ <= 0.f)
+        voice.stage = VoiceStage::Release;
+    }
+
     if (voice.amp < 0.00008f)
     {
       voice.active = false;
@@ -693,18 +712,13 @@ private:
 
     const float input = saw * voice.amp;
     voice.svf_low += filter_coeff * (input - voice.svf_low);
-    const float filtered = voice.svf_low + resonance_mix * (input - voice.svf_low);
-
-    const float blocked = filtered - voice.dc_in + 0.99608f * voice.dc_out;
-    voice.dc_in = filtered;
-    voice.dc_out = blocked;
-    return blocked;
+    return voice.svf_low + resonance_mix * (input - voice.svf_low);
   }
 
   float renderSample()
   {
-    const float cutoff_hz = 120.f + cutoff_norm_ * 7800.f;
-    const float resonance_q = 0.35f + resonance_norm_ * 8.5f;
+    const float cutoff_hz = 180.f + cutoff_norm_smooth_ * 7600.f;
+    const float resonance_q = 0.35f + resonance_norm_smooth_ * 8.5f;
     const float env_feed = 2.5f + env_mod_norm_ * 5.f;
 
     float wet = 0.f;
@@ -723,8 +737,10 @@ private:
   uint32_t phrase_seed_ = 1U;
   uint32_t step_index_ = 0U;
   uint32_t next_voice_index_ = 0U;
-  float cutoff_norm_ = 0.58f;
-  float resonance_norm_ = 0.42f;
+  float cutoff_norm_target_ = 0.58f;
+  float resonance_norm_target_ = 0.42f;
+  float cutoff_norm_smooth_ = 0.58f;
+  float resonance_norm_smooth_ = 0.42f;
   float mix_ = 1.f;
   float decay_norm_ = 0.45f;
   float env_mod_norm_ = 0.65f;
