@@ -13,6 +13,7 @@ export const japanesePluginDescriptions = {
   ride909: "off-beat 3-7-11-15で鳴るTechno 909 ride washと、1-5-9-13のkick sidechain pumpです。PadをHoldすると再生します。6-bit Ride ROMをvariable-rate playback、resistor DAC、analog reconstructionへ通したsoundです。X = Tune、Y = pump、Depth = mixです。",
   shaker: "PhISEM shakerです。Note on（mkII）またはpad motion（NTS-3）でenergyを加えます。",
   specwarp: "Vitalに着想を得たspectral stretch / smear FXです。InputをFFTし、frequency domainでwarpしてからresynthesisします。X = Stretch（metallic / ambient textureを作るfrequency-axis warp）、Y = Smear（magnitude blurとphase diffusion）、Depth/MIX = dry/wetです。drum loopからotherworldly ambienceをすぐに作れます。",
+  technorumble: "Techno rumble kick processorです。長いreverb tail、sub LPF、drive、kick transientに反応するsidechain duckを1ユニットにまとめています。NTS-3はAUDIO IN、mkIIはsynth出力にkickを入れて使います。X/TIME = decay、Y/DEPTH = cutoff、Depth/MIX = dry/wetです。",
   tapeosc: "tape motorのstart/stopを再現するVarispeed oscillatorです。band-limited synth waveformがpitch envelopeではなく、tape deckのように減速してfreezeします。",
 };
 
