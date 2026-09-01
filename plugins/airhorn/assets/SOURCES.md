@@ -52,3 +52,19 @@ seam: sample jump=0.04058 excess over loop interior=-4.23 dB level swell=0.07 dB
 the wrap with spectral flux, the usual click detector. The loop this replaced measured
 +3.1 dB there (the wrap was the loudest spectral event in the render); the current one
 measures around -10 dB, i.e. below the tone's own movement.
+
+### Runtime dual-player crossfade
+
+A ping-pong pair that crossfades near every loop boundary is the usual sampler fix when
+the PCM still has a hard seam. Here the seam is already baked into the loop head, so a
+second player would crossfade the raw tail into material that already contains that
+tail. That re-introduces level pumping instead of removing it.
+
+```bash
+python3 plugins/airhorn/scripts/fade_experiment.py --compare-loop-modes
+```
+
+On the shipping baked loop this reports about **0.37 dB** short-window RMS swell for
+`single_wrap` versus about **2.9 dB** for `dual_crossfade`, while the wrap seam score
+also gets worse. Keep the single wrapping player at playback time; fix seams and slow
+swell in `embed_pcm.py` instead.
