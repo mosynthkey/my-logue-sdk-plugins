@@ -130,7 +130,7 @@ function handleHoldToggle() {
             :class="{ 'is-on': holdEnabled }"
             @click="handleHoldToggle"
           >
-            {{ t("hold") }} {{ t(holdEnabled ? "on" : "off") }}
+            Hold {{ holdEnabled ? "On" : "Off" }}
           </button>
         </div>
       </div>

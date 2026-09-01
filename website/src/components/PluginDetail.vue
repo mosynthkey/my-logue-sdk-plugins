@@ -4,6 +4,7 @@ import PreviewPanel from "./PreviewPanel.vue";
 import SendButton from "./SendButton.vue";
 import TargetTabs from "./TargetTabs.vue";
 import { SENDABLE_TARGETS } from "../constants.js";
+import { useI18n } from "../composables/useI18n.js";
 import { buildForTarget, sendableBuilds } from "../utils/plugin.js";
 
 const props = defineProps({
@@ -18,6 +19,7 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["select-target", "send"]);
+const { pluginDescription } = useI18n();
 
 const activeBuild = computed(() => buildForTarget(props.plugin, props.activeTarget));
 
@@ -31,7 +33,7 @@ const canSend = computed(() => {
   <main class="detail">
     <header class="detail__head">
       <h2 class="detail__name">{{ plugin.name }}</h2>
-      <p class="detail__desc">{{ plugin.description }}</p>
+      <p class="detail__desc">{{ pluginDescription(plugin) }}</p>
       <div class="detail__actions">
         <TargetTabs
           :plugin="plugin"

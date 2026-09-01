@@ -3,6 +3,19 @@ import { inject, provide, ref, watch } from "vue";
 const I18N_KEY = Symbol("i18n");
 const STORAGE_KEY = "logue-sdk-preview-language";
 
+export const japanesePluginDescriptions = {
+  airfm: "Alesis airSynth Program 3に着想を得た、2-op phase-mod FMです。Pad XYでcarrier/modulatorを操作し、touchで出力をgateします。",
+  airhorn: "オリジナル録音と同じpitchで鳴るDJ air hornです。pitch envelopeで冒頭のdropを再現し、その後は長い16-bit loopで安定したtoneを保持します。",
+  fbackosc: "JP-8080に着想を得たFeedback oscillatorです。band-limited sawをkey-tracked resonant comb filterに通します。",
+  hypersaw: "Virus TIに着想を得た9-voice detuned saw stackです。Density、Spread、HyperSub、stereo widthを調整できます。",
+  kaocid: "NTS-3向けのauto phrase generatorを備えたTB-303 style acid bassです。PadをHoldするとtempo-syncした16-step patternを再生します。もう一度touchするとrhythm、scale、accent、slide styleを再生成します。X = Cutoff、Y = Resonance、Depth = mixです。VoiceはAndy Sloaneのgsynth TB-303（2001 abandonware）に着想を得ています。",
+  loopkey: "keyboardで操作するmicro-looper oscillatorです。external audio inputをloopし、MIDI noteでloop lengthを設定します。Tempo sync、gate mode、evolutionに対応します。",
+  ride909: "off-beat 3-7-11-15で鳴るTechno 909 ride washと、1-5-9-13のkick sidechain pumpです。PadをHoldすると再生します。6-bit Ride ROMをvariable-rate playback、resistor DAC、analog reconstructionへ通したsoundです。X = Tune、Y = pump、Depth = mixです。",
+  shaker: "PhISEM shakerです。Note on（mkII）またはpad motion（NTS-3）でenergyを加えます。",
+  specwarp: "Vitalに着想を得たspectral stretch / smear FXです。InputをFFTし、frequency domainでwarpしてからresynthesisします。X = Stretch（metallic / ambient textureを作るfrequency-axis warp）、Y = Smear（magnitude blurとphase diffusion）、Depth/MIX = dry/wetです。drum loopからotherworldly ambienceをすぐに作れます。",
+  tapeosc: "tape motorのstart/stopを再現するVarispeed oscillatorです。band-limited synth waveformがpitch envelopeではなく、tape deckのように減速してfreezeします。",
+};
+
 const messages = {
   en: {
     plugin: "Plugin",
@@ -75,12 +88,17 @@ export function provideI18n() {
     );
   }
 
+  function pluginDescription(plugin) {
+    if (locale.value !== "ja") return plugin.description;
+    return japanesePluginDescriptions[plugin.id] ?? plugin.description;
+  }
+
   watch(locale, (nextLocale) => {
     window.localStorage.setItem(STORAGE_KEY, nextLocale);
     document.documentElement.lang = nextLocale;
   }, { immediate: true });
 
-  const i18n = { locale, setLocale, t };
+  const i18n = { locale, setLocale, t, pluginDescription };
   provide(I18N_KEY, i18n);
   return i18n;
 }
