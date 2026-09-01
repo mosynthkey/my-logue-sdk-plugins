@@ -177,7 +177,7 @@ function handleHoldToggle() {
       <div v-if="showInstrument" class="preview-knobs">
         <PreviewKnob
           knob-id="master-volume"
-          name="Volume"
+          name="[Volume]"
           :min="0"
           :max="1"
           :value="masterVolume"
@@ -190,7 +190,7 @@ function handleHoldToggle() {
 
         <PreviewKnob
           knob-id="master-bpm"
-          name="BPM"
+          name="[BPM]"
           :min="30"
           :max="240"
           :value="bpm"

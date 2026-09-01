@@ -1,4 +1,5 @@
 <script setup>
+import LanguageLabel from "./LanguageLabel.vue";
 import { useI18n } from "../composables/useI18n.js";
 
 defineProps({
@@ -41,7 +42,7 @@ const { locale, setLocale, t } = useI18n();
         </div>
 
         <div class="language-picker language-picker--mobile">
-          <label class="plugin-picker__label" for="language-select-mobile">{{ t("language") }}</label>
+          <LanguageLabel for-id="language-select-mobile" :text="t('language')" />
           <select
             id="language-select-mobile"
             class="plugin-picker__select"
@@ -69,7 +70,7 @@ const { locale, setLocale, t } = useI18n();
     </nav>
 
     <div class="language-picker language-picker--desktop">
-      <label class="plugin-picker__label" for="language-select">{{ t("language") }}</label>
+      <LanguageLabel for-id="language-select" :text="t('language')" />
       <select
         id="language-select"
         class="plugin-picker__select"

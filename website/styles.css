@@ -104,6 +104,23 @@ body.modal-open {
   text-transform: uppercase;
 }
 
+.language-picker__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.language-picker__icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .plugin-picker__select {
   width: 100%;
   padding: 10px 12px;
