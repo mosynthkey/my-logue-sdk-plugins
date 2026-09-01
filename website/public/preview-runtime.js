@@ -15,6 +15,8 @@
   let dryNodes = [];
   let layout = "keyboard";
   let usesDryInput = false;
+  let usesKickDemo = false;
+  let kickDemoEngine = null;
   let targetName = "";
   let runtimeReady = false;
   let mainStarted = false;
@@ -57,7 +59,16 @@
     return error === "unwind" || error?.message === "unwind";
   }
 
+  function stopKickDemo() {
+    if (!kickDemoEngine) {
+      return;
+    }
+    kickDemoEngine.stop();
+    kickDemoEngine = null;
+  }
+
   function stopDryNodes() {
+    stopKickDemo();
     for (const node of dryNodes) {
       try {
         if (typeof node.stop === "function") {
@@ -71,8 +82,61 @@
     dryNodes = [];
   }
 
+  function scheduleKickHit(context, mixGain, time) {
+    const oscillator = context.createOscillator();
+    const envelope = context.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(165, time);
+    oscillator.frequency.exponentialRampToValueAtTime(42, time + 0.09);
+    envelope.gain.setValueAtTime(0.0001, time);
+    envelope.gain.exponentialRampToValueAtTime(1.0, time + 0.003);
+    envelope.gain.exponentialRampToValueAtTime(0.0001, time + 0.38);
+    oscillator.connect(envelope).connect(mixGain);
+    oscillator.start(time);
+    oscillator.stop(time + 0.42);
+    dryNodes.push(oscillator, envelope);
+  }
+
+  function createFourOnFloorKick(context, destination, bpm) {
+    const mixGain = context.createGain();
+    mixGain.gain.value = 0.85;
+    mixGain.connect(destination);
+
+    let currentBpm = bpm;
+    let nextBeatTime = context.currentTime + 0.05;
+    let schedulerTimer = 0;
+
+    function tick() {
+      const beatInterval = 60 / currentBpm;
+      while (nextBeatTime < context.currentTime + 0.15) {
+        scheduleKickHit(context, mixGain, nextBeatTime);
+        nextBeatTime += beatInterval;
+      }
+    }
+
+    schedulerTimer = window.setInterval(tick, 25);
+    tick();
+
+    return {
+      nodes: [mixGain],
+      setBpm(nextBpm) {
+        currentBpm = Math.min(Math.max(nextBpm, 30), 240);
+      },
+      stop() {
+        window.clearInterval(schedulerTimer);
+        mixGain.disconnect();
+      },
+    };
+  }
+
   function connectProcessor(context, processor) {
     stopDryNodes();
+
+    if (usesKickDemo) {
+      kickDemoEngine = createFourOnFloorKick(context, processor, 120);
+      dryNodes.push(...kickDemoEngine.nodes);
+      return;
+    }
 
     if (usesDryInput) {
       const dryGain = context.createGain();
@@ -155,9 +219,14 @@
     masterVolumeNode = volume;
 
     if (layout === "keyboard") {
-      envelope = context.createGain();
-      envelope.gain.value = 0;
-      processor.connect(envelope).connect(volume);
+      if (usesKickDemo) {
+        connectProcessor(context, processor);
+        processor.connect(volume);
+      } else {
+        envelope = context.createGain();
+        envelope.gain.value = 0;
+        processor.connect(envelope).connect(volume);
+      }
     } else {
       connectProcessor(context, processor);
       processor.connect(volume);
@@ -292,6 +361,7 @@
     if (typeof moduleRef?.fx_set_bpm === "function") {
       moduleRef.fx_set_bpm(value);
     }
+    kickDemoEngine?.setBpm(value);
   }
 
   function readScopeSnapshot() {
@@ -419,9 +489,10 @@
   }
 
   window.__previewHost = {
-    async configureAndLoad({ wasmHref, layoutName, dryInput, target, deferMain }) {
+    async configureAndLoad({ wasmHref, layoutName, dryInput, kickDemo, target, deferMain }) {
       layout = layoutName;
       usesDryInput = Boolean(dryInput);
+      usesKickDemo = Boolean(kickDemo);
       targetName = target || "";
       runtimeReady = false;
       mainStarted = false;
