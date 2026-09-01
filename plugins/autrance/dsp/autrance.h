@@ -20,23 +20,16 @@ class Autrance : public Processor
 public:
   static constexpr uint32_t kStepsPerBar = 16U;
   static constexpr uint32_t kMaxVoices = 8U;
-  static constexpr float kOutputGain = 0.42f;
+  static constexpr float kOutputGain = 0.62f;
   static constexpr float kNinthInterval = 14.f;
   static constexpr float kEleventhInterval = 17.f;
   static constexpr float kThirteenthInterval = 21.f;
-  static constexpr float kAttackSec = 0.003f;
-  static constexpr float kReleaseSec = 0.028f;
-  static constexpr float kMinDecaySec = 0.08f;
-  static constexpr float kMaxDecaySec = 1.8f;
+  static constexpr float kAttackSec = 0.004f;
+  static constexpr float kReleaseSec = 0.05f;
+  static constexpr float kMinDecaySec = 0.12f;
+  static constexpr float kMaxDecaySec = 0.65f;
+  static constexpr float kParamSmoothCoeff = 0.0015f;
   static constexpr uint32_t kPhraseStyleCount = 6U;
-
-  enum class VoiceStage : uint8_t
-  {
-    Idle = 0U,
-    Attack,
-    Decay,
-    Release,
-  };
 
   uint32_t getBufferSize() const override final { return 0; }
 
@@ -56,10 +49,10 @@ public:
     switch (index)
     {
     case CUT:
-      cutoff_norm_ = param_10bit_to_f32(value);
+      cutoff_norm_target_ = param_10bit_to_f32(value);
       break;
     case RES:
-      resonance_norm_ = param_10bit_to_f32(value);
+      resonance_norm_target_ = param_10bit_to_f32(value);
       break;
     case MIX:
       mix_ = value / 1000.f;
@@ -125,15 +118,17 @@ public:
 
   void init(float *) override final
   {
-    cutoff_norm_ = 0.58f;
-    resonance_norm_ = 0.42f;
+    cutoff_norm_target_ = 0.58f;
+    resonance_norm_target_ = 0.42f;
+    cutoff_norm_smooth_ = 0.58f;
+    resonance_norm_smooth_ = 0.42f;
     mix_ = 1.f;
     decay_norm_ = 0.45f;
     env_mod_norm_ = 0.65f;
     root_note_ = 36;
     bpm_ = 120.f;
     const float sample_rate = getSampleRate();
-    attack_coeff_ = 1.f - fasterexpf(-1.f / (kAttackSec * sample_rate));
+    attack_step_ = 1.f / (kAttackSec * sample_rate);
     updateDecayCoeff();
     samples_per_tick_ = sample_rate * 15.f / bpm_;
     running_ = false;
@@ -190,7 +185,13 @@ public:
     samples_until_tick_ = samples_per_tick_;
     active_root_degree_ = 0;
     running_ = true;
-    triggerStep(0U, false);
+    triggerStep(0U);
+  }
+
+  void smoothPanelParams()
+  {
+    cutoff_norm_smooth_ += (cutoff_norm_target_ - cutoff_norm_smooth_) * kParamSmoothCoeff;
+    resonance_norm_smooth_ += (resonance_norm_target_ - resonance_norm_smooth_) * kParamSmoothCoeff;
   }
 
   void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final
@@ -200,6 +201,8 @@ public:
 
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
+      smoothPanelParams();
+
       if (running_)
         advanceClockOneSample();
 
@@ -227,14 +230,12 @@ private:
   struct Voice
   {
     bool active = false;
-    VoiceStage stage = VoiceStage::Idle;
+    bool releasing = false;
     float phase = 0.f;
     float phase_inc = 0.f;
-    float amp = 0.f;
-    float amp_target = 0.f;
-    float svf_low = 0.f;
-    float dc_in = 0.f;
-    float dc_out = 0.f;
+    float env = 0.f;
+    float velocity = 1.f;
+    float filter_state = 0.f;
   };
 
   static uint32_t mixSeed(uint32_t counter, uint32_t x, uint32_t y)
@@ -282,12 +283,7 @@ private:
 
   void updateDecayCoeff()
   {
-    const float step_sec = 15.f / bpm_;
-    const float manual_decay_sec = kMinDecaySec + decay_norm_ * (kMaxDecaySec - kMinDecaySec);
-    float decay_sec = manual_decay_sec;
-    if (decay_sec > step_sec * 0.9f)
-      decay_sec = step_sec * 0.9f;
-
+    const float decay_sec = kMinDecaySec + decay_norm_ * (kMaxDecaySec - kMinDecaySec);
     const float sample_rate = getSampleRate();
     amp_decay_coeff_ = fasterexpf(-1.f / (decay_sec * sample_rate));
     release_coeff_ = fasterexpf(-1.f / (kReleaseSec * sample_rate));
@@ -297,7 +293,7 @@ private:
   {
     if (!voice.active)
       return;
-    voice.stage = VoiceStage::Release;
+    voice.releasing = true;
   }
 
   void releaseAllVoices()
@@ -312,8 +308,6 @@ private:
       voices_[voiceIndex] = Voice();
     step_index_ = 0U;
     samples_until_tick_ = samples_per_tick_;
-    dc_block_in_ = 0.f;
-    dc_block_out_ = 0.f;
   }
 
   void clearPhrase()
@@ -583,14 +577,12 @@ private:
     next_voice_index_ = (next_voice_index_ + 1U) % kMaxVoices;
 
     voice.active = true;
-    voice.stage = VoiceStage::Attack;
+    voice.releasing = false;
     voice.phase = 0.f;
     voice.phase_inc = noteToPhaseInc(midi_note);
-    voice.amp = 0.f;
-    voice.amp_target = clipRange(velocity, 0.2f, 1.f);
-    voice.svf_low = 0.f;
-    voice.dc_in = 0.f;
-    voice.dc_out = 0.f;
+    voice.env = 0.f;
+    voice.velocity = clipRange(velocity, 0.25f, 1.f);
+    voice.filter_state = 0.f;
   }
 
   void triggerRoot(int8_t degree)
@@ -617,11 +609,8 @@ private:
       startVoice(root_pitch + kThirteenthInterval, 0.64f);
   }
 
-  void triggerStep(uint32_t step_index, bool release_previous)
+  void triggerStep(uint32_t step_index)
   {
-    if (release_previous)
-      releaseAllVoices();
-
     const RootStep &root = root_steps_[step_index];
     const ChordStep &chord = chord_steps_[step_index];
     const bool has_chord = chord.ninth || chord.eleventh || chord.thirteenth;
@@ -640,11 +629,13 @@ private:
   void advanceClockOneSample()
   {
     samples_until_tick_ -= 1.f;
-    while (samples_until_tick_ <= 0.f)
+    uint32_t guard = 0U;
+    while (samples_until_tick_ <= 0.f && guard < 4U)
     {
       samples_until_tick_ += samples_per_tick_;
       step_index_ = (step_index_ + 1U) % kStepsPerBar;
-      triggerStep(step_index_, true);
+      triggerStep(step_index_);
+      ++guard;
     }
   }
 
@@ -653,30 +644,22 @@ private:
     if (!voice.active)
       return 0.f;
 
-    switch (voice.stage)
+    if (voice.releasing)
+      voice.env *= release_coeff_;
+    else if (voice.env < 1.f)
     {
-    case VoiceStage::Attack:
-      voice.amp += (voice.amp_target - voice.amp) * attack_coeff_;
-      if (voice.amp >= voice.amp_target * 0.92f)
-        voice.stage = VoiceStage::Decay;
-      break;
-    case VoiceStage::Decay:
-      voice.amp *= amp_decay_coeff_;
-      break;
-    case VoiceStage::Release:
-      voice.amp *= release_coeff_;
-      break;
-    default:
-      voice.active = false;
-      voice.amp = 0.f;
-      return 0.f;
+      voice.env += attack_step_;
+      if (voice.env > 1.f)
+        voice.env = 1.f;
     }
+    else
+      voice.env *= amp_decay_coeff_;
 
-    if (voice.amp < 0.00008f)
+    if (voice.env < 0.0001f)
     {
       voice.active = false;
-      voice.stage = VoiceStage::Idle;
-      voice.amp = 0.f;
+      voice.env = 0.f;
+      voice.filter_state = 0.f;
       return 0.f;
     }
 
@@ -685,36 +668,28 @@ private:
       voice.phase -= 1.f;
     const float saw = 2.f * voice.phase - 1.f;
 
-    const float env_boost = 1.f + voice.amp * env_mod_norm_ * env_feed;
-    const float cutoff_hz = clipRange(cutoff_base_hz * env_boost, 40.f, 12000.f);
+    const float filter_track = 0.15f + voice.env * (0.35f + env_mod_norm_ * env_feed * 0.5f);
+    const float cutoff_hz = clipRange(cutoff_base_hz * filter_track, 150.f, 14000.f);
     const float omega = 6.2831853f * cutoff_hz / getSampleRate();
-    const float filter_coeff = clipRange(omega / (1.f + omega), 0.001f, 0.96f);
-    const float resonance_mix = clipRange(resonance_q * 0.12f, 0.f, 0.85f);
+    const float filter_coeff = clipRange(omega / (1.f + omega), 0.002f, 0.96f);
+    const float resonance_mix = clipRange(resonance_q * 0.1f, 0.f, 0.75f);
 
-    const float input = saw * voice.amp;
-    voice.svf_low += filter_coeff * (input - voice.svf_low);
-    const float filtered = voice.svf_low + resonance_mix * (input - voice.svf_low);
-
-    const float blocked = filtered - voice.dc_in + 0.99608f * voice.dc_out;
-    voice.dc_in = filtered;
-    voice.dc_out = blocked;
-    return blocked;
+    voice.filter_state += filter_coeff * (saw - voice.filter_state);
+    const float filtered = voice.filter_state + resonance_mix * (saw - voice.filter_state);
+    return filtered * voice.env * voice.velocity;
   }
 
   float renderSample()
   {
-    const float cutoff_hz = 120.f + cutoff_norm_ * 7800.f;
-    const float resonance_q = 0.35f + resonance_norm_ * 8.5f;
-    const float env_feed = 2.5f + env_mod_norm_ * 5.f;
+    const float cutoff_hz = 300.f + cutoff_norm_smooth_ * 7200.f;
+    const float resonance_q = 0.35f + resonance_norm_smooth_ * 8.5f;
+    const float env_feed = 1.f + env_mod_norm_ * 4.f;
 
     float wet = 0.f;
     for (uint32_t voiceIndex = 0; voiceIndex < kMaxVoices; ++voiceIndex)
       wet += renderVoice(voices_[voiceIndex], cutoff_hz, resonance_q, env_feed);
 
-    const float blocked = wet - dc_block_in_ + 0.99608f * dc_block_out_;
-    dc_block_in_ = wet;
-    dc_block_out_ = blocked;
-    return blocked;
+    return wet;
   }
 
   RootStep root_steps_[kStepsPerBar];
@@ -723,8 +698,10 @@ private:
   uint32_t phrase_seed_ = 1U;
   uint32_t step_index_ = 0U;
   uint32_t next_voice_index_ = 0U;
-  float cutoff_norm_ = 0.58f;
-  float resonance_norm_ = 0.42f;
+  float cutoff_norm_target_ = 0.58f;
+  float resonance_norm_target_ = 0.42f;
+  float cutoff_norm_smooth_ = 0.58f;
+  float resonance_norm_smooth_ = 0.42f;
   float mix_ = 1.f;
   float decay_norm_ = 0.45f;
   float env_mod_norm_ = 0.65f;
@@ -733,10 +710,8 @@ private:
   float bpm_ = 120.f;
   float samples_per_tick_ = 6000.f;
   float samples_until_tick_ = 6000.f;
-  float attack_coeff_ = 0.15f;
+  float attack_step_ = 0.005f;
   float amp_decay_coeff_ = 0.9995f;
   float release_coeff_ = 0.998f;
-  float dc_block_in_ = 0.f;
-  float dc_block_out_ = 0.f;
   bool running_ = false;
 };
