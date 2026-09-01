@@ -2,10 +2,10 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DEST="$ROOT/web"
+DEST="$ROOT/website"
 
 mkdir -p "$DEST/units" "$DEST/sim"
-cp "$ROOT/web/vendor/coi-serviceworker.js" "$DEST/coi-serviceworker.js"
+cp "$ROOT/website/vendor/coi-serviceworker.js" "$DEST/coi-serviceworker.js"
 
 python3 - "$ROOT" "$DEST" <<'PY'
 import json
@@ -66,7 +66,7 @@ for plugin_json in sorted((root / "plugins").glob("*/plugin.json")):
                 elif child.is_dir():
                     shutil.copytree(child, target)
             (sim_dest / "coi-serviceworker.js").write_bytes(
-                (root / "web/vendor/coi-serviceworker.js").read_bytes()
+                (root / "website/vendor/coi-serviceworker.js").read_bytes()
             )
             html_files = list(sim_dest.glob("*.html"))
             if html_files:

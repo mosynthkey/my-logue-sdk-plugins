@@ -261,12 +261,12 @@ wasm-ci:
 	@cp -r $(SANDBOXDIR)/samples $(WASMDIR)/
 	@cp -r $(SANDBOXDIR)/scripts $(WASMDIR)/
 	@cp -r $(SANDBOXDIR)/images $(WASMDIR)/
-	@cp $(REPO_ROOT)/web/vendor/coi-serviceworker.js $(WASMDIR)/
+	@cp $(REPO_ROOT)/website/vendor/coi-serviceworker.js $(WASMDIR)/
 	@$(EMCC_BIN_PATH)/emcc -Wno-unknown-attributes -Wno-limited-postlink-optimizations $(INCDIR) \
 		-s AUDIO_WORKLET=1 \
 		-s WASM_WORKERS=1 \
 		-lembind \
-		--shell-file $(REPO_ROOT)/web/xypad.html \
+		--shell-file $(REPO_ROOT)/website/xypad.html \
 		-O2 \
 		-g -fdebug-compilation-dir='..' \
 		$(WASMSRC) \

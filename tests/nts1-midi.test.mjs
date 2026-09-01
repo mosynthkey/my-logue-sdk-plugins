@@ -15,7 +15,7 @@ import {
   portLabel,
   pickPreferredPort,
   NTS3_KAOSS,
-} from "../web/nts1-midi.js";
+} from "../website/nts1-midi.js";
 
 function assert(condition, message) {
   if (!condition) {

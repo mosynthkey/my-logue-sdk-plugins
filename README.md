@@ -14,7 +14,8 @@ plugins/<name>/
   dsp/                        # shared algorithm
   targets/<platform>/         # header, unit glue, Makefile
 third_party/logue-sdk/
-web/                          # Pages UI + SysEx sender
+website/                      # Web app source: Pages UI + SysEx sender
+dist/website/                 # Generated deploy artifact (gitignored)
 ```
 
 You do not duplicate the DSP per device. You do add a thin target adapter (`header.c`, `unit.cc` or v1 `OSC_CYCLE`, Makefile). SDK v1 and v2 APIs are not source-compatible. Module types are not interchangeable (an `osc` is not an NTS-3 `genericfx`).

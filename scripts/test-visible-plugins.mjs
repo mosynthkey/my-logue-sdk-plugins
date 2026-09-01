@@ -5,7 +5,7 @@ import {
   isExperimentalEnabled,
   resolveInitialPlugin,
   visiblePlugins,
-} from "../web/src/utils/visiblePlugins.js";
+} from "../website/src/utils/visiblePlugins.js";
 
 const plugins = [
   { id: "shaker", name: "Shaker" },

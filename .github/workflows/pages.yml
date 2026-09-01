@@ -129,13 +129,13 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Assemble GitHub Pages site
-        run: bash scripts/assemble-site.sh site
+      - name: Build deployable website
+        run: bash scripts/build-website.sh dist/website
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: dist/website
 
   deploy:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'

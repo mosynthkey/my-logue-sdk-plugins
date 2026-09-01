@@ -1,4 +1,4 @@
-.PHONY: all unit wasm test site clean
+.PHONY: all unit wasm test website clean
 
 PLUGIN_TARGETS := $(dir $(wildcard plugins/*/targets/*/Makefile))
 
@@ -20,11 +20,11 @@ wasm:
 test:
 	node tests/nts1-midi.test.mjs
 
-site: unit
-	bash scripts/assemble-site.sh site
+website: unit
+	bash scripts/build-website.sh dist/website
 
 clean:
 	@for target_dir in $(PLUGIN_TARGETS); do \
 		$(MAKE) -C $$target_dir clean; \
 	done
-	rm -rf site
+	rm -rf dist

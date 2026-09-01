@@ -2,13 +2,13 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DEST="${1:-"$ROOT/site"}"
+DEST="${1:-"$ROOT/dist/website"}"
 
 rm -rf "$DEST"
 mkdir -p "$DEST/units" "$DEST/sim" "$DEST/vendor"
 
 (
-  cd "$ROOT/web"
+  cd "$ROOT/website"
   if [ -f package-lock.json ]; then
     npm ci
   else
@@ -17,10 +17,10 @@ mkdir -p "$DEST/units" "$DEST/sim" "$DEST/vendor"
   npm run build
 )
 
-cp -r "$ROOT/web/dist/." "$DEST/"
-cp "$ROOT/web/styles.css" "$ROOT/web/nts1-midi.js" "$DEST/"
-cp "$ROOT/web/vendor/coi-serviceworker.js" "$ROOT/web/vendor/qwerty-hancock.js" "$DEST/vendor/"
-cp "$ROOT/web/vendor/coi-serviceworker.js" "$DEST/"
+cp -r "$ROOT/website/dist/." "$DEST/"
+cp "$ROOT/website/styles.css" "$ROOT/website/nts1-midi.js" "$DEST/"
+cp "$ROOT/website/vendor/coi-serviceworker.js" "$ROOT/website/vendor/qwerty-hancock.js" "$DEST/vendor/"
+cp "$ROOT/website/vendor/coi-serviceworker.js" "$DEST/"
 
 python3 - "$ROOT" "$DEST" <<'PY'
 import json
@@ -79,7 +79,7 @@ for plugin_json in sorted((root / "plugins").glob("*/plugin.json")):
                 elif child.is_dir():
                     shutil.copytree(child, target, dirs_exist_ok=True)
             (sim_dest / "coi-serviceworker.js").write_bytes(
-                (root / "web/vendor/coi-serviceworker.js").read_bytes()
+                (root / "website/vendor/coi-serviceworker.js").read_bytes()
             )
             html_files = list(sim_dest.glob("*.html"))
             if html_files:

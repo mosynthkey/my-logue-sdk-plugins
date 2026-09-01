@@ -1,5 +1,5 @@
 .DS_Store
-site/
+dist/
 plugins/*/targets/*/build/
 plugins/*/targets/*/sim/
 plugins/*/targets/*/*.nts1mkiiunit
@@ -18,5 +18,6 @@ plugins/*/targets/*/*.mk2unit
 plugins/airhorn/assets/*.wav
 plugins/airhorn/assets/*.ogg
 plugins/airhorn/assets/*.mp3
-web/node_modules/
-web/dist/
+website/node_modules/
+website/dist/
+website/.vite/
