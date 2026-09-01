@@ -25,9 +25,18 @@ public:
   static constexpr float kEleventhInterval = 17.f;
   static constexpr float kThirteenthInterval = 21.f;
   static constexpr float kAttackSec = 0.003f;
+  static constexpr float kReleaseSec = 0.028f;
   static constexpr float kMinDecaySec = 0.08f;
   static constexpr float kMaxDecaySec = 1.8f;
   static constexpr uint32_t kPhraseStyleCount = 6U;
+
+  enum class VoiceStage : uint8_t
+  {
+    Idle = 0U,
+    Attack,
+    Decay,
+    Release,
+  };
 
   uint32_t getBufferSize() const override final { return 0; }
 
@@ -147,6 +156,7 @@ public:
     {
       bpm_ = tempo;
       samples_per_tick_ = getSampleRate() * 15.f / bpm_;
+      updateDecayCoeff();
     }
   }
 
@@ -162,6 +172,7 @@ public:
     if (phase == k_unit_touch_phase_ended || phase == k_unit_touch_phase_cancelled)
     {
       running_ = false;
+      releaseAllVoices();
       return;
     }
 
@@ -174,11 +185,12 @@ public:
 
     phrase_seed_ = mixSeed(phrase_seed_, x, y);
     generatePhrase(phrase_seed_);
+    resetVoices();
     step_index_ = 0U;
     samples_until_tick_ = samples_per_tick_;
     active_root_degree_ = 0;
     running_ = true;
-    triggerStep(0U);
+    triggerStep(0U, false);
   }
 
   void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final
@@ -215,6 +227,7 @@ private:
   struct Voice
   {
     bool active = false;
+    VoiceStage stage = VoiceStage::Idle;
     float phase = 0.f;
     float phase_inc = 0.f;
     float amp = 0.f;
@@ -269,8 +282,28 @@ private:
 
   void updateDecayCoeff()
   {
-    const float decay_sec = kMinDecaySec + decay_norm_ * (kMaxDecaySec - kMinDecaySec);
-    amp_decay_coeff_ = fasterexpf(-1.f / (decay_sec * getSampleRate()));
+    const float step_sec = 15.f / bpm_;
+    const float manual_decay_sec = kMinDecaySec + decay_norm_ * (kMaxDecaySec - kMinDecaySec);
+    float decay_sec = manual_decay_sec;
+    if (decay_sec > step_sec * 0.9f)
+      decay_sec = step_sec * 0.9f;
+
+    const float sample_rate = getSampleRate();
+    amp_decay_coeff_ = fasterexpf(-1.f / (decay_sec * sample_rate));
+    release_coeff_ = fasterexpf(-1.f / (kReleaseSec * sample_rate));
+  }
+
+  void releaseVoice(Voice &voice)
+  {
+    if (!voice.active)
+      return;
+    voice.stage = VoiceStage::Release;
+  }
+
+  void releaseAllVoices()
+  {
+    for (uint32_t voiceIndex = 0; voiceIndex < kMaxVoices; ++voiceIndex)
+      releaseVoice(voices_[voiceIndex]);
   }
 
   void resetVoices()
@@ -550,6 +583,7 @@ private:
     next_voice_index_ = (next_voice_index_ + 1U) % kMaxVoices;
 
     voice.active = true;
+    voice.stage = VoiceStage::Attack;
     voice.phase = 0.f;
     voice.phase_inc = noteToPhaseInc(midi_note);
     voice.amp = 0.f;
@@ -583,16 +617,23 @@ private:
       startVoice(root_pitch + kThirteenthInterval, 0.64f);
   }
 
-  void triggerStep(uint32_t step_index)
+  void triggerStep(uint32_t step_index, bool release_previous)
   {
+    if (release_previous)
+      releaseAllVoices();
+
     const RootStep &root = root_steps_[step_index];
     const ChordStep &chord = chord_steps_[step_index];
+    const bool has_chord = chord.ninth || chord.eleventh || chord.thirteenth;
+
+    if (root.degree < 0 && !has_chord)
+      return;
 
     if (root.degree >= 0)
       triggerRoot(root.degree);
 
     const int8_t chord_degree = (root.degree >= 0) ? root.degree : active_root_degree_;
-    if (chord.ninth || chord.eleventh || chord.thirteenth)
+    if (has_chord)
       triggerChordExtensions(chord_degree, chord);
   }
 
@@ -603,7 +644,7 @@ private:
     {
       samples_until_tick_ += samples_per_tick_;
       step_index_ = (step_index_ + 1U) % kStepsPerBar;
-      triggerStep(step_index_);
+      triggerStep(step_index_, true);
     }
   }
 
@@ -612,12 +653,29 @@ private:
     if (!voice.active)
       return 0.f;
 
-    voice.amp += (voice.amp_target - voice.amp) * attack_coeff_;
-    voice.amp *= amp_decay_coeff_;
+    switch (voice.stage)
+    {
+    case VoiceStage::Attack:
+      voice.amp += (voice.amp_target - voice.amp) * attack_coeff_;
+      if (voice.amp >= voice.amp_target * 0.92f)
+        voice.stage = VoiceStage::Decay;
+      break;
+    case VoiceStage::Decay:
+      voice.amp *= amp_decay_coeff_;
+      break;
+    case VoiceStage::Release:
+      voice.amp *= release_coeff_;
+      break;
+    default:
+      voice.active = false;
+      voice.amp = 0.f;
+      return 0.f;
+    }
 
     if (voice.amp < 0.00008f)
     {
       voice.active = false;
+      voice.stage = VoiceStage::Idle;
       voice.amp = 0.f;
       return 0.f;
     }
@@ -677,6 +735,7 @@ private:
   float samples_until_tick_ = 6000.f;
   float attack_coeff_ = 0.15f;
   float amp_decay_coeff_ = 0.9995f;
+  float release_coeff_ = 0.998f;
   float dc_block_in_ = 0.f;
   float dc_block_out_ = 0.f;
   bool running_ = false;
