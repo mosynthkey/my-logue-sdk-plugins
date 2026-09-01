@@ -7,6 +7,11 @@
  * recreates the opening drop, then fades naturally instead of sustaining at
  * full level. The loop wrap is crossfaded in the embedded PCM (see
  * scripts/embed_pcm.py), so playback here is a plain wrapping read.
+ *
+ * Sustain uses one wrapping player, not a ping-pong pair. A second player with
+ * a runtime crossfade would re-blend the loop tail into a head that already
+ * contains that tail, which increases level pumping (~3 dB vs ~0.3 dB on the
+ * baked loop). See fade_experiment.py --compare-loop-modes.
  */
 
 #include "airhorn_pcm.h"
@@ -24,7 +29,6 @@ struct AirHornVoice
   float gain = 1.f;
   float amp = 0.f;
   float pitch_ratio = 1.f;
-  float sustain_lpf = 0.f;
   uint32_t settled_age = 0U;
 
   static constexpr float kAttackInc = 1.f / (48000.f * 0.004f);
@@ -33,7 +37,6 @@ struct AirHornVoice
   static constexpr float kMinAmp = 0.0005f;
   static constexpr uint32_t kSettledHoldSamples = 12000U; // 250 ms at 48 kHz
   static constexpr float kBaseRate = static_cast<float>(kAirhornSampleRate) / 48000.f;
-  static constexpr float kSustainLpfCoeff = 0.48f; // ~8 kHz at 48 kHz
   static constexpr float kPitchSettled = 0.025f;
 
   static float pcmToFloat(int16_t sample)
@@ -88,7 +91,6 @@ struct AirHornVoice
     note = midi_note;
     pos = 0.f;
     amp = 0.f;
-    sustain_lpf = 0.f;
     settled_age = 0U;
     gain = (static_cast<float>(velocity) + 1.f) * (1.f / 128.f);
     pitch_ratio = kAirhornSamples[0].start_ratio;
@@ -139,16 +141,6 @@ struct AirHornVoice
 
     float output = sampleAt(horn, pos) * gain * amp;
 
-    if (settled)
-    {
-      sustain_lpf += kSustainLpfCoeff * (output - sustain_lpf);
-      output = sustain_lpf;
-    }
-    else
-    {
-      sustain_lpf = output;
-    }
-
     pos += kBaseRate * pitch_ratio;
     const float loop_length = static_cast<float>(horn.length);
     while (pos >= loop_length)
@@ -172,7 +164,6 @@ struct AirHornVoice
     releasing = false;
     fading = false;
     amp = 0.f;
-    sustain_lpf = 0.f;
   }
 };
 
