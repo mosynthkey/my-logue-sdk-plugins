@@ -12,6 +12,14 @@ export function knobAngle(normalized) {
   return KNOB_ARC_START + clamped * KNOB_ARC_SWEEP;
 }
 
+export function knobValueFromDrag(startValue, deltaY, min, max, dragRangePx = 160) {
+  if (dragRangePx <= 0 || max === min) {
+    return min;
+  }
+  const nextValue = startValue + (deltaY / dragRangePx) * (max - min);
+  return Math.min(max, Math.max(min, nextValue));
+}
+
 function polarPoint(center, radius, angleDeg) {
   const angleRad = ((angleDeg - 90) * Math.PI) / 180;
   return {

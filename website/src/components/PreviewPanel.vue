@@ -199,7 +199,9 @@ const showToolbar = computed(() => props.canSend || showInstrument.value);
           :max="1"
           :value="masterVolume"
           :value-label="masterVolumeLabel"
-          :sensitivity="0.005"
+          :input-value="masterVolume * 100"
+          :input-min="0"
+          :input-max="100"
           @update:value="setMasterVolume"
         />
 
@@ -210,7 +212,6 @@ const showToolbar = computed(() => props.canSend || showInstrument.value);
           :max="240"
           :value="bpm"
           :value-label="bpmLabel"
-          :sensitivity="0.5"
           @update:value="setBpm"
         />
 

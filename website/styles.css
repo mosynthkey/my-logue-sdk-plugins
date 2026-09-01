@@ -624,7 +624,7 @@ body.modal-open {
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  width: 56px;
+  width: 72px;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
@@ -632,8 +632,8 @@ body.modal-open {
 
 .knob__dial {
   position: relative;
-  width: 48px;
-  height: 48px;
+  width: 64px;
+  height: 64px;
   cursor: ns-resize;
   touch-action: none;
   user-select: none;
@@ -647,8 +647,8 @@ body.modal-open {
 
 .knob__svg {
   display: block;
-  width: 48px;
-  height: 48px;
+  width: 64px;
+  height: 64px;
 }
 
 .knob__cap {
@@ -673,13 +673,49 @@ body.modal-open {
 }
 
 .knob__center-value {
-  fill: var(--text);
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding-top: 1px;
+  color: var(--ink);
   font-family: var(--font-body);
-  font-size: 8px;
+  font-size: var(--control-font-size);
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
   letter-spacing: -0.02em;
+  text-align: center;
+  text-shadow: 0 1px 2px #000;
   pointer-events: none;
   user-select: none;
+}
+
+.knob__value-input {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 2;
+  width: 48px;
+  height: 24px;
+  padding: 2px 3px;
+  border: 1px solid var(--accent);
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--control-font-size);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: center;
+  transform: translate(-50%, -50%);
+  user-select: text;
+}
+
+.knob__value-input:focus {
+  outline: 1px solid var(--ink);
+  outline-offset: 1px;
 }
 
 .knob__pointer {
@@ -697,7 +733,7 @@ body.modal-open {
   text-align: center;
   color: var(--muted);
   margin-top: 4px;
-  max-width: 56px;
+  max-width: 72px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
