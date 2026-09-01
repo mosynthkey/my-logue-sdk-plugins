@@ -19,6 +19,7 @@ wasm:
 
 test:
 	node tests/nts1-midi.test.mjs
+	node tests/preview-kick-demo.test.mjs
 
 website: unit
 	bash scripts/build-website.sh dist/website
