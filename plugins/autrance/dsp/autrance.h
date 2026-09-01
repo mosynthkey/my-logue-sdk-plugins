@@ -244,6 +244,7 @@ private:
     float phase_inc = 0.f;
     float amp = 0.f;
     float amp_target = 0.f;
+    float filter_env_ = 0.f;
     float gate_samples_remaining_ = 0.f;
     float svf_low = 0.f;
   };
@@ -304,6 +305,7 @@ private:
 
     const float sample_rate = getSampleRate();
     amp_decay_coeff_ = fasterexpf(-1.f / (decay_sec * sample_rate));
+    filter_decay_coeff_ = fasterexpf(-1.f / (decay_sec * 2.8f * sample_rate));
     release_coeff_ = fasterexpf(-1.f / (kReleaseSec * sample_rate));
   }
 
@@ -602,6 +604,7 @@ private:
     voice.phase_inc = noteToPhaseInc(midi_note);
     voice.amp = 0.f;
     voice.amp_target = clipRange(velocity, 0.2f, 1.f);
+    voice.filter_env_ = 0.f;
     voice.gate_samples_remaining_ = samples_per_tick_ * kGateFraction;
     voice.svf_low = 0.f;
   }
@@ -696,7 +699,23 @@ private:
       voice.active = false;
       voice.stage = VoiceStage::Idle;
       voice.amp = 0.f;
+      voice.filter_env_ = 0.f;
       return 0.f;
+    }
+
+    switch (voice.stage)
+    {
+    case VoiceStage::Attack:
+      voice.filter_env_ += (1.f - voice.filter_env_) * attack_coeff_;
+      break;
+    case VoiceStage::Decay:
+      voice.filter_env_ *= filter_decay_coeff_;
+      break;
+    case VoiceStage::Release:
+      voice.filter_env_ *= release_coeff_;
+      break;
+    default:
+      break;
     }
 
     voice.phase += voice.phase_inc;
@@ -704,15 +723,15 @@ private:
       voice.phase -= 1.f;
     const float saw = 2.f * voice.phase - 1.f;
 
-    const float env_boost = 1.f + voice.amp * env_mod_norm_ * env_feed;
-    const float cutoff_hz = clipRange(cutoff_base_hz * env_boost, 40.f, 12000.f);
+    const float env_boost = 1.f + voice.filter_env_ * env_mod_norm_ * env_feed;
+    const float cutoff_hz = clipRange(cutoff_base_hz * env_boost, 80.f, 12000.f);
     const float omega = 6.2831853f * cutoff_hz / getSampleRate();
     const float filter_coeff = clipRange(omega / (1.f + omega), 0.001f, 0.96f);
     const float resonance_mix = clipRange(resonance_q * 0.12f, 0.f, 0.85f);
 
-    const float input = saw * voice.amp;
-    voice.svf_low += filter_coeff * (input - voice.svf_low);
-    return voice.svf_low + resonance_mix * (input - voice.svf_low);
+    voice.svf_low += filter_coeff * (saw - voice.svf_low);
+    const float filtered = voice.svf_low + resonance_mix * (saw - voice.svf_low);
+    return filtered * voice.amp;
   }
 
   float renderSample()
@@ -751,6 +770,7 @@ private:
   float samples_until_tick_ = 6000.f;
   float attack_coeff_ = 0.15f;
   float amp_decay_coeff_ = 0.9995f;
+  float filter_decay_coeff_ = 0.9998f;
   float release_coeff_ = 0.998f;
   float dc_block_in_ = 0.f;
   float dc_block_out_ = 0.f;
