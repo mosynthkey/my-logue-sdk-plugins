@@ -12,5 +12,3 @@ export const LOAD_HINT = {
   modfx: "Select MOD.",
   genericfx: "The unit appears at the end of the FX list.",
 };
-
-export const SEND_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 20.6 21 12 3.4 3.4v5.8L15 12l-11.6 2.8v5.8z"/></svg>`;

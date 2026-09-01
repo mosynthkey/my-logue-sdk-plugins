@@ -769,19 +769,6 @@ body.modal-open {
   outline: none;
 }
 
-.send-button__icon {
-  display: inline-flex;
-  width: 14px;
-  height: 14px;
-  color: var(--accent);
-}
-
-.send-button__icon svg {
-  width: 100%;
-  height: 100%;
-  fill: currentColor;
-}
-
 .empty {
   padding: 20px 28px;
   color: var(--err);
@@ -1164,11 +1151,13 @@ input[type="number"] {
   }
 
   .preview-toolbar {
-    align-items: stretch;
+    flex-wrap: nowrap;
+    align-items: center;
   }
 
   .preview-toolbar .send-button {
-    width: 100%;
+    width: auto;
+    margin-left: auto;
     justify-content: center;
   }
 

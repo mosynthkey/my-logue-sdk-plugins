@@ -1,6 +1,5 @@
 <script setup>
 import { sendLabel } from "../utils/plugin.js";
-import { SEND_ICON } from "../constants.js";
 
 defineProps({
   plugin: {
@@ -22,7 +21,6 @@ const emit = defineEmits(["send"]);
     class="send-button"
     @click="emit('send', plugin, target)"
   >
-    <span class="send-button__icon" v-html="SEND_ICON" />
     {{ sendLabel(target) }}
   </button>
 </template>
