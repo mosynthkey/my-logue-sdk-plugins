@@ -1,5 +1,6 @@
 <script setup>
-import { sendLabel } from "../utils/plugin.js";
+import { targetName } from "../utils/plugin.js";
+import { useI18n } from "../composables/useI18n.js";
 
 defineProps({
   plugin: {
@@ -13,6 +14,7 @@ defineProps({
 });
 
 const emit = defineEmits(["send"]);
+const { t } = useI18n();
 </script>
 
 <template>
@@ -21,6 +23,6 @@ const emit = defineEmits(["send"]);
     class="send-button"
     @click="emit('send', plugin, target)"
   >
-    {{ sendLabel(target) }}
+    {{ t("sendTo", { target: targetName(target) }) }}
   </button>
 </template>

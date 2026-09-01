@@ -4,11 +4,13 @@ import PluginDetail from "./components/PluginDetail.vue";
 import PluginSidebar from "./components/PluginSidebar.vue";
 import SendModal from "./components/SendModal.vue";
 import { useCatalog } from "./composables/useCatalog.js";
+import { provideI18n } from "./composables/useI18n.js";
 import { useMidiSend } from "./composables/useMidiSend.js";
 import { usePluginSelection } from "./composables/usePluginSelection.js";
 import { useSiteQuery } from "./composables/useSiteQuery.js";
 
 const { catalog, loadError, loading } = useCatalog();
+const { t } = provideI18n();
 const siteQuery = useSiteQuery();
 const {
   selectedPluginId,
@@ -86,7 +88,7 @@ onUnmounted(() => {
       v-else-if="loading"
       class="detail detail--empty"
     >
-      <p>Loading plugins…</p>
+      <p>{{ t("loading") }}</p>
     </div>
 
     <div

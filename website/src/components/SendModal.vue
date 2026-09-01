@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from "vue";
-import { sendLabel } from "../utils/plugin.js";
+import { targetName } from "../utils/plugin.js";
+import { useI18n } from "../composables/useI18n.js";
 
 const props = defineProps({
   isOpen: {
@@ -82,9 +83,10 @@ const emit = defineEmits([
   "update:slot",
   "midi-setting-change",
 ]);
+const { t } = useI18n();
 
 const modalTitle = computed(() => props.plugin?.name || "Plugin");
-const modalKicker = computed(() => sendLabel(props.target));
+const modalKicker = computed(() => t("sendTo", { target: targetName(props.target) }));
 </script>
 
 <template>
@@ -108,7 +110,7 @@ const modalKicker = computed(() => sendLabel(props.target));
         <button
           type="button"
           class="modal__close"
-          aria-label="Close"
+          :aria-label="t('close')"
           @click="emit('close')"
         >
           ×
@@ -120,7 +122,7 @@ const modalKicker = computed(() => sendLabel(props.target));
         id="midi-unsupported"
         class="modal__notice"
       >
-        <p>Chrome or Edge required for MIDI. Download the unit otherwise.</p>
+        <p>{{ t("midiRequired") }}</p>
       </div>
 
       <div v-else id="midi-panel">
@@ -133,7 +135,7 @@ const modalKicker = computed(() => sendLabel(props.target));
         </p>
 
         <label class="field">
-          <span>Output</span>
+          <span>{{ t("output") }}</span>
           <select
             id="midi-output"
             :value="selectedOutputId"
@@ -143,7 +145,7 @@ const modalKicker = computed(() => sendLabel(props.target));
               v-if="outputPorts.length === 0"
               value=""
             >
-              No ports
+              {{ t("noPorts") }}
             </option>
             <option
               v-for="port in outputPorts"
@@ -156,7 +158,7 @@ const modalKicker = computed(() => sendLabel(props.target));
         </label>
 
         <label class="field">
-          <span>Input</span>
+          <span>{{ t("input") }}</span>
           <select
             id="midi-input"
             :value="selectedInputId"
@@ -166,7 +168,7 @@ const modalKicker = computed(() => sendLabel(props.target));
               v-if="inputPorts.length === 0"
               value=""
             >
-              No ports
+              {{ t("noPorts") }}
             </option>
             <option
               v-for="port in inputPorts"
@@ -180,7 +182,7 @@ const modalKicker = computed(() => sendLabel(props.target));
 
         <div class="field-row">
           <label class="field">
-            <span>Channel</span>
+            <span>{{ t("channel") }}</span>
             <input
               id="channel"
               type="number"
@@ -216,7 +218,7 @@ const modalKicker = computed(() => sendLabel(props.target));
             class="button button-secondary"
             @click="emit('close')"
           >
-            Cancel
+            {{ t("cancel") }}
           </button>
           <button
             type="button"
@@ -225,13 +227,13 @@ const modalKicker = computed(() => sendLabel(props.target));
             :disabled="sendDisabled"
             @click="emit('send')"
           >
-            Send to slot
+            {{ t("sendToSlot") }}
           </button>
         </div>
       </div>
 
       <div class="log-wrap">
-        <h3>Log</h3>
+        <h3>{{ t("log") }}</h3>
         <div id="log" class="log" role="log" aria-live="polite">
           <p
             v-for="(line, lineIndex) in logLines"

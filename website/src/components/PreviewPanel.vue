@@ -7,6 +7,7 @@ import PreviewKnob from "./preview/PreviewKnob.vue";
 import PreviewScope from "./preview/PreviewScope.vue";
 import PreviewXyPad from "./preview/PreviewXyPad.vue";
 import { useWasmPreview } from "../preview/useWasmPreview.js";
+import { useI18n } from "../composables/useI18n.js";
 
 const props = defineProps({
   build: {
@@ -18,6 +19,7 @@ const props = defineProps({
     default: null,
   },
 });
+const { t } = useI18n();
 
 const xyPadRef = ref(null);
 
@@ -92,7 +94,7 @@ function handleHoldToggle() {
 </script>
 
 <template>
-  <section class="detail__stage" aria-label="Preview">
+  <section class="detail__stage" :aria-label="t('preview')">
     <div ref="previewShellRef" class="preview-shell">
       <p
         v-if="!showInstrument && message"
@@ -118,7 +120,7 @@ function handleHoldToggle() {
             :class="{ 'is-on': latchEnabled }"
             @click="onLatchToggle"
           >
-            Latch {{ latchEnabled ? "On" : "Off" }}
+            {{ t("latch") }} {{ t(latchEnabled ? "on" : "off") }}
           </button>
 
           <button
@@ -128,7 +130,7 @@ function handleHoldToggle() {
             :class="{ 'is-on': holdEnabled }"
             @click="handleHoldToggle"
           >
-            Hold {{ holdEnabled ? "On" : "Off" }}
+            {{ t("hold") }} {{ t(holdEnabled ? "on" : "off") }}
           </button>
         </div>
       </div>

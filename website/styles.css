@@ -85,6 +85,15 @@ body.modal-open {
   display: none;
 }
 
+.sidebar__mobile-controls {
+  display: none;
+}
+
+.language-picker--desktop {
+  margin: auto 28px 0;
+  padding-top: 24px;
+}
+
 .plugin-picker__label {
   display: block;
   margin-bottom: 6px;
@@ -1108,6 +1117,23 @@ input[type="number"] {
 
   .plugin-picker {
     display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .sidebar__mobile-controls {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+  }
+
+  .language-picker--mobile {
+    flex: 0 0 min(36vw, 132px);
+    min-width: 104px;
+  }
+
+  .language-picker--desktop {
+    display: none;
   }
 
   .plugin-nav {

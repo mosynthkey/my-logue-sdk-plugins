@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useI18n } from "../../composables/useI18n.js";
 
 const props = defineProps({
   enabled: {
@@ -7,6 +8,7 @@ const props = defineProps({
     default: false,
   },
 });
+const { t } = useI18n();
 
 const emit = defineEmits(["note-down", "note-up"]);
 
@@ -395,7 +397,7 @@ onBeforeUnmount(() => {
         type="button"
         class="preview-chip"
         :disabled="!canOctaveDown"
-        aria-label="Octave down"
+        :aria-label="t('octaveDown')"
         @click="onOctaveDown"
       >
         Octave −
@@ -408,7 +410,7 @@ onBeforeUnmount(() => {
         type="button"
         class="preview-chip"
         :disabled="!canOctaveUp"
-        aria-label="Octave up"
+        :aria-label="t('octaveUp')"
         @click="onOctaveUp"
       >
         Octave +
