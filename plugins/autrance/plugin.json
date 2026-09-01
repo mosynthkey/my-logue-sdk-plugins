@@ -1,0 +1,16 @@
+{
+  "id": "autrance",
+  "name": "Autrance",
+  "type": "synth",
+  "experimental": true,
+  "targets": ["nts-3_kaoss"],
+  "description": "Trance pluck auto phrase generator for NTS-3. Hold the pad to run a tempo-synced 16-step pattern. Root hits and chord extensions (9th, 11th, 13th above the step root) are generated as separate layers. Touch again to regenerate. X = Cutoff, Y = Resonance, Depth = mix. Up to 8 voices polyphonic.",
+  "params": [
+    { "name": "CUT", "role": "X", "detail": "Filter cutoff" },
+    { "name": "RES", "role": "Y", "detail": "Filter resonance" },
+    { "name": "MIX", "role": "Depth", "detail": "Dry/wet" },
+    { "name": "DEC", "role": "Edit", "detail": "Pluck decay (~80 ms to 1.8 s)" },
+    { "name": "ENV", "role": "Edit", "detail": "Filter envelope modulation" },
+    { "name": "ROOT", "role": "Edit", "detail": "Phrase root key (C1-C3, default C2)" }
+  ]
+}
