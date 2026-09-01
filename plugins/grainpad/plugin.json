@@ -1,0 +1,17 @@
+{
+  "id": "grainpad",
+  "experimental": true,
+  "name": "GrainPad",
+  "type": "synth",
+  "targets": ["nts-3_kaoss"],
+  "description": "Live granular vocal cloud for NTS-3. Hold the XY pad to spray overlapping grains from an embedded texture. Drag left/right to scrub scan position through the sample, up/down to shift grain pitch (0.25x–4x). Each touch spawns a shimmering cloud; release to let grains decay. X = Scan, Y = Pitch, Depth = mix. SIZE = grain length, DENS = spawn rate, SPRAY = position/pitch jitter, DECAY = release tail.",
+  "params": [
+    { "name": "SCAN", "role": "X", "detail": "Grain scan position in the embedded sample" },
+    { "name": "PITCH", "role": "Y", "detail": "Grain playback rate (about 0.25x–4x)" },
+    { "name": "MIX", "role": "Depth", "detail": "Dry/wet" },
+    { "name": "SIZE", "role": "Edit", "detail": "Grain length (~8–200 ms)" },
+    { "name": "DENS", "role": "Edit", "detail": "Grain spawn density" },
+    { "name": "SPRAY", "role": "Edit", "detail": "Random position and pitch spread" },
+    { "name": "DECAY", "role": "Edit", "detail": "Cloud release tail when the pad is lifted" }
+  ]
+}
