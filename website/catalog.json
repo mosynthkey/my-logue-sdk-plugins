@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-02T14:46:33.526970+00:00",
+  "generatedAt": "2026-09-02T15:23:49.275814+00:00",
   "plugins": [
     {
       "id": "airfm",
@@ -28,7 +28,7 @@
         {
           "name": "HPF",
           "role": "Edit",
-          "detail": "Output high-pass cutoff (20–2000 Hz)"
+          "detail": "Output high-pass cutoff (20\u20132000 Hz)"
         },
         {
           "name": "LEVEL",
@@ -128,7 +128,7 @@
         "nts-1_mkii",
         "nts-3_kaoss"
       ],
-      "description": "A port of the PhISEM shaker. Play various percussion sounds from the XY pad or keyboard. Still being fine-tuned; the official release is coming soon.",
+      "description": "A port of the PhISEM shaker. Play various percussion sounds from the XY pad or keyboard.\nStill being fine-tuned; the official release is coming soon.",
       "params": [
         {
           "name": "TYPE",
@@ -148,7 +148,7 @@
         {
           "name": "MIX",
           "role": "NTS-3 Mix",
-          "detail": "Dry/wet (NTS-3 only)"
+          "detail": "Wet level (NTS-3 only; dry oscillator is muted)"
         }
       ],
       "builds": [

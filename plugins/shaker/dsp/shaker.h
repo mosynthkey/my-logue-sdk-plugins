@@ -190,17 +190,18 @@ public:
 
   void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final
   {
-    const float wet_amt = mix_;
-    const float dry_amt = 1.f - wet_amt;
+    // NTS-3 always feeds the main oscillator (often a saw) into FX slots.
+    // Treat Shaker as an instrument and never pass that dry signal through.
+    (void)in;
+    const float wet_amt = stereo_mix_ ? mix_ : 1.f;
 
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
-      const float wet = tick();
+      const float wet = tick() * wet_amt;
       if (stereo_mix_)
       {
-        out[0] = in[0] * dry_amt + wet * wet_amt;
-        out[1] = in[1] * dry_amt + wet * wet_amt;
-        in += 2;
+        out[0] = wet;
+        out[1] = wet;
         out += 2;
       }
       else

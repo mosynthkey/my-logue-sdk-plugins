@@ -1,6 +1,7 @@
 <script setup>
 import LanguageLabel from "./LanguageLabel.vue";
 import { useI18n } from "../composables/useI18n.js";
+import { targetName } from "../utils/plugin.js";
 
 defineProps({
   plugins: {
@@ -15,12 +16,19 @@ defineProps({
 
 const emit = defineEmits(["select-plugin"]);
 const { locale, setLocale, t } = useI18n();
+
+function pluginTargets(plugin) {
+  if (Array.isArray(plugin.targets) && plugin.targets.length > 0) {
+    return plugin.targets;
+  }
+  return (plugin.builds || []).map((build) => build.target);
+}
 </script>
 
 <template>
   <aside class="sidebar" :aria-label="t('pluginList')">
     <header class="sidebar__head">
-      <h1 class="sidebar__title">Logue SDK<br>Plugins List</h1>
+      <h1 class="sidebar__title">My Logue SDK<br>Plugins</h1>
       <div class="sidebar__mobile-controls">
         <div class="plugin-picker">
           <label class="plugin-picker__label" for="plugin-select">{{ t("plugin") }}</label>
@@ -65,7 +73,16 @@ const { locale, setLocale, t } = useI18n();
         :class="{ 'is-active': plugin.id === selectedPluginId }"
         @click="emit('select-plugin', plugin.id)"
       >
-        <span>{{ plugin.name }}</span>
+        <span class="plugin-nav__name">{{ plugin.name }}</span>
+        <span class="plugin-nav__targets" aria-hidden="true">
+          <span
+            v-for="target in pluginTargets(plugin)"
+            :key="target"
+            class="plugin-nav__pill"
+          >
+            {{ targetName(target) }}
+          </span>
+        </span>
       </button>
     </nav>
 

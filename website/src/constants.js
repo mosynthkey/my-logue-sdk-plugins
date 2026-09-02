@@ -3,6 +3,7 @@ export const SENDABLE_TARGETS = new Set(["nts-1_mkii", "nts-3_kaoss"]);
 export const TARGET_LABEL = {
   "nts-1_mkii": "NTS-1",
   "nts-3_kaoss": "NTS-3",
+  microkorg2: "mk2",
 };
 
 export const LOAD_HINT = {

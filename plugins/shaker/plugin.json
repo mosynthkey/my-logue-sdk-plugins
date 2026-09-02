@@ -3,11 +3,11 @@
   "name": "Shaker",
   "type": "shaker",
   "targets": ["nts-1_mkii", "nts-3_kaoss"],
-  "description": "A port of the PhISEM shaker. Play various percussion sounds from the XY pad or keyboard. Still being fine-tuned; the official release is coming soon.",
+  "description": "A port of the PhISEM shaker. Play various percussion sounds from the XY pad or keyboard.\nStill being fine-tuned; the official release is coming soon.",
   "params": [
     { "name": "TYPE", "role": "A", "detail": "Instrument preset" },
     { "name": "DENS", "role": "B", "detail": "Object density scale" },
     { "name": "DECAY", "role": "Edit", "detail": "Shake energy decay" },
-    { "name": "MIX", "role": "NTS-3 Mix", "detail": "Dry/wet (NTS-3 only)" }
+    { "name": "MIX", "role": "NTS-3 Mix", "detail": "Wet level (NTS-3 only; dry oscillator is muted)" }
   ]
 }

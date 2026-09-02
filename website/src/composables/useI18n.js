@@ -5,13 +5,13 @@ const STORAGE_KEY = "logue-sdk-preview-language";
 
 export const japanesePluginDescriptions = {
   airfm: "Alesis airSynthに着想を得た、FM効果音シンセです。",
-  airhorn: "AirHornを鳴らします。現在も調整中で、正式版は近日公開予定。",
+  airhorn: "AirHornを鳴らします。\n現在も調整中で、正式版\u2060は近日公開予定。",
   fbackosc: "JP-8080に着想を得たFeedback oscillatorです。band-limited sawをkey-tracked resonant comb filterに通します。",
   hypersaw: "Virus TIに着想を得た9-voice detuned saw stackです。Density、Spread、HyperSub、stereo widthを調整できます。",
-  kaocid: "XY Padで演奏する303系のシンセです。Tapするとフレーズが生成されます。現在も調整中で、正式版は近日公開予定。",
+  kaocid: "XY Padで演奏する303系のシンセです。Tapするとフレーズが生成されます。\n現在も調整中で、正式版\u2060は近日公開予定。",
   loopkey: "keyboardで操作するmicro-looper oscillatorです。external audio inputをloopし、MIDI noteでloop lengthを設定します。Tempo sync、gate mode、evolutionに対応します。",
-  ride909: "テクノでよく聞く、裏打ちの909 Ride Cymbalを再生します。ピッチを変更することができます。現在も調整中で、正式版は近日公開予定。",
-  shaker: "PhISEM shakerの移植です。XY Pad / 鍵盤でさまざまなパーカッションを演奏できます。現在も調整中で、正式版は近日公開予定。",
+  ride909: "テクノでよく聞く、裏打ちの909 Ride Cymbalを再生します。ピッチを変更することができます。\n現在も調整中で、正式版\u2060は近日公開予定。",
+  shaker: "PhISEM shakerの移植です。XY Pad / 鍵盤でさまざまなパーカッションを演奏できます。\n現在も調整中で、正式版\u2060は近日公開予定。",
   specwarp: "Vitalに着想を得たspectral stretch / smear FXです。InputをFFTし、frequency domainでwarpしてからresynthesisします。X = Stretch（metallic / ambient textureを作るfrequency-axis warp）、Y = Smear（magnitude blurとphase diffusion）、Depth/MIX = dry/wetです。drum loopからotherworldly ambienceをすぐに作れます。",
   technorumble: "Techno rumble kick processorです。長いreverb tail、sub LPF、drive、kick transientに反応するsidechain duckを1ユニットにまとめています。NTS-3はAUDIO IN、mkIIはsynth出力にkickを入れて使います。X/TIME = decay、Y/DEPTH = cutoff、Depth/MIX = dry/wetです。",
   tapeosc: "tape motorのstart/stopを再現するVarispeed oscillatorです。band-limited synth waveformがpitch envelopeではなく、tape deckのように減速してfreezeします。",

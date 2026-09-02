@@ -46,28 +46,6 @@ if (ENVIRONMENT_IS_NODE) {
 
 // --pre-jses are emitted after the Module integration code, so that they can
 // refer to Module (if they choose; they can also define Module)
-// include: /opt/homebrew/Cellar/emscripten/5.0.7/libexec/src/emrun_prejs.js
-/**
- * @license
- * Copyright 2013 The Emscripten Authors
- * SPDX-License-Identifier: MIT
- *
- * This file gets implicitly injected as a `--pre-js` file when
- * emcc is run with `--emrun`
- */
-
-// Route URL GET parameters to argc+argv
-if (globalThis.window) {
-  Module['arguments'] = window.location.search.slice(1).trim().split('&');
-  for (let i = 0; i < Module['arguments'].length; ++i) {
-    Module['arguments'][i] = decodeURI(Module['arguments'][i]);
-  }
-  // If no args were passed arguments = [''], in which case kill the single empty string.
-  if (!Module['arguments'][0]) {
-    Module['arguments'] = [];
-  }
-}
-// end include: /opt/homebrew/Cellar/emscripten/5.0.7/libexec/src/emrun_prejs.js
 
 
 var arguments_ = [];
@@ -616,8 +594,6 @@ port.onmessage = async (msg) => {
 
 var runtimeInitialized = false;
 
-var runtimeExited = false;
-
 
 
 function updateMemoryViews() {
@@ -692,15 +668,6 @@ function initRuntime() {
 
 function preMain() {
   // No ATMAINS hooks
-}
-
-function exitRuntime() {
-  if ((ENVIRONMENT_IS_WASM_WORKER)) { return; } // PThreads reuse the runtime from the main thread.
-  ___funcs_on_exit(); // Native atexit() functions
-  // Begin ATEXITS hooks
-  callRuntimeCallbacks(onExits);
-  // End ATEXITS hooks
-  runtimeExited = true;
 }
 
 function postRun() {
@@ -961,14 +928,9 @@ async function createWasm() {
       }
       quit_(code, new ExitStatus(code));
     };
-  
   /** @param {boolean|number=} implicit */
   var exitJS = (status, implicit) => {
       EXITSTATUS = status;
-  
-      if (!keepRuntimeAlive()) {
-        exitRuntime();
-      }
   
       _proc_exit(status);
     };
@@ -976,9 +938,6 @@ async function createWasm() {
   
   
   var maybeExit = () => {
-      if (runtimeExited) {
-        return;
-      }
       if (!keepRuntimeAlive()) {
         try {
           _exit(EXITSTATUS);
@@ -988,7 +947,7 @@ async function createWasm() {
       }
     };
   var callUserCallback = (func) => {
-      if (runtimeExited || ABORT) {
+      if (ABORT) {
         return;
       }
       try {
@@ -1055,9 +1014,6 @@ async function createWasm() {
         callbacks.shift()(Module);
       }
     };
-  var onExits = [];
-  var addOnExit = (cb) => onExits.push(cb);
-
   var onPostRuns = [];
   var addOnPostRun = (cb) => onPostRuns.push(cb);
 
@@ -1110,7 +1066,7 @@ async function createWasm() {
   }
 
 
-  var noExitRuntime = false;
+  var noExitRuntime = true;
 
 
   
@@ -3545,11 +3501,8 @@ ${functionBody}
       });
     };
 
-  var runtimeKeepalivePush = () => {
-      runtimeKeepaliveCounter += 1;
-    };
   var _emscripten_exit_with_live_runtime = () => {
-      runtimeKeepalivePush();
+      
       throw 'unwind';
     };
 
@@ -3615,7 +3568,7 @@ if (Module['wasmBinary']) wasmBinary = Module['wasmBinary'];
 // end include: postlibrary.js
 
 var ASM_CONSTS = {
-  25352: ($0, $1) => { setupWebAudioAndUI(emscriptenGetAudioObject($0), emscriptenGetAudioObject($1)); }
+  25352: ($0, $1) => { var ready = (typeof Module !== "undefined" && Module.onAudioReady) ? Module.onAudioReady : setupWebAudioAndUI; ready(emscriptenGetAudioObject($0), emscriptenGetAudioObject($1)); }
 };
 
 // Imports from the Wasm binary.
@@ -3646,9 +3599,7 @@ var ___getTypeName,
   _osc_rand,
   _osc_white,
   __Z12osc_api_initv,
-  ___funcs_on_exit,
   ___set_thread_state,
-  _fflush,
   _free,
   __emscripten_stack_restore,
   __emscripten_stack_alloc,
@@ -3709,9 +3660,7 @@ function assignWasmExports(wasmExports) {
   _osc_rand = Module['_osc_rand'] = wasmExports['osc_rand'];
   _osc_white = Module['_osc_white'] = wasmExports['osc_white'];
   __Z12osc_api_initv = Module['__Z12osc_api_initv'] = wasmExports['_Z12osc_api_initv'];
-  ___funcs_on_exit = wasmExports['__funcs_on_exit'];
   ___set_thread_state = wasmExports['__set_thread_state'];
-  _fflush = wasmExports['fflush'];
   _free = wasmExports['free'];
   __emscripten_stack_restore = wasmExports['_emscripten_stack_restore'];
   __emscripten_stack_alloc = wasmExports['_emscripten_stack_alloc'];
@@ -3910,105 +3859,4 @@ run();
 }
 
 // end include: postamble.js
-
-// include: /opt/homebrew/Cellar/emscripten/5.0.7/libexec/src/emrun_postjs.js
-/**
- * @license
- * Copyright 2013 The Emscripten Authors
- * SPDX-License-Identifier: MIT
- *
- * This file gets implicitly injected as a `--post-js` file when
- * emcc is run with `--emrun`
- */
-
-// POSTs the given binary data represented as a (typed) array data back to the
-// emrun-based web server.
-// To use from C code, call e.g:
-//   EM_ASM({emrun_file_dump("file.dat", HEAPU8.subarray($0, $0 + $1));}, my_data_pointer, my_data_pointer_byte_length);
-// Note: this functions does nothing by default but gets redefined below
-// in `emrun_register_handlers` when emrun is active, along with `out` and
-// `err`.
-var emrun_file_dump = (filename, data) => {};
-
-if (globalThis.window && globalThis.document && (typeof ENVIRONMENT_IS_PTHREAD == 'undefined' || !ENVIRONMENT_IS_PTHREAD)) {
-  var emrun_register_handlers = () => {
-    // When C code exit()s, we may still have remaining stdout and stderr
-    // messages in flight. In that case, we can't close the browser until all
-    // those XHRs have finished, so the following state variables track that all
-    // communication is done, after which we can close.
-    var emrun_num_post_messages_in_flight = 0;
-    var emrun_should_close_itself = false;
-    var postExit = (msg) => {
-      var http = new XMLHttpRequest();
-      // Don't do this immediately, this may race with the notification about
-      // the return code reaching the server. Send a *sync* xhr so that we know
-      // for sure that the server has gotten the return code before we continue.
-      http.open("POST", "stdio.html", false);
-      http.send(msg);
-      try {
-        // Try closing the current browser window, since it exit()ed itself.
-        // This can shut down the browser process and then emrun does not need
-        // to kill the whole browser process.
-        window.close();
-      } catch(e) {}
-    };
-    var post = (url, msg) => {
-      var http = new XMLHttpRequest();
-      ++emrun_num_post_messages_in_flight;
-      http.onreadystatechange = () => {
-        if (http.readyState == 4 /*DONE*/) {
-          if (--emrun_num_post_messages_in_flight == 0 && emrun_should_close_itself) {
-            postExit('^exit^'+EXITSTATUS);
-          }
-        }
-      }
-      http.open("POST", url, true);
-      http.send(msg);
-    };
-    // If the address contains localhost, or we are running the page from port
-    // 6931, we can assume we're running the test runner and should post stdout
-    // logs.
-    if (document.URL.search("localhost") != -1 || document.URL.search(":6931/") != -1) {
-      var emrun_http_sequence_number = 1;
-      var prevPrint = out;
-      var prevErr = err;
-      addOnExit(() => {
-        if (emrun_num_post_messages_in_flight == 0) {
-          postExit('^exit^'+EXITSTATUS);
-        } else {
-          emrun_should_close_itself = true;
-        }
-      });
-      out = (text) => {
-        post('stdio.html', '^out^'+(emrun_http_sequence_number++)+'^'+encodeURIComponent(text));
-        prevPrint(text);
-      };
-      err = (text) => {
-        post('stdio.html', '^err^'+(emrun_http_sequence_number++)+'^'+encodeURIComponent(text));
-        prevErr(text);
-      };
-      emrun_file_dump = (filename, data) => {
-        out(`Dumping out file "${filename}" with ${data.length} bytes of data.`);
-        if (ArrayBuffer.isView(data) && typeof SharedArrayBuffer !== "undefined" && data.buffer instanceof SharedArrayBuffer) {
-          data = new data.constructor(data); // Make a clone of the typed array of the same type, since http.send() does not allow SharedArrayBuffer backing.
-        }
-        post("stdio.html?file=" + filename, data);
-      };
-
-      // Notify emrun web server that this browser has successfully launched the
-      // page. Note that we may need to wait for the server to be ready.
-      var tryToSendPageload = () => {
-        try {
-          post('stdio.html', '^pageload^');
-        } catch (e) {
-          setTimeout(tryToSendPageload, 50);
-        }
-      };
-      tryToSendPageload();
-    }
-  };
-
-  emrun_register_handlers();
-}
-// end include: /opt/homebrew/Cellar/emscripten/5.0.7/libexec/src/emrun_postjs.js
 
