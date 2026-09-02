@@ -3,7 +3,7 @@
   "name": "Ride909",
   "type": "drum",
   "targets": ["nts-3_kaoss"],
-  "description": "Techno 909 ride wash on off-beats 3-7-11-15 with kick sidechain pump on 1-5-9-13. Hold pad to play. Sound is 6-bit Ride ROM through variable-rate playback, resistor DAC, and analog reconstruction. X = Tune, Y = pump, Depth = mix.",
+  "description": "Techno 909 ride wash on off-beats 3-7-11-15 with kick sidechain pump on 1-5-9-13. Hold pad to play. Sound is 6-bit Ride ROM through variable-rate playback, resistor DAC, and analog reconstruction. X = Tune, Y = pump, Depth = mix. Still being fine-tuned; the official 1.0.0 release is coming soon.",
   "params": [
     { "name": "PITCH", "role": "X", "detail": "909 Tune: ROM clock rate, decay tracks pitch" },
     { "name": "PUMP", "role": "Y", "detail": "Kick sidechain amount (bottom = off, top = deep)" },

@@ -1,34 +1,54 @@
 {
-  "generatedAt": "2026-08-30T18:10:00.724477+00:00",
+  "generatedAt": "2026-09-02T14:46:33.526970+00:00",
   "plugins": [
     {
-      "id": "autrance",
-      "name": "Autrance",
-      "type": "synth",
-      "experimental": true,
-      "targets": ["nts-3_kaoss"],
-      "description": "Trance pluck auto phrase generator for NTS-3. ROOT fixes the bass key; TYPE selects major or minor scale-faithful chord voicings. Each pad touch builds a chord and generates a 16-step bass + chord phrase. Bass uses the root and one octave up; chords play two octaves above ROOT.",
+      "id": "airfm",
+      "name": "airFM",
+      "type": "fm",
+      "targets": [
+        "nts-3_kaoss"
+      ],
+      "description": "Two-op phase-mod FM inspired by Alesis airSynth Program 3. Pad XY controls carrier/modulator; touch gates output.",
       "params": [
-        { "name": "CUT", "role": "X", "detail": "Filter cutoff" },
-        { "name": "RES", "role": "Y", "detail": "Filter resonance" },
-        { "name": "MIX", "role": "Depth", "detail": "Dry/wet" },
-        { "name": "DEC", "role": "Edit", "detail": "Amp/filter decay (~100 ms to 1.4 s)" },
-        { "name": "ENV", "role": "Edit", "detail": "Filter envelope modulation" },
-        { "name": "ROOT", "role": "Edit", "detail": "Phrase root key (C1-C3, default C2)" },
-        { "name": "TYPE", "role": "Edit", "detail": "Chord quality: MIN or MAJ" }
+        {
+          "name": "INDEX",
+          "role": "A",
+          "detail": "FM index (rad)"
+        },
+        {
+          "name": "YMAX",
+          "role": "B",
+          "detail": "Modulator log range top (Hz)"
+        },
+        {
+          "name": "DRIVE",
+          "role": "Edit",
+          "detail": "tanh drive"
+        },
+        {
+          "name": "HPF",
+          "role": "Edit",
+          "detail": "Output high-pass cutoff (20\u20132000 Hz)"
+        },
+        {
+          "name": "LEVEL",
+          "role": "Level",
+          "detail": "Output level while touching"
+        }
       ],
       "builds": [
         {
           "target": "nts-3_kaoss",
           "module": "genericfx",
-          "file": null,
-          "size": 0,
-          "wasm": "./sim/autrance/nts-3_kaoss/autrance.html"
+          "file": "./units/airfm-nts-3_kaoss.nts3unit",
+          "size": 15136,
+          "wasm": "./sim/airfm/nts-3_kaoss/airfm.html"
         }
       ]
     },
     {
       "id": "fbackosc",
+      "experimental": true,
       "name": "FbOsc",
       "type": "osc",
       "targets": [
@@ -60,6 +80,7 @@
     },
     {
       "id": "hypersaw",
+      "experimental": true,
       "name": "HyperSaw",
       "type": "osc",
       "targets": [
@@ -107,7 +128,7 @@
         "nts-1_mkii",
         "nts-3_kaoss"
       ],
-      "description": "PhISEM shaker. Note on (mkII) or pad motion (NTS-3) injects energy.",
+      "description": "PhISEM shaker. Note on (mkII) or pad motion (NTS-3) injects energy. Still being fine-tuned; the official 1.0.0 release is coming soon.",
       "params": [
         {
           "name": "TYPE",

@@ -3,7 +3,7 @@
   "name": "AirHorn",
   "type": "osc",
   "targets": ["nts-1_mkii", "nts-3_kaoss", "microkorg2"],
-  "description": "DJ air horn at the original recorded pitch. A pitch envelope recreates the opening drop, then a long 16-bit loop holds the settled tone.",
+  "description": "DJ air horn at the original recorded pitch. A pitch envelope recreates the opening drop, then a long 16-bit loop holds the settled tone. Still being fine-tuned; the official 1.0.0 release is coming soon.",
   "params": [
     { "name": "LEVEL", "role": "A", "detail": "Output level" },
     { "name": "FADE", "role": "Edit", "detail": "Sustain loop fade time (0 = flat hold; center = 1.8 s)" },

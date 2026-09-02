@@ -3,7 +3,7 @@
   "name": "Shaker",
   "type": "shaker",
   "targets": ["nts-1_mkii", "nts-3_kaoss"],
-  "description": "PhISEM shaker. Note on (mkII) or pad motion (NTS-3) injects energy.",
+  "description": "PhISEM shaker. Note on (mkII) or pad motion (NTS-3) injects energy. Still being fine-tuned; the official 1.0.0 release is coming soon.",
   "params": [
     { "name": "TYPE", "role": "A", "detail": "Instrument preset" },
     { "name": "DENS", "role": "B", "detail": "Object density scale" },

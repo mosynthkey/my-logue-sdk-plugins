@@ -21,7 +21,6 @@ public:
   static constexpr float kF1BaseHz = 40.f;
   static constexpr float kF1Ratio = 200.f;
   static constexpr float kF2MinHz = 55.f;
-  static constexpr float kHpfHz = 18.f;
   static constexpr float kLpfHz = 7500.f;
   static constexpr float kFadeTimeSec = 0.01f;
   static constexpr float kFeedback = 0.f;
@@ -33,6 +32,7 @@ public:
     INDEX = 0U,
     YMAX,
     DRIVE,
+    HPF,
     LEVEL,
     NUM_PARAMS
   };
@@ -50,6 +50,10 @@ public:
       break;
     case DRIVE:
       drive_ = value * 0.01f;
+      break;
+    case HPF:
+      hpf_hz_ = static_cast<float>(value);
+      updateFilterCoeffs();
       break;
     case LEVEL:
       level_ = value * 0.01f;
@@ -71,6 +75,7 @@ public:
     index_rad_ = 4.f;
     ymax_hz_ = 550.f;
     drive_ = 1.08f;
+    hpf_hz_ = 20.f;
     level_ = 0.28f;
     pad_x_ = 0.5f;
     pad_y_ = 0.5f;
@@ -169,7 +174,7 @@ private:
   void updateFilterCoeffs()
   {
     const float sample_rate = getSampleRate();
-    hpf_a_ = expf(-kTwoPi * kHpfHz / sample_rate);
+    hpf_a_ = expf(-kTwoPi * hpf_hz_ / sample_rate);
     lpf_a_ = 1.f - expf(-kTwoPi * kLpfHz / sample_rate);
   }
 
@@ -231,6 +236,7 @@ private:
   float index_rad_ = 4.f;
   float ymax_hz_ = 550.f;
   float drive_ = 1.08f;
+  float hpf_hz_ = 20.f;
   float level_ = 0.28f;
 
   float amp_env_ = 0.f;
