@@ -5,15 +5,16 @@
  */
 
 #include "unit_genericfx.h"
+#include "dev_id.h"
 
 const __unit_header genericfx_unit_header_t unit_header = {
     .common = {
         .header_size = sizeof(genericfx_unit_header_t),
         .target = UNIT_TARGET_PLATFORM | k_unit_module_genericfx,
         .api = UNIT_API_VERSION,
-        .dev_id = 0x0U,
+        .dev_id = MLSA_DEV_ID,
         .unit_id = 0x0000000CU,
-        .version = 0x00010000U,
+        .version = MLSA_VERSION_EXPERIMENTAL,
         .name = "GrainPad",
         .num_params = 7,
         .params = {

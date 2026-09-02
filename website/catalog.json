@@ -2,6 +2,32 @@
   "generatedAt": "2026-08-30T18:10:00.724477+00:00",
   "plugins": [
     {
+      "id": "autrance",
+      "name": "Autrance",
+      "type": "synth",
+      "experimental": true,
+      "targets": ["nts-3_kaoss"],
+      "description": "Trance pluck auto phrase generator for NTS-3. ROOT fixes the bass key; TYPE selects major or minor scale-faithful chord voicings. Each pad touch builds a chord and generates a 16-step bass + chord phrase. Bass uses the root and one octave up; chords play two octaves above ROOT.",
+      "params": [
+        { "name": "CUT", "role": "X", "detail": "Filter cutoff" },
+        { "name": "RES", "role": "Y", "detail": "Filter resonance" },
+        { "name": "MIX", "role": "Depth", "detail": "Dry/wet" },
+        { "name": "DEC", "role": "Edit", "detail": "Amp/filter decay (~100 ms to 1.4 s)" },
+        { "name": "ENV", "role": "Edit", "detail": "Filter envelope modulation" },
+        { "name": "ROOT", "role": "Edit", "detail": "Phrase root key (C1-C3, default C2)" },
+        { "name": "TYPE", "role": "Edit", "detail": "Chord quality: MIN or MAJ" }
+      ],
+      "builds": [
+        {
+          "target": "nts-3_kaoss",
+          "module": "genericfx",
+          "file": null,
+          "size": 0,
+          "wasm": "./sim/autrance/nts-3_kaoss/autrance.html"
+        }
+      ]
+    },
+    {
       "id": "fbackosc",
       "name": "FbOsc",
       "type": "osc",

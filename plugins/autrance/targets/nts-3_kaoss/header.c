@@ -40,24 +40,26 @@
  */
 
 #include "unit_genericfx.h"
+#include "dev_id.h"
 
 const __unit_header genericfx_unit_header_t unit_header = {
     .common = {
         .header_size = sizeof(genericfx_unit_header_t),
         .target = UNIT_TARGET_PLATFORM | k_unit_module_genericfx,
         .api = UNIT_API_VERSION,
-        .dev_id = 0x0U,
+        .dev_id = MLSA_DEV_ID,
         .unit_id = 0x0000000CU,
-        .version = 0x00010000U,
+        .version = MLSA_VERSION_EXPERIMENTAL,
         .name = "Autrance",
-        .num_params = 6,
+        .num_params = 7,
         .params = {
             {0, 1023, 0, 593, k_unit_param_type_none, 0, 0, 0, {"CUT"}},
             {0, 1023, 0, 430, k_unit_param_type_none, 0, 0, 0, {"RES"}},
             {0, 1000, 0, 1000, k_unit_param_type_percent, 1, 1, 0, {"MIX"}},
             {0, 1023, 0, 461, k_unit_param_type_none, 0, 0, 0, {"DEC"}},
             {0, 1023, 0, 665, k_unit_param_type_none, 0, 0, 0, {"ENV"}},
-            {24, 48, 36, 36, k_unit_param_type_midi_note, 0, 0, 0, {"ROOT"}}},
+            {24, 48, 36, 36, k_unit_param_type_midi_note, 0, 0, 0, {"ROOT"}},
+            {0, 1, 0, 0, k_unit_param_type_strings, 0, 0, 0, {"TYPE"}}},
     },
     .default_mappings = {
         {k_genericfx_param_assign_x, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1023, 593},
@@ -66,5 +68,6 @@ const __unit_header genericfx_unit_header_t unit_header = {
         {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1023, 461},
         {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1023, 665},
         {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 24, 48, 36},
+        {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1, 0},
     },
 };

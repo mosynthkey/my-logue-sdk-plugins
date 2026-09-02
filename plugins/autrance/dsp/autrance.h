@@ -6,8 +6,9 @@
  * Polyphonic trance pluck phrase generator for NTS-3 kaoss pad. ROOT sets the
  * fixed bass key; each pad touch builds a chord from that root and generates a
  * 16-step bass + chord phrase. Bass uses the root and one octave up. Chord hits
- * play either a full voicing or an arpeggiated tone. X = cutoff, Y = resonance,
- * Depth = mix, DEC = amp/filter decay, ENV = filter envelope depth.
+ * play two octaves above ROOT, either as block voicings or arpeggios.
+ * Each layer is paraphonic with 4-voice supersaw unison oscillators sharing one
+ * filter envelope. TYPE selects major or minor scale-faithful chord voicings.
  */
 
 #include "macros.h"
@@ -20,19 +21,22 @@ class Autrance : public Processor
 {
 public:
   static constexpr uint32_t kStepsPerBar = 16U;
-  static constexpr uint32_t kMaxVoices = 8U;
+  static constexpr uint32_t kUnisonCount = 4U;
+  static constexpr uint32_t kMaxStackedNotes = 7U;
   static constexpr uint32_t kMaxChordTones = 7U;
-  static constexpr float kOutputGain = 0.62f;
-  static constexpr float kAttackSec = 0.004f;
-  static constexpr float kReleaseSec = 0.05f;
-  static constexpr float kMinDecaySec = 0.12f;
-  static constexpr float kMaxDecaySec = 0.65f;
-  static constexpr float kGateFraction = 0.72f;
+  static constexpr uint32_t kParaphonicLayerCount = 2U;
+  static constexpr float kOutputGain = 0.55f;
+  static constexpr float kUnisonVoiceGain = 0.27f;
+  static constexpr float kFilterInputGain = 0.68f;
+  static constexpr float kMinFilterCutoffHz = 120.f;
+  static constexpr float kChordOctaveOffset = 24.f;
+  static constexpr float kMinDecaySec = 0.1f;
+  static constexpr float kMaxDecaySec = 1.4f;
+  static constexpr float kGateFraction = 0.92f;
   static constexpr float kEnvelopeFloor = 0.0001f;
   static constexpr float kEnvelopeLogFloor = -9.21034037f;
   static constexpr float kParamSmoothCoeff = 0.0015f;
   static constexpr uint32_t kPhraseStyleCount = 6U;
-  static constexpr uint32_t kChordVoicingCount = 6U;
 
   uint32_t getBufferSize() const override final { return 0; }
 
@@ -44,6 +48,7 @@ public:
     DEC,
     ENV,
     ROOT,
+    TYPE,
     NUM_PARAMS
   };
 
@@ -81,6 +86,9 @@ public:
       root_note_ = static_cast<int8_t>(midi_note);
       break;
     }
+    case TYPE:
+      major_quality_ = value != 0;
+      break;
     default:
       break;
     }
@@ -88,6 +96,9 @@ public:
 
   const char *getParameterStrValue(uint8_t index, int32_t value) const override final
   {
+    if (index == TYPE)
+      return value != 0 ? "MAJ" : "MIN";
+
     if (index != ROOT)
       return nullptr;
 
@@ -129,15 +140,13 @@ public:
     decay_norm_ = 0.45f;
     env_mod_norm_ = 0.65f;
     root_note_ = 36;
+    major_quality_ = false;
     bpm_ = 120.f;
-    const float sample_rate = getSampleRate();
-    attack_step_ = 1.f / (kAttackSec * sample_rate);
     updateDecayCoeff();
-    samples_per_tick_ = sample_rate * 15.f / bpm_;
+    samples_per_tick_ = getSampleRate() * 15.f / bpm_;
     running_ = false;
     phrase_seed_ = 1U;
     chord_tone_count_ = 0U;
-    next_voice_index_ = 0U;
     resetVoices();
     generatePhrase(phrase_seed_);
   }
@@ -217,6 +226,12 @@ public:
   }
 
 private:
+  enum ParaphonicLayer : uint8_t
+  {
+    kLayerBass = 0U,
+    kLayerChord = 1U
+  };
+
   enum ChordStepMode : uint8_t
   {
     kChordRest = 0U,
@@ -236,24 +251,22 @@ private:
     uint8_t arp_tone_index = 0U;
   };
 
-  struct ChordVoicing
-  {
-    const int8_t *intervals;
-    uint8_t count;
-  };
-
-  struct Voice
+  struct ParaphonicVoice
   {
     bool active = false;
     bool releasing = false;
-    float phase = 0.f;
-    float phase_inc = 0.f;
     float env = 0.f;
     float filter_env = 0.f;
     float velocity = 1.f;
     float gate_samples_remaining = 0.f;
-    float filter_state = 0.f;
+    float svf_ic1 = 0.f;
+    float svf_ic2 = 0.f;
+    uint8_t note_count = 0U;
+    float unison_phase[kMaxStackedNotes][kUnisonCount] = {};
+    float unison_phase_inc[kMaxStackedNotes][kUnisonCount] = {};
   };
+
+  static constexpr float kUnisonDetuneCents[kUnisonCount] = {-16.f, -6.f, 6.f, 16.f};
 
   static uint32_t mixSeed(uint32_t counter, uint32_t x, uint32_t y)
   {
@@ -298,17 +311,72 @@ private:
     return (440.f / getSampleRate()) * fasterpow2f(semitones * (1.f / 12.f));
   }
 
+  static float unisonDetuneRatio(uint32_t unisonIndex)
+  {
+    return fasterpow2f(kUnisonDetuneCents[unisonIndex] * (1.f / 1200.f));
+  }
+
+  static float seedPhase(uint32_t layer_index, uint32_t note_index, uint32_t unison_index)
+  {
+    const uint32_t hash = layer_index * 73856093U + note_index * 19349663U + unison_index * 83492791U + 17U;
+    return static_cast<float>(hash & 0xFFFFU) * (1.f / 65536.f);
+  }
+
   void updateDecayCoeff()
   {
     const float decay_sec = kMinDecaySec + decay_norm_ * (kMaxDecaySec - kMinDecaySec);
     const float sample_rate = getSampleRate();
     amp_decay_coeff_ = fasterexpf(kEnvelopeLogFloor / (decay_sec * sample_rate));
-    release_coeff_ = fasterexpf(kEnvelopeLogFloor / (kReleaseSec * sample_rate));
-    filter_decay_coeff_ = fasterexpf(kEnvelopeLogFloor / (decay_sec * sample_rate));
-    filter_release_coeff_ = filter_decay_coeff_;
+    filter_decay_coeff_ = amp_decay_coeff_;
+    release_coeff_ = amp_decay_coeff_;
+    filter_release_coeff_ = amp_decay_coeff_;
   }
 
-  void releaseVoice(Voice &voice)
+  static float baseCutoffHz(float cutoff_norm)
+  {
+    return 90.f * fasterpow2f(2.2f + cutoff_norm * 5.8f);
+  }
+
+  static float filterCutoffHz(float base_cutoff_hz, float filter_env, float env_mod_norm)
+  {
+    const float env_octaves = 1.f + env_mod_norm * 6.f;
+    const float env_mul = fasterpow2f(env_octaves * (filter_env - 1.f));
+    return clipRange(base_cutoff_hz * env_mul, kMinFilterCutoffHz, 18000.f);
+  }
+
+  static float resonanceQ(float resonance_norm)
+  {
+    return 1.f + resonance_norm * resonance_norm * 15.f;
+  }
+
+  static float resonanceComp(float resonance_norm)
+  {
+    return 1.f / (1.f + resonance_norm * resonance_norm * 4.f);
+  }
+
+  static float softClip(float sample)
+  {
+    return sample / (1.f + fabsf(sample) * 0.4f);
+  }
+
+  float processResonantLowpass(float input, float cutoff_hz, float resonance_norm, float &ic1, float &ic2)
+  {
+    const float fc = clipRange(cutoff_hz, kMinFilterCutoffHz, 16000.f);
+    const float g = fastertanfullf(3.14159265f * fc / getSampleRate());
+    const float k = 1.f / resonanceQ(resonance_norm);
+    const float a1 = 1.f / (1.f + g * (g + k));
+    const float a2 = g * a1;
+    const float a3 = g * a2;
+
+    const float v3 = input - ic2;
+    const float v1 = a1 * ic1 + a2 * v3;
+    const float v2 = ic2 + a2 * ic1 + a3 * v3;
+    ic1 = clipRange(2.f * v1 - ic1, -4.f, 4.f);
+    ic2 = clipRange(2.f * v2 - ic2, -4.f, 4.f);
+    return v2;
+  }
+
+  void releaseVoice(ParaphonicVoice &voice)
   {
     if (!voice.active)
       return;
@@ -317,14 +385,14 @@ private:
 
   void releaseAllVoices()
   {
-    for (uint32_t voiceIndex = 0; voiceIndex < kMaxVoices; ++voiceIndex)
-      releaseVoice(voices_[voiceIndex]);
+    for (uint32_t layerIndex = 0; layerIndex < kParaphonicLayerCount; ++layerIndex)
+      releaseVoice(paraphonic_voices_[layerIndex]);
   }
 
   void resetVoices()
   {
-    for (uint32_t voiceIndex = 0; voiceIndex < kMaxVoices; ++voiceIndex)
-      voices_[voiceIndex] = Voice();
+    for (uint32_t layerIndex = 0; layerIndex < kParaphonicLayerCount; ++layerIndex)
+      paraphonic_voices_[layerIndex] = ParaphonicVoice();
     step_index_ = 0U;
     samples_until_tick_ = samples_per_tick_;
   }
@@ -339,36 +407,16 @@ private:
     chord_tone_count_ = 0U;
   }
 
-  ChordVoicing pickChordVoicing(uint32_t voicing_id) const
-  {
-    static const int8_t kMin7_9[] = {0, 3, 7, 10, 14};
-    static const int8_t kMin7_911[] = {0, 3, 7, 10, 14, 17};
-    static const int8_t kMin7_Full[] = {0, 3, 7, 10, 14, 17, 21};
-    static const int8_t kMaj7_9[] = {0, 4, 7, 11, 14};
-    static const int8_t kMaj7_911[] = {0, 4, 7, 11, 14, 17};
-    static const int8_t kSus4_7_9[] = {0, 5, 7, 10, 14};
-
-    static const ChordVoicing kVoicings[] = {
-        {kMin7_9, 5U},
-        {kMin7_911, 6U},
-        {kMin7_Full, 7U},
-        {kMaj7_9, 5U},
-        {kMaj7_911, 6U},
-        {kSus4_7_9, 5U},
-    };
-
-    return kVoicings[voicing_id % kChordVoicingCount];
-  }
-
   void buildChord(uint32_t &rng)
   {
-    const ChordVoicing voicing = pickChordVoicing(randomIndex(rng, kChordVoicingCount));
-    chord_tone_count_ = voicing.count;
-    if (chord_tone_count_ > kMaxChordTones)
-      chord_tone_count_ = kMaxChordTones;
+    (void)rng;
+    static const int8_t kMaj7[] = {0, 4, 7, 11};
+    static const int8_t kMin7[] = {0, 3, 7, 10};
+    const int8_t *intervals = major_quality_ ? kMaj7 : kMin7;
 
+    chord_tone_count_ = 4U;
     for (uint32_t toneIndex = 0; toneIndex < chord_tone_count_; ++toneIndex)
-      chord_tones_[toneIndex] = voicing.intervals[toneIndex];
+      chord_tones_[toneIndex] = intervals[toneIndex];
   }
 
   void generateBassLayer(uint32_t &rng, uint32_t style)
@@ -590,29 +638,46 @@ private:
     ensurePhraseActivity(rng);
   }
 
-  void startVoice(float midi_note, float velocity)
+  void startParaphonicVoice(uint8_t layer_index, const float *midi_notes, uint8_t note_count, float velocity)
   {
-    Voice &voice = voices_[next_voice_index_];
-    next_voice_index_ = (next_voice_index_ + 1U) % kMaxVoices;
+    if (layer_index >= kParaphonicLayerCount || note_count == 0U)
+      return;
 
+    ParaphonicVoice &voice = paraphonic_voices_[layer_index];
     voice.active = true;
     voice.releasing = false;
-    voice.phase = 0.f;
-    voice.phase_inc = noteToPhaseInc(midi_note);
     voice.env = 0.f;
     voice.filter_env = 1.f;
     voice.velocity = clipRange(velocity, 0.25f, 1.f);
     voice.gate_samples_remaining = samples_per_tick_ * kGateFraction;
-    voice.filter_state = 0.f;
+    voice.svf_ic1 = 0.f;
+    voice.svf_ic2 = 0.f;
+    voice.note_count = note_count;
+
+    for (uint8_t noteIndex = 0; noteIndex < note_count; ++noteIndex)
+    {
+      const float base_phase_inc = noteToPhaseInc(midi_notes[noteIndex]);
+      for (uint32_t unisonIndex = 0; unisonIndex < kUnisonCount; ++unisonIndex)
+      {
+        voice.unison_phase_inc[noteIndex][unisonIndex] = base_phase_inc * unisonDetuneRatio(unisonIndex);
+        voice.unison_phase[noteIndex][unisonIndex] = seedPhase(layer_index, noteIndex, unisonIndex);
+      }
+    }
   }
 
   void triggerBass(const BassStep &bass)
   {
+    float midi_notes[2];
+    uint8_t note_count = 0U;
     const float root_pitch = static_cast<float>(root_note_);
+
     if (bass.root)
-      startVoice(root_pitch, 0.92f);
+      midi_notes[note_count++] = root_pitch;
     if (bass.octave_up)
-      startVoice(root_pitch + 12.f, 0.84f);
+      midi_notes[note_count++] = root_pitch + 12.f;
+
+    if (note_count > 0U)
+      startParaphonicVoice(kLayerBass, midi_notes, note_count, 0.92f);
   }
 
   void triggerChord(const ChordStep &chord)
@@ -620,17 +685,22 @@ private:
     if (chord_tone_count_ == 0U || chord.mode == kChordRest)
       return;
 
-    const float root_pitch = static_cast<float>(root_note_);
+    const float root_pitch = static_cast<float>(root_note_) + kChordOctaveOffset;
+    float midi_notes[kMaxStackedNotes];
+    uint8_t note_count = 0U;
 
     if (chord.mode == kChordBlock)
     {
       for (uint32_t toneIndex = 0; toneIndex < chord_tone_count_; ++toneIndex)
-        startVoice(root_pitch + static_cast<float>(chord_tones_[toneIndex]), 0.72f);
-      return;
+        midi_notes[note_count++] = root_pitch + static_cast<float>(chord_tones_[toneIndex]);
+    }
+    else
+    {
+      const uint8_t tone_index = static_cast<uint8_t>(chord.arp_tone_index % chord_tone_count_);
+      midi_notes[note_count++] = root_pitch + static_cast<float>(chord_tones_[tone_index]);
     }
 
-    const uint8_t tone_index = static_cast<uint8_t>(chord.arp_tone_index % chord_tone_count_);
-    startVoice(root_pitch + static_cast<float>(chord_tones_[tone_index]), 0.78f);
+    startParaphonicVoice(kLayerChord, midi_notes, note_count, 0.78f);
   }
 
   void triggerStep(uint32_t step_index)
@@ -662,7 +732,26 @@ private:
     }
   }
 
-  float renderVoice(Voice &voice, float cutoff_base_hz, float resonance_q, float env_depth)
+  float renderUnisonSaw(ParaphonicVoice &voice)
+  {
+    float saw_sum = 0.f;
+    for (uint8_t noteIndex = 0; noteIndex < voice.note_count; ++noteIndex)
+    {
+      for (uint32_t unisonIndex = 0; unisonIndex < kUnisonCount; ++unisonIndex)
+      {
+        float &phase = voice.unison_phase[noteIndex][unisonIndex];
+        phase += voice.unison_phase_inc[noteIndex][unisonIndex];
+        if (phase >= 1.f)
+          phase -= 1.f;
+        saw_sum += 2.f * phase - 1.f;
+      }
+    }
+
+    const float osc_count = static_cast<float>(voice.note_count * kUnisonCount);
+    return saw_sum * (kUnisonVoiceGain / osc_count);
+  }
+
+  float renderParaphonicVoice(ParaphonicVoice &voice, float base_cutoff_hz, float resonance_norm, float env_mod_norm)
   {
     if (!voice.active)
       return 0.f;
@@ -675,15 +764,8 @@ private:
     else
     {
       if (voice.env < 1.f)
-      {
-        voice.env += attack_step_;
-        if (voice.env > 1.f)
-          voice.env = 1.f;
-      }
-      else
-      {
-        voice.env *= amp_decay_coeff_;
-      }
+        voice.env = 1.f;
+      voice.env *= amp_decay_coeff_;
       voice.filter_env *= filter_decay_coeff_;
     }
 
@@ -699,35 +781,29 @@ private:
       voice.active = false;
       voice.env = 0.f;
       voice.filter_env = 0.f;
-      voice.filter_state = 0.f;
+      voice.svf_ic1 = 0.f;
+      voice.svf_ic2 = 0.f;
+      voice.note_count = 0U;
       return 0.f;
     }
 
-    voice.phase += voice.phase_inc;
-    if (voice.phase >= 1.f)
-      voice.phase -= 1.f;
-    const float saw = 2.f * voice.phase - 1.f;
-
-    const float filter_mod = 0.12f + env_depth * voice.filter_env;
-    const float cutoff_hz = clipRange(cutoff_base_hz * filter_mod, 150.f, 14000.f);
-    const float omega = 6.2831853f * cutoff_hz / getSampleRate();
-    const float filter_coeff = clipRange(omega / (1.f + omega), 0.002f, 0.96f);
-    const float resonance_mix = clipRange(resonance_q * 0.1f, 0.f, 0.75f);
-
-    voice.filter_state += filter_coeff * (saw - voice.filter_state);
-    const float filtered = voice.filter_state + resonance_mix * (saw - voice.filter_state);
-    return filtered * voice.env * voice.velocity;
+    const float saw = renderUnisonSaw(voice);
+    const float cutoff_hz = filterCutoffHz(base_cutoff_hz, voice.filter_env, env_mod_norm);
+    const float filtered =
+        processResonantLowpass(saw * kFilterInputGain, cutoff_hz, resonance_norm, voice.svf_ic1, voice.svf_ic2);
+    const float res_comp = resonanceComp(resonance_norm);
+    return softClip(filtered * voice.env * voice.velocity * res_comp);
   }
 
   float renderSample()
   {
-    const float cutoff_hz = 300.f + cutoff_norm_smooth_ * 7200.f;
-    const float resonance_q = 0.35f + resonance_norm_smooth_ * 8.5f;
-    const float env_depth = 0.25f + env_mod_norm_ * 3.75f;
+    const float base_cutoff_hz = baseCutoffHz(cutoff_norm_smooth_);
+    const float resonance_norm = resonance_norm_smooth_;
+    const float env_mod_norm = env_mod_norm_;
 
     float wet = 0.f;
-    for (uint32_t voiceIndex = 0; voiceIndex < kMaxVoices; ++voiceIndex)
-      wet += renderVoice(voices_[voiceIndex], cutoff_hz, resonance_q, env_depth);
+    for (uint32_t layerIndex = 0; layerIndex < kParaphonicLayerCount; ++layerIndex)
+      wet += renderParaphonicVoice(paraphonic_voices_[layerIndex], base_cutoff_hz, resonance_norm, env_mod_norm);
 
     return wet;
   }
@@ -735,10 +811,9 @@ private:
   BassStep bass_steps_[kStepsPerBar];
   ChordStep chord_steps_[kStepsPerBar];
   int8_t chord_tones_[kMaxChordTones];
-  Voice voices_[kMaxVoices];
+  ParaphonicVoice paraphonic_voices_[kParaphonicLayerCount];
   uint32_t phrase_seed_ = 1U;
   uint32_t step_index_ = 0U;
-  uint32_t next_voice_index_ = 0U;
   uint8_t chord_tone_count_ = 0U;
   float cutoff_norm_target_ = 0.58f;
   float resonance_norm_target_ = 0.42f;
@@ -748,10 +823,10 @@ private:
   float decay_norm_ = 0.45f;
   float env_mod_norm_ = 0.65f;
   int8_t root_note_ = 36;
+  bool major_quality_ = false;
   float bpm_ = 120.f;
   float samples_per_tick_ = 6000.f;
   float samples_until_tick_ = 6000.f;
-  float attack_step_ = 0.005f;
   float amp_decay_coeff_ = 0.9995f;
   float release_coeff_ = 0.998f;
   float filter_decay_coeff_ = 0.9995f;

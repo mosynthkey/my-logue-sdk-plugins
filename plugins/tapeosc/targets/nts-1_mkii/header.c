@@ -40,14 +40,15 @@
  */
 
 #include "unit_osc.h"
+#include "dev_id.h"
 
 const __unit_header unit_header_t unit_header = {
     .header_size = sizeof(unit_header_t),
     .target = UNIT_TARGET_PLATFORM | k_unit_module_osc,
     .api = UNIT_API_VERSION,
-    .dev_id = 0x0U,
+    .dev_id = MLSA_DEV_ID,
     .unit_id = 0x00000009U,
-    .version = 0x00010000U,
+    .version = MLSA_VERSION_EXPERIMENTAL,
     .name = "TapeOsc",
     .num_params = 6,
     .params = {
