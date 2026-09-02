@@ -192,11 +192,10 @@ body.modal-open {
   border: 1px solid var(--line-strong);
   background: transparent;
   color: var(--muted);
-  font-size: 0.62rem;
+  font-size: 0.64rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.01em;
   line-height: 1.4;
-  text-transform: uppercase;
 }
 
 .plugin-nav__item.is-active .plugin-nav__pill {
