@@ -3,10 +3,11 @@
 /*
  * File: autrance.h
  *
- * Polyphonic trance pluck phrase generator for NTS-3 kaoss pad. Hold the pad
- * to run a 16-step sequencer; each new touch regenerates root rhythm and chord
- * extension layers independently. Chord hits add 9th, 11th, and 13th intervals
- * above the active root degree. X = cutoff, Y = resonance, Depth = mix.
+ * Polyphonic trance pluck phrase generator for NTS-3 kaoss pad. ROOT sets the
+ * fixed bass key; each pad touch builds a chord from that root and generates a
+ * 16-step bass + chord phrase. Bass uses the root and one octave up. Chord hits
+ * play either a full voicing or an arpeggiated tone. X = cutoff, Y = resonance,
+ * Depth = mix, DEC = amp/filter decay, ENV = filter envelope depth.
  */
 
 #include "macros.h"
@@ -20,10 +21,8 @@ class Autrance : public Processor
 public:
   static constexpr uint32_t kStepsPerBar = 16U;
   static constexpr uint32_t kMaxVoices = 8U;
+  static constexpr uint32_t kMaxChordTones = 7U;
   static constexpr float kOutputGain = 0.62f;
-  static constexpr float kNinthInterval = 14.f;
-  static constexpr float kEleventhInterval = 17.f;
-  static constexpr float kThirteenthInterval = 21.f;
   static constexpr float kAttackSec = 0.004f;
   static constexpr float kReleaseSec = 0.05f;
   static constexpr float kMinDecaySec = 0.12f;
@@ -33,6 +32,7 @@ public:
   static constexpr float kEnvelopeLogFloor = -9.21034037f;
   static constexpr float kParamSmoothCoeff = 0.0015f;
   static constexpr uint32_t kPhraseStyleCount = 6U;
+  static constexpr uint32_t kChordVoicingCount = 6U;
 
   uint32_t getBufferSize() const override final { return 0; }
 
@@ -136,7 +136,7 @@ public:
     samples_per_tick_ = sample_rate * 15.f / bpm_;
     running_ = false;
     phrase_seed_ = 1U;
-    active_root_degree_ = 0;
+    chord_tone_count_ = 0U;
     next_voice_index_ = 0U;
     resetVoices();
     generatePhrase(phrase_seed_);
@@ -186,7 +186,6 @@ public:
     resetVoices();
     step_index_ = 0U;
     samples_until_tick_ = samples_per_tick_;
-    active_root_degree_ = 0;
     running_ = true;
     triggerStep(0U);
   }
@@ -218,16 +217,29 @@ public:
   }
 
 private:
-  struct RootStep
+  enum ChordStepMode : uint8_t
   {
-    int8_t degree = -1;
+    kChordRest = 0U,
+    kChordBlock = 1U,
+    kChordArpeggio = 2U
+  };
+
+  struct BassStep
+  {
+    bool root = false;
+    bool octave_up = false;
   };
 
   struct ChordStep
   {
-    bool ninth = false;
-    bool eleventh = false;
-    bool thirteenth = false;
+    ChordStepMode mode = kChordRest;
+    uint8_t arp_tone_index = 0U;
+  };
+
+  struct ChordVoicing
+  {
+    const int8_t *intervals;
+    uint8_t count;
   };
 
   struct Voice
@@ -237,6 +249,7 @@ private:
     float phase = 0.f;
     float phase_inc = 0.f;
     float env = 0.f;
+    float filter_env = 0.f;
     float velocity = 1.f;
     float gate_samples_remaining = 0.f;
     float filter_state = 0.f;
@@ -291,6 +304,8 @@ private:
     const float sample_rate = getSampleRate();
     amp_decay_coeff_ = fasterexpf(kEnvelopeLogFloor / (decay_sec * sample_rate));
     release_coeff_ = fasterexpf(kEnvelopeLogFloor / (kReleaseSec * sample_rate));
+    filter_decay_coeff_ = fasterexpf(kEnvelopeLogFloor / (decay_sec * sample_rate));
+    filter_release_coeff_ = filter_decay_coeff_;
   }
 
   void releaseVoice(Voice &voice)
@@ -318,130 +333,77 @@ private:
   {
     for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
     {
-      root_steps_[stepIndex].degree = -1;
-      chord_steps_[stepIndex].ninth = false;
-      chord_steps_[stepIndex].eleventh = false;
-      chord_steps_[stepIndex].thirteenth = false;
+      bass_steps_[stepIndex] = BassStep();
+      chord_steps_[stepIndex] = ChordStep();
     }
+    chord_tone_count_ = 0U;
   }
 
-  int8_t randomScaleDegree(uint32_t &rng, uint32_t scale_id) const
+  ChordVoicing pickChordVoicing(uint32_t voicing_id) const
   {
-    static const int8_t kMajor[] = {0, 2, 4, 5, 7, 9, 11, 12, 14, 16};
-    static const int8_t kNaturalMinor[] = {0, 2, 3, 5, 7, 8, 10, 12, 14};
-    static const int8_t kMinorPent[] = {0, 3, 5, 7, 10, 12, 15};
-    static const int8_t kDorian[] = {0, 2, 3, 5, 7, 9, 10, 12, 14};
-    static const int8_t kMajorPent[] = {0, 2, 4, 7, 9, 12, 14};
-    static const int8_t kHarmonicMinor[] = {0, 2, 3, 5, 7, 8, 11, 12};
+    static const int8_t kMin7_9[] = {0, 3, 7, 10, 14};
+    static const int8_t kMin7_911[] = {0, 3, 7, 10, 14, 17};
+    static const int8_t kMin7_Full[] = {0, 3, 7, 10, 14, 17, 21};
+    static const int8_t kMaj7_9[] = {0, 4, 7, 11, 14};
+    static const int8_t kMaj7_911[] = {0, 4, 7, 11, 14, 17};
+    static const int8_t kSus4_7_9[] = {0, 5, 7, 10, 14};
 
-    const int8_t *degrees = kMajor;
-    uint32_t length = 10U;
-    switch (scale_id % 6U)
-    {
-    case 1:
-      degrees = kNaturalMinor;
-      length = 9U;
-      break;
-    case 2:
-      degrees = kMinorPent;
-      length = 7U;
-      break;
-    case 3:
-      degrees = kDorian;
-      length = 9U;
-      break;
-    case 4:
-      degrees = kMajorPent;
-      length = 7U;
-      break;
-    case 5:
-      degrees = kHarmonicMinor;
-      length = 8U;
-      break;
-    default:
-      break;
-    }
-    return degrees[randomIndex(rng, length)];
+    static const ChordVoicing kVoicings[] = {
+        {kMin7_9, 5U},
+        {kMin7_911, 6U},
+        {kMin7_Full, 7U},
+        {kMaj7_9, 5U},
+        {kMaj7_911, 6U},
+        {kSus4_7_9, 5U},
+    };
+
+    return kVoicings[voicing_id % kChordVoicingCount];
   }
 
-  int8_t clampDegree(int32_t degree) const
+  void buildChord(uint32_t &rng)
   {
-    while (degree < 0)
-      degree += 12;
-    while (degree > 17)
-      degree -= 12;
-    return static_cast<int8_t>(degree);
+    const ChordVoicing voicing = pickChordVoicing(randomIndex(rng, kChordVoicingCount));
+    chord_tone_count_ = voicing.count;
+    if (chord_tone_count_ > kMaxChordTones)
+      chord_tone_count_ = kMaxChordTones;
+
+    for (uint32_t toneIndex = 0; toneIndex < chord_tone_count_; ++toneIndex)
+      chord_tones_[toneIndex] = voicing.intervals[toneIndex];
   }
 
-  void assignChordExtensions(uint32_t &rng, uint32_t stepIndex, uint32_t style_id)
-  {
-    ChordStep &step = chord_steps_[stepIndex];
-    step.ninth = false;
-    step.eleventh = false;
-    step.thirteenth = false;
-
-    switch (style_id % 4U)
-    {
-    case 0:
-      step.ninth = true;
-      step.eleventh = randomFloat(rng) > 0.35f;
-      step.thirteenth = randomFloat(rng) > 0.45f;
-      break;
-    case 1:
-      step.ninth = randomFloat(rng) > 0.25f;
-      step.eleventh = true;
-      step.thirteenth = randomFloat(rng) > 0.4f;
-      break;
-    case 2:
-      step.ninth = true;
-      step.eleventh = true;
-      step.thirteenth = true;
-      break;
-    default:
-      if (randomFloat(rng) > 0.5f)
-        step.ninth = true;
-      else if (randomFloat(rng) > 0.5f)
-        step.eleventh = true;
-      else
-        step.thirteenth = true;
-      break;
-    }
-  }
-
-  void generateRootLayer(uint32_t &rng, uint32_t style, uint32_t scale_id)
+  void generateBassLayer(uint32_t &rng, uint32_t style)
   {
     switch (style % kPhraseStyleCount)
     {
     case 0:
     {
-      const uint32_t pulses = 4U + randomIndex(rng, 7U);
+      const uint32_t pulses = 4U + randomIndex(rng, 5U);
       for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
       {
         if (!euclideanGate(stepIndex, pulses, kStepsPerBar))
           continue;
-        root_steps_[stepIndex].degree = randomScaleDegree(rng, scale_id);
+        bass_steps_[stepIndex].root = true;
+        if ((stepIndex & 1U) == 0U)
+          bass_steps_[stepIndex].octave_up = randomFloat(rng) > 0.45f;
       }
       break;
     }
     case 1:
     {
-      const uint32_t hit_count = 3U + randomIndex(rng, 5U);
-      uint32_t placed = 0U;
-      uint32_t guard = 0U;
-      while (placed < hit_count && guard < 48U)
-      {
-        const uint32_t stepIndex = randomIndex(rng, kStepsPerBar);
-        ++guard;
-        if (root_steps_[stepIndex].degree >= 0)
-          continue;
-        root_steps_[stepIndex].degree = randomScaleDegree(rng, scale_id);
-        ++placed;
-      }
+      for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; stepIndex += 4U)
+        bass_steps_[stepIndex].root = true;
+      for (uint32_t stepIndex = 2; stepIndex < kStepsPerBar; stepIndex += 4U)
+        bass_steps_[stepIndex].octave_up = true;
       break;
     }
     case 2:
       for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; stepIndex += 2U)
-        root_steps_[stepIndex].degree = randomScaleDegree(rng, scale_id);
+      {
+        if ((stepIndex & 2U) == 0U)
+          bass_steps_[stepIndex].root = true;
+        else
+          bass_steps_[stepIndex].octave_up = true;
+      }
       break;
     case 3:
     {
@@ -458,71 +420,106 @@ private:
           hit = cell != 1U;
         if (!hit)
           continue;
-        root_steps_[stepIndex].degree = randomScaleDegree(rng, scale_id);
+        if (randomFloat(rng) > 0.55f)
+          bass_steps_[stepIndex].octave_up = true;
+        else
+          bass_steps_[stepIndex].root = true;
       }
       break;
     }
     case 4:
     {
-      int32_t cursor = (randomFloat(rng) > 0.5f) ? 0 : 7;
-      const int32_t walk = (cursor == 0) ? 2 : -2;
       for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
       {
         if ((stepIndex % 3U) == 2U && randomFloat(rng) > 0.35f)
           continue;
-        root_steps_[stepIndex].degree = clampDegree(cursor);
-        cursor += walk;
+        bass_steps_[stepIndex].root = true;
+        if ((stepIndex & 1U) == 1U)
+          bass_steps_[stepIndex].octave_up = true;
       }
       break;
     }
     default:
-    {
-      const int8_t motif_a = randomScaleDegree(rng, scale_id);
-      int8_t motif_b = randomScaleDegree(rng, scale_id);
-      if (motif_b == motif_a)
-        motif_b = clampDegree(motif_a + 7);
       for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
-        root_steps_[stepIndex].degree = ((stepIndex & 1U) == 0U) ? motif_a : motif_b;
+        bass_steps_[stepIndex].root = ((stepIndex & 1U) == 0U);
+      for (uint32_t stepIndex = 1; stepIndex < kStepsPerBar; stepIndex += 4U)
+        bass_steps_[stepIndex].octave_up = true;
       break;
-    }
     }
   }
 
-  void generateChordLayer(uint32_t &rng, uint32_t style, uint32_t chord_style)
+  void generateChordLayer(uint32_t &rng, uint32_t style, bool prefer_arpeggio)
   {
+    if (chord_tone_count_ == 0U)
+      return;
+
+    uint8_t arp_cursor = 0U;
+
     switch (style % kPhraseStyleCount)
     {
     case 0:
     {
-      const uint32_t pulses = 2U + randomIndex(rng, 5U);
+      const uint32_t pulses = 2U + randomIndex(rng, 4U);
       for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
       {
         if (!euclideanGate(stepIndex, pulses, kStepsPerBar))
           continue;
-        assignChordExtensions(rng, stepIndex, chord_style);
+        ChordStep &step = chord_steps_[stepIndex];
+        if (prefer_arpeggio && randomFloat(rng) > 0.35f)
+        {
+          step.mode = kChordArpeggio;
+          step.arp_tone_index = arp_cursor;
+          arp_cursor = static_cast<uint8_t>((arp_cursor + 1U) % chord_tone_count_);
+        }
+        else
+        {
+          step.mode = kChordBlock;
+        }
       }
       break;
     }
     case 1:
     {
       for (uint32_t stepIndex = 1; stepIndex < kStepsPerBar; stepIndex += 4U)
-        assignChordExtensions(rng, stepIndex, chord_style);
-      if (randomFloat(rng) > 0.4f)
-        assignChordExtensions(rng, 3U, chord_style);
+      {
+        ChordStep &step = chord_steps_[stepIndex];
+        step.mode = prefer_arpeggio ? kChordArpeggio : kChordBlock;
+        if (step.mode == kChordArpeggio)
+        {
+          step.arp_tone_index = arp_cursor;
+          arp_cursor = static_cast<uint8_t>((arp_cursor + 1U) % chord_tone_count_);
+        }
+      }
       break;
     }
     case 2:
       for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
       {
-        if ((stepIndex & 1U) != 0U)
-          assignChordExtensions(rng, stepIndex, chord_style);
+        if ((stepIndex & 1U) == 0U)
+          continue;
+        ChordStep &step = chord_steps_[stepIndex];
+        step.mode = kChordArpeggio;
+        step.arp_tone_index = arp_cursor;
+        arp_cursor = static_cast<uint8_t>((arp_cursor + 1U) % chord_tone_count_);
       }
       break;
     case 3:
     {
       const uint32_t offset = randomIndex(rng, 4U);
       for (uint32_t stepIndex = offset; stepIndex < kStepsPerBar; stepIndex += 4U)
-        assignChordExtensions(rng, stepIndex, chord_style);
+      {
+        ChordStep &step = chord_steps_[stepIndex];
+        if (prefer_arpeggio || randomFloat(rng) > 0.5f)
+        {
+          step.mode = kChordArpeggio;
+          step.arp_tone_index = arp_cursor;
+          arp_cursor = static_cast<uint8_t>((arp_cursor + 1U) % chord_tone_count_);
+        }
+        else
+        {
+          step.mode = kChordBlock;
+        }
+      }
       break;
     }
     case 4:
@@ -534,30 +531,47 @@ private:
       {
         const uint32_t stepIndex = randomIndex(rng, kStepsPerBar);
         ++guard;
-        const ChordStep &existing = chord_steps_[stepIndex];
-        if (existing.ninth || existing.eleventh || existing.thirteenth)
+        if (chord_steps_[stepIndex].mode != kChordRest)
           continue;
-        assignChordExtensions(rng, stepIndex, chord_style);
+        ChordStep &step = chord_steps_[stepIndex];
+        if (prefer_arpeggio && randomFloat(rng) > 0.4f)
+        {
+          step.mode = kChordArpeggio;
+          step.arp_tone_index = arp_cursor;
+          arp_cursor = static_cast<uint8_t>((arp_cursor + 1U) % chord_tone_count_);
+        }
+        else
+        {
+          step.mode = kChordBlock;
+        }
         ++placed;
       }
       break;
     }
     default:
       for (uint32_t stepIndex = 2; stepIndex < kStepsPerBar; stepIndex += 3U)
-        assignChordExtensions(rng, stepIndex, chord_style);
+      {
+        ChordStep &step = chord_steps_[stepIndex];
+        step.mode = kChordBlock;
+      }
       break;
     }
   }
 
-  void ensureRootActivity(uint32_t &rng, uint32_t scale_id)
+  void ensurePhraseActivity(uint32_t &rng)
   {
     for (uint32_t stepIndex = 0; stepIndex < kStepsPerBar; ++stepIndex)
     {
-      if (root_steps_[stepIndex].degree >= 0)
+      if (bass_steps_[stepIndex].root || bass_steps_[stepIndex].octave_up)
+        return;
+      if (chord_steps_[stepIndex].mode != kChordRest)
         return;
     }
+
     const uint32_t fallback = randomIndex(rng, kStepsPerBar);
-    root_steps_[fallback].degree = randomScaleDegree(rng, scale_id);
+    bass_steps_[fallback].root = true;
+    if (chord_tone_count_ > 0U)
+      chord_steps_[fallback].mode = kChordBlock;
   }
 
   void generatePhrase(uint32_t seed)
@@ -565,14 +579,15 @@ private:
     uint32_t rng = seed;
     clearPhrase();
 
-    const uint32_t root_style = randomIndex(rng, kPhraseStyleCount);
-    const uint32_t chord_style = randomIndex(rng, kPhraseStyleCount);
-    const uint32_t scale_id = randomIndex(rng, 6U);
-    const uint32_t extension_style = randomIndex(rng, 4U);
+    buildChord(rng);
 
-    generateRootLayer(rng, root_style, scale_id);
-    generateChordLayer(rng, chord_style, extension_style);
-    ensureRootActivity(rng, scale_id);
+    const uint32_t bass_style = randomIndex(rng, kPhraseStyleCount);
+    const uint32_t chord_style = randomIndex(rng, kPhraseStyleCount);
+    const bool prefer_arpeggio = randomFloat(rng) > 0.45f;
+
+    generateBassLayer(rng, bass_style);
+    generateChordLayer(rng, chord_style, prefer_arpeggio);
+    ensurePhraseActivity(rng);
   }
 
   void startVoice(float midi_note, float velocity)
@@ -585,50 +600,53 @@ private:
     voice.phase = 0.f;
     voice.phase_inc = noteToPhaseInc(midi_note);
     voice.env = 0.f;
+    voice.filter_env = 1.f;
     voice.velocity = clipRange(velocity, 0.25f, 1.f);
     voice.gate_samples_remaining = samples_per_tick_ * kGateFraction;
     voice.filter_state = 0.f;
   }
 
-  void triggerRoot(int8_t degree)
+  void triggerBass(const BassStep &bass)
   {
-    if (degree < 0)
-      return;
-
-    active_root_degree_ = degree;
-    const float midi_note = static_cast<float>(root_note_ + degree);
-    startVoice(midi_note, 0.95f);
+    const float root_pitch = static_cast<float>(root_note_);
+    if (bass.root)
+      startVoice(root_pitch, 0.92f);
+    if (bass.octave_up)
+      startVoice(root_pitch + 12.f, 0.84f);
   }
 
-  void triggerChordExtensions(int8_t degree, const ChordStep &chord)
+  void triggerChord(const ChordStep &chord)
   {
-    if (degree < 0)
-      degree = active_root_degree_;
+    if (chord_tone_count_ == 0U || chord.mode == kChordRest)
+      return;
 
-    const float root_pitch = static_cast<float>(root_note_ + degree);
-    if (chord.ninth)
-      startVoice(root_pitch + kNinthInterval, 0.72f);
-    if (chord.eleventh)
-      startVoice(root_pitch + kEleventhInterval, 0.68f);
-    if (chord.thirteenth)
-      startVoice(root_pitch + kThirteenthInterval, 0.64f);
+    const float root_pitch = static_cast<float>(root_note_);
+
+    if (chord.mode == kChordBlock)
+    {
+      for (uint32_t toneIndex = 0; toneIndex < chord_tone_count_; ++toneIndex)
+        startVoice(root_pitch + static_cast<float>(chord_tones_[toneIndex]), 0.72f);
+      return;
+    }
+
+    const uint8_t tone_index = static_cast<uint8_t>(chord.arp_tone_index % chord_tone_count_);
+    startVoice(root_pitch + static_cast<float>(chord_tones_[tone_index]), 0.78f);
   }
 
   void triggerStep(uint32_t step_index)
   {
-    const RootStep &root = root_steps_[step_index];
+    const BassStep &bass = bass_steps_[step_index];
     const ChordStep &chord = chord_steps_[step_index];
-    const bool has_chord = chord.ninth || chord.eleventh || chord.thirteenth;
+    const bool has_bass = bass.root || bass.octave_up;
+    const bool has_chord = chord.mode != kChordRest;
 
-    if (root.degree < 0 && !has_chord)
+    if (!has_bass && !has_chord)
       return;
 
-    if (root.degree >= 0)
-      triggerRoot(root.degree);
-
-    const int8_t chord_degree = (root.degree >= 0) ? root.degree : active_root_degree_;
+    if (has_bass)
+      triggerBass(bass);
     if (has_chord)
-      triggerChordExtensions(chord_degree, chord);
+      triggerChord(chord);
   }
 
   void advanceClockOneSample()
@@ -644,21 +662,30 @@ private:
     }
   }
 
-  float renderVoice(Voice &voice, float cutoff_base_hz, float resonance_q, float env_feed)
+  float renderVoice(Voice &voice, float cutoff_base_hz, float resonance_q, float env_depth)
   {
     if (!voice.active)
       return 0.f;
 
     if (voice.releasing)
-      voice.env *= release_coeff_;
-    else if (voice.env < 1.f)
     {
-      voice.env += attack_step_;
-      if (voice.env > 1.f)
-        voice.env = 1.f;
+      voice.env *= release_coeff_;
+      voice.filter_env *= filter_release_coeff_;
     }
     else
-      voice.env *= amp_decay_coeff_;
+    {
+      if (voice.env < 1.f)
+      {
+        voice.env += attack_step_;
+        if (voice.env > 1.f)
+          voice.env = 1.f;
+      }
+      else
+      {
+        voice.env *= amp_decay_coeff_;
+      }
+      voice.filter_env *= filter_decay_coeff_;
+    }
 
     if (!voice.releasing)
     {
@@ -671,6 +698,7 @@ private:
     {
       voice.active = false;
       voice.env = 0.f;
+      voice.filter_env = 0.f;
       voice.filter_state = 0.f;
       return 0.f;
     }
@@ -680,8 +708,8 @@ private:
       voice.phase -= 1.f;
     const float saw = 2.f * voice.phase - 1.f;
 
-    const float filter_track = 0.15f + voice.env * (0.35f + env_mod_norm_ * env_feed * 0.5f);
-    const float cutoff_hz = clipRange(cutoff_base_hz * filter_track, 150.f, 14000.f);
+    const float filter_mod = 0.12f + env_depth * voice.filter_env;
+    const float cutoff_hz = clipRange(cutoff_base_hz * filter_mod, 150.f, 14000.f);
     const float omega = 6.2831853f * cutoff_hz / getSampleRate();
     const float filter_coeff = clipRange(omega / (1.f + omega), 0.002f, 0.96f);
     const float resonance_mix = clipRange(resonance_q * 0.1f, 0.f, 0.75f);
@@ -695,21 +723,23 @@ private:
   {
     const float cutoff_hz = 300.f + cutoff_norm_smooth_ * 7200.f;
     const float resonance_q = 0.35f + resonance_norm_smooth_ * 8.5f;
-    const float env_feed = 1.f + env_mod_norm_ * 4.f;
+    const float env_depth = 0.25f + env_mod_norm_ * 3.75f;
 
     float wet = 0.f;
     for (uint32_t voiceIndex = 0; voiceIndex < kMaxVoices; ++voiceIndex)
-      wet += renderVoice(voices_[voiceIndex], cutoff_hz, resonance_q, env_feed);
+      wet += renderVoice(voices_[voiceIndex], cutoff_hz, resonance_q, env_depth);
 
     return wet;
   }
 
-  RootStep root_steps_[kStepsPerBar];
+  BassStep bass_steps_[kStepsPerBar];
   ChordStep chord_steps_[kStepsPerBar];
+  int8_t chord_tones_[kMaxChordTones];
   Voice voices_[kMaxVoices];
   uint32_t phrase_seed_ = 1U;
   uint32_t step_index_ = 0U;
   uint32_t next_voice_index_ = 0U;
+  uint8_t chord_tone_count_ = 0U;
   float cutoff_norm_target_ = 0.58f;
   float resonance_norm_target_ = 0.42f;
   float cutoff_norm_smooth_ = 0.58f;
@@ -718,12 +748,13 @@ private:
   float decay_norm_ = 0.45f;
   float env_mod_norm_ = 0.65f;
   int8_t root_note_ = 36;
-  int8_t active_root_degree_ = 0;
   float bpm_ = 120.f;
   float samples_per_tick_ = 6000.f;
   float samples_until_tick_ = 6000.f;
   float attack_step_ = 0.005f;
   float amp_decay_coeff_ = 0.9995f;
   float release_coeff_ = 0.998f;
+  float filter_decay_coeff_ = 0.9995f;
+  float filter_release_coeff_ = 0.9995f;
   bool running_ = false;
 };

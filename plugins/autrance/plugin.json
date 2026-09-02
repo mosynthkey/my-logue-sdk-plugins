@@ -4,7 +4,7 @@
   "type": "synth",
   "experimental": true,
   "targets": ["nts-3_kaoss"],
-  "description": "Trance pluck auto phrase generator for NTS-3. Hold the pad to run a tempo-synced 16-step pattern. Root hits and chord extensions (9th, 11th, 13th above the step root) are generated as separate layers. Touch again to regenerate. X = Cutoff, Y = Resonance, Depth = mix. Up to 8 voices polyphonic.",
+  "description": "Trance pluck auto phrase generator for NTS-3. ROOT fixes the bass key; each pad touch builds a chord from that root and generates a 16-step bass + chord phrase. Bass uses the root and one octave up; chords play as block voicings or arpeggios. X = Cutoff, Y = Resonance, Depth = mix, DEC = decay, ENV = filter envelope depth. Up to 8 voices polyphonic.",
   "params": [
     { "name": "CUT", "role": "X", "detail": "Filter cutoff" },
     { "name": "RES", "role": "Y", "detail": "Filter resonance" },
