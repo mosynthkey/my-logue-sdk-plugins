@@ -4,14 +4,14 @@ const I18N_KEY = Symbol("i18n");
 const STORAGE_KEY = "logue-sdk-preview-language";
 
 export const japanesePluginDescriptions = {
-  airfm: "Alesis airSynth Program 3に着想を得た、2-op phase-mod FMです。Pad XYでcarrier/modulatorを操作し、touchで出力をgateします。",
-  airhorn: "オリジナル録音と同じpitchで鳴るDJ air hornです。pitch envelopeで冒頭のdropを再現し、その後は長い16-bit loopで安定したtoneを保持します。現在も調整・チューニング中です。正式版 1.0.0 は近日公開予定です。",
+  airfm: "Alesis airSynthに着想を得た、FM効果音シンセです。",
+  airhorn: "AirHornを鳴らします。現在も調整中で、正式版は近日公開予定。",
   fbackosc: "JP-8080に着想を得たFeedback oscillatorです。band-limited sawをkey-tracked resonant comb filterに通します。",
   hypersaw: "Virus TIに着想を得た9-voice detuned saw stackです。Density、Spread、HyperSub、stereo widthを調整できます。",
-  kaocid: "NTS-3向けのauto phrase generatorを備えたTB-303 style acid bassです。PadをHoldするとtempo-syncした16-step patternを再生します。もう一度touchするとrhythm、scale、accent、slide styleを再生成します。X = Cutoff、Y = Resonance、Depth = mixです。VoiceはAndy Sloaneのgsynth TB-303（2001 abandonware）に着想を得ています。現在も調整・チューニング中です。正式版 1.0.0 は近日公開予定です。",
+  kaocid: "XY Padで演奏する303系のシンセです。Tapするとフレーズが生成されます。現在も調整中で、正式版は近日公開予定。",
   loopkey: "keyboardで操作するmicro-looper oscillatorです。external audio inputをloopし、MIDI noteでloop lengthを設定します。Tempo sync、gate mode、evolutionに対応します。",
-  ride909: "off-beat 3-7-11-15で鳴るTechno 909 ride washと、1-5-9-13のkick sidechain pumpです。PadをHoldすると再生します。6-bit Ride ROMをvariable-rate playback、resistor DAC、analog reconstructionへ通したsoundです。X = Tune、Y = pump、Depth = mixです。現在も調整・チューニング中です。正式版 1.0.0 は近日公開予定です。",
-  shaker: "PhISEM shakerです。Note on（mkII）またはpad motion（NTS-3）でenergyを加えます。現在も調整・チューニング中です。正式版 1.0.0 は近日公開予定です。",
+  ride909: "テクノでよく聞く、裏打ちの909 Ride Cymbalを再生します。ピッチを変更することができます。現在も調整中で、正式版は近日公開予定。",
+  shaker: "PhISEM shakerの移植です。XY Pad / 鍵盤でさまざまなパーカッションを演奏できます。現在も調整中で、正式版は近日公開予定。",
   specwarp: "Vitalに着想を得たspectral stretch / smear FXです。InputをFFTし、frequency domainでwarpしてからresynthesisします。X = Stretch（metallic / ambient textureを作るfrequency-axis warp）、Y = Smear（magnitude blurとphase diffusion）、Depth/MIX = dry/wetです。drum loopからotherworldly ambienceをすぐに作れます。",
   technorumble: "Techno rumble kick processorです。長いreverb tail、sub LPF、drive、kick transientに反応するsidechain duckを1ユニットにまとめています。NTS-3はAUDIO IN、mkIIはsynth出力にkickを入れて使います。X/TIME = decay、Y/DEPTH = cutoff、Depth/MIX = dry/wetです。",
   tapeosc: "tape motorのstart/stopを再現するVarispeed oscillatorです。band-limited synth waveformがpitch envelopeではなく、tape deckのように減速してfreezeします。",

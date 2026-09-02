@@ -3,7 +3,7 @@
   "name": "Kaocid",
   "type": "synth",
   "targets": ["nts-3_kaoss"],
-  "description": "TB-303 style acid bass with auto phrase generator for NTS-3. Hold pad to play a tempo-synced 16-step pattern. Touch again to regenerate a new rhythm, scale, accent, and slide style. X = Cutoff, Y = Resonance, Depth = mix. Voice inspired by Andy Sloane gsynth TB-303 (2001 abandonware). Still being fine-tuned; the official 1.0.0 release is coming soon.",
+  "description": "A 303-style synth played on the XY pad. Tap to generate a phrase. Still being fine-tuned; the official release is coming soon.",
   "params": [
     { "name": "CUT", "role": "X", "detail": "Filter cutoff (TB-303 Cut Off Freq)" },
     { "name": "RES", "role": "Y", "detail": "Filter resonance (TB-303 Resonance)" },

@@ -8,7 +8,7 @@
       "targets": [
         "nts-3_kaoss"
       ],
-      "description": "Two-op phase-mod FM inspired by Alesis airSynth Program 3. Pad XY controls carrier/modulator; touch gates output.",
+      "description": "FM sound-effect synth inspired by Alesis airSynth.",
       "params": [
         {
           "name": "INDEX",
@@ -28,7 +28,7 @@
         {
           "name": "HPF",
           "role": "Edit",
-          "detail": "Output high-pass cutoff (20\u20132000 Hz)"
+          "detail": "Output high-pass cutoff (20–2000 Hz)"
         },
         {
           "name": "LEVEL",
@@ -128,7 +128,7 @@
         "nts-1_mkii",
         "nts-3_kaoss"
       ],
-      "description": "PhISEM shaker. Note on (mkII) or pad motion (NTS-3) injects energy. Still being fine-tuned; the official 1.0.0 release is coming soon.",
+      "description": "A port of the PhISEM shaker. Play various percussion sounds from the XY pad or keyboard. Still being fine-tuned; the official release is coming soon.",
       "params": [
         {
           "name": "TYPE",
