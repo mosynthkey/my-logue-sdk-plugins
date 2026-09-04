@@ -162,13 +162,12 @@ public:
 
   void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final
   {
-    if (!use_host_clock_)
-      advanceInternalClock(frames);
-
     const float dry_gain = 1.f - mix_;
 
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
+      if (!use_host_clock_)
+        advanceInternalClockOneSample();
       advancePumpEnvelope();
       const float shaped_pump = pump_gain_ * (1.f - pump_amount_ * 0.35f + pump_amount_ * 0.35f * pump_gain_);
       const float wet = renderVoices() * mix_ * shaped_pump;
@@ -313,16 +312,17 @@ private:
       triggerRide();
   }
 
-  void advanceInternalClock(uint32_t frames)
+  void advanceInternalClockOneSample()
   {
     if (bpm_ <= 0.f)
       return;
 
-    const float sample_rate = getSampleRate();
-    const float samples_per_tick = sample_rate * 60.f / (bpm_ * 4.f);
-    internal_tick_phase_ += static_cast<float>(frames);
+    const float samples_per_tick = getSampleRate() * 60.f / (bpm_ * 4.f);
+    if (samples_per_tick <= 0.f)
+      return;
 
-    while (internal_tick_phase_ >= samples_per_tick)
+    internal_tick_phase_ += 1.f;
+    if (internal_tick_phase_ >= samples_per_tick)
     {
       internal_tick_phase_ -= samples_per_tick;
       ++tick_counter_;

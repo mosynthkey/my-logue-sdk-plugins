@@ -126,13 +126,17 @@ public:
     read_pos_ = 0.f;
     record_target_ = 0U;
     crossfade_remain_ = 0U;
+    crossfade_armed_ = false;
     armed_pending_ = false;
     gate_open_ = false;
   }
 
   void setPitch(float w0)
   {
-    const float ref_w0 = kTwoPi * 261.625565f / getSampleRate();
+    const float sample_rate = getSampleRate();
+    if (sample_rate <= 0.f)
+      return;
+    const float ref_w0 = 261.625565f / sample_rate;
     pitch_rate_ = w0 / ref_w0;
     if (pitch_rate_ < 0.25f)
       pitch_rate_ = 0.25f;
@@ -169,6 +173,7 @@ public:
     write_pos_ = 0U;
     read_pos_ = 0.f;
     crossfade_remain_ = 0U;
+    crossfade_armed_ = false;
 
     if (mode_ == MODE_GATE)
     {
@@ -253,9 +258,6 @@ public:
 
   void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final
   {
-    if (!use_host_clock_)
-      advanceInternalClock(frames);
-
     const float dry_gain = 1.f - mix_;
     const float wet_gain = mix_;
     float effective_feed = feed_ + pressure_boost_ * evol_ * 0.5f;
@@ -265,6 +267,9 @@ public:
 
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
+      if (!use_host_clock_)
+        advanceInternalClockOneSample();
+
       float input_sample = 0.f;
       if (in)
       {
@@ -349,6 +354,7 @@ private:
     read_pos_ = 0.f;
     record_target_ = 0U;
     crossfade_remain_ = 0U;
+    crossfade_armed_ = false;
     armed_pending_ = false;
     gate_open_ = false;
     evolution_rate_ = 1.f;
@@ -368,8 +374,15 @@ private:
     if (loop_length_ > kMaxBufferSamples)
       loop_length_ = kMaxBufferSamples;
 
+    if (write_pos_ < loop_length_)
+    {
+      for (uint32_t sampleIndex = write_pos_; sampleIndex < loop_length_; ++sampleIndex)
+        buffer_[sampleIndex] = 0;
+    }
+
     read_pos_ = 0.f;
     crossfade_remain_ = 0U;
+    crossfade_armed_ = false;
     state_ = State::Playing;
   }
 
@@ -390,25 +403,33 @@ private:
 
   float playSample(float input_sample, float feedback)
   {
-    const uint32_t index_a = static_cast<uint32_t>(read_pos_);
+    const float loop_length = static_cast<float>(loop_length_);
+    while (read_pos_ >= loop_length)
+      read_pos_ -= loop_length;
+    while (read_pos_ < 0.f)
+      read_pos_ += loop_length;
+
+    const uint32_t index_a = static_cast<uint32_t>(read_pos_) % loop_length_;
     const uint32_t index_b = (index_a + 1U) % loop_length_;
     const float frac = read_pos_ - static_cast<float>(index_a);
 
     float sample = int16ToFloat(buffer_[index_a]) * (1.f - frac) + int16ToFloat(buffer_[index_b]) * frac;
 
+    if (crossfade_remain_ == 0U && !crossfade_armed_ && index_a + kCrossfadeSamples >= loop_length_)
+    {
+      crossfade_remain_ = kCrossfadeSamples;
+      crossfade_armed_ = true;
+    }
+
     if (crossfade_remain_ > 0U)
     {
       const float fade = static_cast<float>(crossfade_remain_) / static_cast<float>(kCrossfadeSamples);
       const float head = int16ToFloat(buffer_[0]);
-      sample = sample * (1.f - fade) + head * fade;
+      sample = sample * fade + head * (1.f - fade);
       --crossfade_remain_;
     }
-    else if (index_a + kCrossfadeSamples >= loop_length_)
-    {
-      crossfade_remain_ = kCrossfadeSamples;
-    }
 
-    if (feedback > 0.f && input_sample != 0.f)
+    if (feedback > 0.f)
     {
       const float overdub = sample + input_sample * feedback;
       buffer_[index_a] = floatToInt16(overdub);
@@ -417,15 +438,17 @@ private:
     const float direction = reverse_once_ ? -1.f : 1.f;
     read_pos_ += playback_rate_ * evolution_rate_ * direction;
 
-    if (read_pos_ >= static_cast<float>(loop_length_))
+    if (read_pos_ >= loop_length)
     {
-      read_pos_ -= static_cast<float>(loop_length_);
+      read_pos_ -= loop_length;
+      crossfade_armed_ = false;
       if (reverse_once_)
         reverse_once_ = false;
     }
     else if (read_pos_ < 0.f)
     {
-      read_pos_ += static_cast<float>(loop_length_);
+      read_pos_ += loop_length;
+      crossfade_armed_ = false;
     }
 
     return sample;
@@ -451,11 +474,14 @@ private:
     }
   }
 
-  void advanceInternalClock(uint32_t frames)
+  void advanceInternalClockOneSample()
   {
-    internal_samples_ += frames;
     const float samples_per_tick = getSampleRate() * 60.f / (bpm_ * 4.f);
-    while (internal_samples_ >= samples_per_tick)
+    if (samples_per_tick <= 0.f)
+      return;
+
+    internal_samples_ += 1.f;
+    if (internal_samples_ >= samples_per_tick)
     {
       internal_samples_ -= samples_per_tick;
       tempo4ppqnTick(tick_counter_);
@@ -492,6 +518,7 @@ private:
   bool armed_pending_ = false;
   bool use_host_clock_ = false;
   bool reverse_once_ = false;
+  bool crossfade_armed_ = false;
 
   uint32_t loop_length_ = 0U;
   uint32_t recorded_length_ = 0U;

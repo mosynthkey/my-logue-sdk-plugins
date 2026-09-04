@@ -11,6 +11,7 @@
 
 #include "processor.h"
 #include "macros.h"
+#include "touch_phase.h"
 #include <math.h>
 #include <stdint.h>
 
@@ -152,7 +153,7 @@ public:
     const float px = static_cast<float>(x);
     const float py = static_cast<float>(y);
 
-    if (phase == 0)
+    if (phase == kLogueTouchBegan)
     {
       shake(0.2f);
       last_x_ = px;
@@ -161,7 +162,7 @@ public:
       return;
     }
 
-    if (phase == 1 && touching_)
+    if ((phase == kLogueTouchMoved || phase == kLogueTouchStationary) && touching_)
     {
       const float dx = px - last_x_;
       const float dy = py - last_y_;
@@ -177,14 +178,7 @@ public:
       return;
     }
 
-    if (phase == 3 && touching_)
-    {
-      last_x_ = px;
-      last_y_ = py;
-      return;
-    }
-
-    if (phase == 2 || phase == 4)
+    if (phase == kLogueTouchEnded || phase == kLogueTouchCancelled)
       touching_ = false;
   }
 
@@ -418,7 +412,11 @@ private:
     {
       Resonator &resonator = resonators_[resonatorIndex];
       const float drive = (tuned_ && resonatorIndex != tube_index_) ? 0.f : input;
-      const float y = drive * resonator.gain * current_gain_ - resonator.a1 * resonator.y1 - resonator.a2 * resonator.y2;
+      float y = drive * resonator.gain * current_gain_ - resonator.a1 * resonator.y1 - resonator.a2 * resonator.y2;
+      if (y > 8.f)
+        y = 8.f;
+      else if (y < -8.f)
+        y = -8.f;
       resonator.y2 = resonator.y1;
       resonator.y1 = y;
       sum += y;

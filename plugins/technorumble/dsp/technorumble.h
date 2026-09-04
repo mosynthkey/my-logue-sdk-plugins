@@ -9,6 +9,7 @@
 
 #include "macros.h"
 #include "processor.h"
+#include <math.h>
 #include <stdint.h>
 
 class TechnoRumble : public Processor
@@ -187,7 +188,9 @@ private:
   {
     comb_feedback_ = 0.78f + decay_norm_ * 0.19f;
     const float cutoff_hz = 40.f + cutoff_norm_ * 460.f;
-    lpf_coeff_ = 6.2831853f * cutoff_hz / getSampleRate();
+    lpf_coeff_ = 1.f - expf(-6.2831853f * cutoff_hz / getSampleRate());
+    if (lpf_coeff_ < 0.f)
+      lpf_coeff_ = 0.f;
     if (lpf_coeff_ > 1.f)
       lpf_coeff_ = 1.f;
     drive_amount_ = drive_norm_;
@@ -220,7 +223,7 @@ private:
     }
   }
 
-  float processComb(uint32_t combIndex, float input) const
+  float processComb(uint32_t combIndex, float input)
   {
     float *line = comb_lines_[combIndex];
     const uint32_t delay = kCombDelays[combIndex];
@@ -231,7 +234,7 @@ private:
     return output;
   }
 
-  float processAllpass(uint32_t allpassIndex, float input) const
+  float processAllpass(uint32_t allpassIndex, float input)
   {
     float *line = allpass_lines_[allpassIndex];
     const uint32_t delay = kAllpassDelays[allpassIndex];
@@ -242,7 +245,7 @@ private:
     return output;
   }
 
-  float processReverb(float input) const
+  float processReverb(float input)
   {
     float sum = 0.f;
     for (uint32_t combIndex = 0; combIndex < kCombLineCount; ++combIndex)

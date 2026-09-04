@@ -8,6 +8,7 @@
 
 #include "airhorn_engine.h"
 #include "processor.h"
+#include "touch_phase.h"
 #include <stdint.h>
 
 class AirHorn : public Processor
@@ -62,9 +63,9 @@ public:
     (void)x;
     (void)y;
 
-    if (phase == 0U)
+    if (phase == kLogueTouchBegan)
       engine_.startVoice(127, 0);
-    else if (phase == 2U || phase == 4U)
+    else if (phase == kLogueTouchEnded || phase == kLogueTouchCancelled)
       engine_.releaseAll();
   }
 

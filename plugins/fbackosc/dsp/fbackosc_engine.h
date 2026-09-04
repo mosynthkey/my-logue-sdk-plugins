@@ -18,7 +18,6 @@ class FBackOscEngine
 {
 public:
   static constexpr uint32_t kMaxDelaySamples = 8192U;
-  static constexpr float kTwoPi = 6.283185307179586f;
   static constexpr float kOutputTrim = 0.55f;
   static constexpr float kMaxFeedback = 0.93f;
   static constexpr float kParameterSmoothing = 0.002f;
@@ -69,7 +68,11 @@ public:
     saw_phase_ -= floorf(saw_phase_);
 
     const float delayed = readDelay(delay_samples_);
-    const float comb_sample = saw_sample + feedback_coeff_ * delayed;
+    float comb_sample = saw_sample + feedback_coeff_ * delayed;
+    if (comb_sample > 4.f)
+      comb_sample = 4.f;
+    else if (comb_sample < -4.f)
+      comb_sample = -4.f;
     writeDelay(comb_sample);
 
     float output = comb_sample * kOutputTrim;
@@ -106,6 +109,8 @@ private:
 
     const uint8_t previous = index > 0U ? wt_saw_notes[index - 1U] : 0U;
     const float interval = static_cast<float>(wt_saw_notes[index] - previous);
+    if (interval <= 0.f)
+      return static_cast<float>(index);
     const float fractional = static_cast<float>(index) + (note - static_cast<float>(previous)) / interval;
     const float maximum = static_cast<float>(k_wt_saw_notes_cnt - 1U);
     return fractional < maximum ? fractional : maximum;
@@ -118,12 +123,17 @@ private:
     const float ratio = harmonicRatio(params_.harmonics);
     if (base_w0_ > 1e-8f)
     {
-      float delay = kTwoPi / (base_w0_ * ratio);
+      // w0 is cycles/sample (osc_w0f_for_note). Comb period is 1 / (f * ratio).
+      float delay = 1.f / (base_w0_ * ratio);
       if (delay < 2.f)
         delay = 2.f;
       if (delay > static_cast<float>(kMaxDelaySamples - 2U))
         delay = static_cast<float>(kMaxDelaySamples - 2U);
       target_delay_samples_ = delay;
+    }
+    else
+    {
+      target_delay_samples_ = static_cast<float>(kMaxDelaySamples - 2U);
     }
   }
 
