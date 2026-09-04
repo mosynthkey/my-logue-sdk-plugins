@@ -255,9 +255,8 @@ body.modal-open {
 
 .detail__head {
   width: 100%;
-  margin-bottom: clamp(16px, 2.5vw, 28px);
+  margin-bottom: 0;
   padding-bottom: 20px;
-  border-bottom: 1px solid var(--line);
 }
 
 .detail__name {
@@ -283,14 +282,61 @@ body.modal-open {
   word-break: normal;
 }
 
-.detail__downloads {
+.detail__section {
+  width: 100%;
+  margin-top: clamp(16px, 2.5vw, 24px);
+  padding-top: clamp(16px, 2.5vw, 24px);
+  border-top: 1px solid var(--line);
+}
+
+.detail__section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.detail__section-title {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: var(--control-font-size);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.detail__section-head .detail__section-title {
+  margin-bottom: 0;
+}
+
+.detail__section--preview {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.detail__section--devices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(20px, 3vw, 40px);
+}
+
+.detail__device-group {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.detail__device-buttons {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 16px;
 }
 
-.download-button {
+.device-button {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -305,10 +351,11 @@ body.modal-open {
   font-weight: 600;
   letter-spacing: 0.02em;
   text-decoration: none;
+  cursor: pointer;
   transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
 }
 
-.download-button__icon {
+.device-button__icon {
   width: 14px;
   height: 14px;
   flex: 0 0 auto;
@@ -319,8 +366,8 @@ body.modal-open {
   stroke-linejoin: round;
 }
 
-.download-button:hover,
-.download-button:focus-visible {
+.device-button:hover,
+.device-button:focus-visible {
   border-color: var(--accent);
   color: var(--accent);
   outline: none;
@@ -332,7 +379,7 @@ body.modal-open {
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
-  margin-top: 20px;
+  margin-top: 0;
 }
 
 .detail__actions .target-tabs {
@@ -347,7 +394,7 @@ body.modal-open {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 2px;
-  margin-top: 20px;
+  margin-top: 0;
   padding: 3px;
   border: 1px solid var(--line-strong);
   background: var(--surface);
@@ -390,7 +437,7 @@ body.modal-open {
   align-items: stretch;
   min-width: 0;
   min-height: 280px;
-  margin-top: 24px;
+  margin-top: 0;
 }
 
 .preview-shell {
@@ -1247,7 +1294,7 @@ input[type="number"] {
   }
 
   .detail__head {
-    margin-bottom: 16px;
+    margin-bottom: 0;
     padding-bottom: 16px;
   }
 
@@ -1255,13 +1302,9 @@ input[type="number"] {
     font-size: clamp(1.5rem, 8vw, 2.2rem);
   }
 
-  .detail__downloads {
-    margin-top: 14px;
-  }
-
   .detail__stage {
     min-height: 220px;
-    margin-top: 16px;
+    margin-top: 0;
   }
 
   .preview-shell {
