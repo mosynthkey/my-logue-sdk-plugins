@@ -283,6 +283,49 @@ body.modal-open {
   word-break: normal;
 }
 
+.detail__downloads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.download-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--control-height);
+  padding: 0 var(--control-pad-x);
+  border: 1px solid var(--line-strong);
+  border-radius: 0;
+  background: var(--surface-raised);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--control-font-size);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+
+.download-button__icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.download-button:hover,
+.download-button:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+
 .detail__actions {
   display: flex;
   flex-wrap: nowrap;
@@ -1210,6 +1253,10 @@ input[type="number"] {
 
   .detail__name {
     font-size: clamp(1.5rem, 8vw, 2.2rem);
+  }
+
+  .detail__downloads {
+    margin-top: 14px;
   }
 
   .detail__stage {
