@@ -249,5 +249,48 @@ int main()
     return 18;
   }
 
+  TransitionLooper arm_fx;
+  std::vector<float> arm_ram(arm_fx.getBufferSize(), 0.f);
+  arm_fx.init(arm_ram.data());
+  arm_fx.setTempo(120.f);
+  arm_fx.setParameter(TransitionLooper::TIME, 80);
+  arm_fx.setParameter(TransitionLooper::MIX, 1000);
+  arm_fx.setParameter(TransitionLooper::TYPE, TransitionLooper::TYPE_VOL);
+  std::vector<float> both_muted_left(bar_frames, 0.f);
+  std::vector<float> both_muted_right(bar_frames, 0.f);
+  std::vector<float> arm_prime;
+  renderWithSplitInput(arm_fx, both_muted_left.data(), both_muted_right.data(), both_muted_left.data(),
+                       both_muted_right.data(), bar_frames, arm_prime);
+  arm_fx.touchEvent(0, k_unit_touch_phase_began, 512U, 512U);
+  if (arm_fx.isFrozen() || !arm_fx.isArming())
+  {
+    std::printf("silent pre-roll must not freeze; first hold should arm a live capture\n");
+    return 19;
+  }
+
+  std::vector<float> live_left(bar_frames, 0.f);
+  std::vector<float> live_right(bar_frames, 0.f);
+  fillTone(live_left, live_right, 196.f, 0.4f);
+  std::vector<float> arm_mid;
+  renderWithInput(arm_fx, live_left.data(), live_right.data(), 24000U, arm_mid);
+  if (arm_fx.isFrozen() || !arm_fx.isArming())
+  {
+    std::printf("live capture should still be arming before one full bar\n");
+    return 20;
+  }
+
+  std::vector<float> arm_rest;
+  renderWithInput(arm_fx, live_left.data() + 24000U, live_right.data() + 24000U, bar_frames - 24000U, arm_rest);
+  std::vector<float> arm_held;
+  renderWithInput(arm_fx, silent_left.data(), silent_right.data(), 24000U, arm_held);
+  const float armed_loop_rms = windowRms(arm_held, 8000U, 8000U);
+  std::printf("armed_frozen=%d armed_wet=%.3f armed_loop_rms=%.6f peak=%.4f\n", arm_fx.isFrozen() ? 1 : 0,
+              arm_fx.wetAmount(), armed_loop_rms, arm_fx.capturedPeak());
+  if (!arm_fx.isFrozen() || arm_fx.wetAmount() < 0.9f || armed_loop_rms < 0.05f)
+  {
+    std::printf("after one live bar the hold should freeze and play that capture\n");
+    return 21;
+  }
+
   return 0;
 }
