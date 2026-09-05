@@ -4,7 +4,7 @@
  * File: mohowl_engine.h
  *
  * Author-motif feedback howl for NTS-3. Same JP-8080 comb as FbOsc, gated
- * by the pad, with an attack pitch swoop and a little vibrato at high FEED.
+ * by the pad. Pitch is LFO-wobbled; feedback stays at maximum.
  */
 
 #define FBACKOSC_NO_OSC_API
@@ -21,18 +21,16 @@ public:
   static constexpr float kAttackSec = 0.006f;
   static constexpr float kMinReleaseSec = 0.06f;
   static constexpr float kMaxReleaseSec = 0.9f;
-  static constexpr float kSwoopSec = 0.2f;
-  static constexpr float kMaxSwoopSemitones = 12.f;
-  static constexpr float kVibratoHz = 5.2f;
-  static constexpr float kVibratoSemitones = 0.18f;
+  static constexpr float kMinLfoHz = 0.2f;
+  static constexpr float kMaxLfoSemitones = 12.f;
   static constexpr float kOutputGain = 0.85f;
 
   struct Params
   {
-    float pitch = 0.5f;
-    float feedback = 0.62f;
+    float lfo_depth = 0.45f;
     float harmonics = 0.5f;
-    float swoop = 0.55f;
+    float pitch = 0.5f;
+    float lfo_rate = 0.45f;
     float decay = 0.4f;
     float level = 0.7f;
   };
@@ -49,8 +47,7 @@ public:
     engine_.reset();
     env_ = 0.f;
     gated_ = false;
-    swoop_env_ = 0.f;
-    vibrato_phase_ = 0.f;
+    lfo_phase_ = 0.f;
   }
 
   void setParams(const Params &params)
@@ -67,31 +64,26 @@ public:
     {
       engine_.reset();
       engine_.randomizePhase();
-      swoop_env_ = 1.f;
-      vibrato_phase_ = 0.f;
+      lfo_phase_ = 0.f;
     }
     gated_ = on;
   }
 
   float render(float sample_rate)
   {
-    const float target_note = midiNote(params_.pitch);
-    const float swoop_semitones = params_.swoop * kMaxSwoopSemitones;
-    const float playing_note = target_note - swoop_semitones * swoop_env_;
+    const float lfo_hz = lfoRateHz(params_.lfo_rate);
+    lfo_phase_ += lfo_hz / sample_rate;
+    if (lfo_phase_ >= 1.f)
+      lfo_phase_ -= 1.f;
 
-    const float vibrato_depth = params_.feedback * kVibratoSemitones;
-    const float vibrato = triangle(vibrato_phase_) * vibrato_depth;
-    vibrato_phase_ += kVibratoHz / sample_rate;
-    if (vibrato_phase_ >= 1.f)
-      vibrato_phase_ -= 1.f;
-
-    const float w0 = midiToW0(playing_note + vibrato, sample_rate);
-    engine_.setPitch(w0, playing_note);
+    const float center_note = midiNote(params_.pitch);
+    const float lfo = triangle(lfo_phase_) * params_.lfo_depth * kMaxLfoSemitones;
+    const float playing_note = center_note + lfo;
+    engine_.setPitch(midiToW0(playing_note, sample_rate), playing_note);
 
     const float attack = 1.f / (kAttackSec * sample_rate);
     const float release_sec = kMinReleaseSec + params_.decay * (kMaxReleaseSec - kMinReleaseSec);
     const float release = 1.f / (release_sec * sample_rate);
-    const float swoop_step = 1.f / (kSwoopSec * sample_rate);
 
     if (gated_)
     {
@@ -105,10 +97,6 @@ public:
       if (env_ < 1.0e-4f)
         env_ = 0.f;
     }
-
-    swoop_env_ -= swoop_step;
-    if (swoop_env_ < 0.f)
-      swoop_env_ = 0.f;
 
     if (env_ <= 0.f)
       return 0.f;
@@ -128,6 +116,22 @@ private:
   {
     const float clamped = pitch_0_1 < 0.f ? 0.f : (pitch_0_1 > 1.f ? 1.f : pitch_0_1);
     return kMinMidiNote + clamped * (kMaxMidiNote - kMinMidiNote);
+  }
+
+  static float lfoRateHz(float rate_0_1)
+  {
+    const float clamped = rate_0_1 < 0.f ? 0.f : (rate_0_1 > 1.f ? 1.f : rate_0_1);
+    const float octaves = clamped * 5.64385618977f;
+    float octave_scale = 1.f;
+    float exponent = octaves;
+    while (exponent > 1.f)
+    {
+      exponent -= 1.f;
+      octave_scale *= 2.f;
+    }
+    const float x = exponent * 0.6931471805599453f;
+    const float pow2 = 1.f + x * (1.f + x * (0.5f + x * (0.1666666667f + x * (0.0416666667f + x * 0.0083333333f))));
+    return kMinLfoHz * octave_scale * pow2;
   }
 
   static float midiToW0(float note, float sample_rate)
@@ -153,14 +157,13 @@ private:
   {
     FBackOscEngine::Params osc;
     osc.harmonics = params_.harmonics;
-    osc.feedback = params_.feedback;
+    osc.feedback = 1.f;
     engine_.setParams(osc);
   }
 
   FBackOscEngine engine_;
   Params params_;
   float env_ = 0.f;
-  float swoop_env_ = 0.f;
-  float vibrato_phase_ = 0.f;
+  float lfo_phase_ = 0.f;
   bool gated_ = false;
 };

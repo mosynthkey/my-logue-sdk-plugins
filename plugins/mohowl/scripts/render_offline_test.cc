@@ -17,6 +17,33 @@ static float renderPeak(MoHowlEngine &engine, float sample_rate, uint32_t frames
   return peak;
 }
 
+static uint32_t zeroCrossingSpread(MoHowlEngine &engine, float sample_rate)
+{
+  const uint32_t window_frames = 4800U;
+  const uint32_t window_count = 10U;
+  uint32_t min_crossings = 0xFFFFFFFFU;
+  uint32_t max_crossings = 0U;
+  float previous = engine.render(sample_rate);
+
+  for (uint32_t windowIndex = 0; windowIndex < window_count; ++windowIndex)
+  {
+    uint32_t crossings = 0U;
+    for (uint32_t sampleIndex = 0; sampleIndex < window_frames; ++sampleIndex)
+    {
+      const float sample = engine.render(sample_rate);
+      if ((previous < 0.f && sample >= 0.f) || (previous > 0.f && sample <= 0.f))
+        ++crossings;
+      previous = sample;
+    }
+    if (crossings < min_crossings)
+      min_crossings = crossings;
+    if (crossings > max_crossings)
+      max_crossings = crossings;
+  }
+
+  return max_crossings - min_crossings;
+}
+
 int main()
 {
   const float sample_rate = 48000.f;
@@ -24,10 +51,10 @@ int main()
   engine.init();
 
   MoHowlEngine::Params params;
-  params.pitch = 0.5f;
-  params.feedback = 1.f;
+  params.lfo_depth = 0.f;
   params.harmonics = 0.5f;
-  params.swoop = 0.6f;
+  params.pitch = 0.5f;
+  params.lfo_rate = 0.7f;
   params.decay = 0.f;
   params.level = 1.f;
   engine.setParams(params);
@@ -44,6 +71,22 @@ int main()
   if (held < 0.08f || held > 0.85f)
   {
     std::printf("FAIL: held peak %.6f\n", held);
+    return 1;
+  }
+
+  params.lfo_depth = 0.f;
+  engine.setParams(params);
+  engine.gate(true);
+  const uint32_t steady_spread = zeroCrossingSpread(engine, sample_rate);
+
+  params.lfo_depth = 1.f;
+  engine.setParams(params);
+  engine.gate(true);
+  const uint32_t wobble_spread = zeroCrossingSpread(engine, sample_rate);
+  if (wobble_spread <= steady_spread + 8U)
+  {
+    std::printf("FAIL: LFO depth did not move pitch (steady=%u wobble=%u)\n",
+                steady_spread, wobble_spread);
     return 1;
   }
 
@@ -73,6 +116,7 @@ int main()
     return 1;
   }
 
-  std::printf("ok idle=%.6f held=%.6f release=%.6f\n", silent, held, release_peak);
+  std::printf("ok idle=%.6f held=%.6f release=%.6f spread_steady=%u spread_wobble=%u\n",
+              silent, held, release_peak, steady_spread, wobble_spread);
   return 0;
 }
