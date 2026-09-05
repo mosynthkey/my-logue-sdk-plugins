@@ -46,11 +46,14 @@ static float windowLowRatio(const std::vector<float> &mono, uint32_t start_sampl
   return static_cast<float>(low_squares / all_squares);
 }
 
-static void renderWithInput(TransitionLooper &fx, const float *left, const float *right, uint32_t frames,
-                            std::vector<float> &mono_out)
+static void renderWithSplitInput(TransitionLooper &fx, const float *dry_left, const float *dry_right,
+                                 const float *raw_left, const float *raw_right, uint32_t frames,
+                                 std::vector<float> &mono_out)
 {
   const uint32_t block_frames = 64U;
-  std::vector<float> block(block_frames * 2U, 0.f);
+  std::vector<float> dry_block(block_frames * 2U, 0.f);
+  std::vector<float> raw_block(block_frames * 2U, 0.f);
+  std::vector<float> out_block(block_frames * 2U, 0.f);
   uint32_t frameOffset = 0U;
   while (frameOffset < frames)
   {
@@ -58,14 +61,22 @@ static void renderWithInput(TransitionLooper &fx, const float *left, const float
     for (uint32_t sampleIndex = 0; sampleIndex < this_block; ++sampleIndex)
     {
       const uint32_t sourceIndex = frameOffset + sampleIndex;
-      block[sampleIndex * 2U] = left[sourceIndex];
-      block[sampleIndex * 2U + 1U] = right[sourceIndex];
+      dry_block[sampleIndex * 2U] = dry_left[sourceIndex];
+      dry_block[sampleIndex * 2U + 1U] = dry_right[sourceIndex];
+      raw_block[sampleIndex * 2U] = raw_left[sourceIndex];
+      raw_block[sampleIndex * 2U + 1U] = raw_right[sourceIndex];
     }
-    fx.process(block.data(), block.data(), this_block);
+    fx.process(dry_block.data(), raw_block.data(), out_block.data(), this_block);
     for (uint32_t sampleIndex = 0; sampleIndex < this_block; ++sampleIndex)
-      mono_out.push_back(block[sampleIndex * 2U]);
+      mono_out.push_back(out_block[sampleIndex * 2U]);
     frameOffset += this_block;
   }
+}
+
+static void renderWithInput(TransitionLooper &fx, const float *left, const float *right, uint32_t frames,
+                            std::vector<float> &mono_out)
+{
+  renderWithSplitInput(fx, left, right, left, right, frames, mono_out);
 }
 
 static void fillTone(std::vector<float> &left, std::vector<float> &right, float hz, float amp)
@@ -203,6 +214,39 @@ int main()
   {
     std::printf("HPF fade-in should start thin and restore lows as the loop arrives\n");
     return 16;
+  }
+
+  TransitionLooper raw_fx;
+  std::vector<float> raw_ram(raw_fx.getBufferSize(), 0.f);
+  raw_fx.init(raw_ram.data());
+  raw_fx.setTempo(120.f);
+  raw_fx.setParameter(TransitionLooper::TIME, 80);
+  raw_fx.setParameter(TransitionLooper::MIX, 1000);
+  raw_fx.setParameter(TransitionLooper::TYPE, TransitionLooper::TYPE_VOL);
+  std::vector<float> muted_left(bar_frames, 0.f);
+  std::vector<float> muted_right(bar_frames, 0.f);
+  std::vector<float> raw_left(bar_frames, 0.f);
+  std::vector<float> raw_right(bar_frames, 0.f);
+  fillTone(raw_left, raw_right, 330.f, 0.4f);
+  std::vector<float> raw_prime;
+  renderWithSplitInput(raw_fx, muted_left.data(), muted_right.data(), raw_left.data(), raw_right.data(), bar_frames,
+                       raw_prime);
+  const float raw_bypass = windowRms(raw_prime, 8000U, 8000U);
+  raw_fx.touchEvent(0, k_unit_touch_phase_began, 512U, 512U);
+  std::vector<float> raw_held;
+  renderWithInput(raw_fx, silent_left.data(), silent_right.data(), 24000U, raw_held);
+  const float raw_loop_rms = windowRms(raw_held, 8000U, 8000U);
+  std::printf("nts3_muted_in_bypass=%.6f nts3_raw_loop_rms=%.6f captured=%u\n", raw_bypass, raw_loop_rms,
+              raw_fx.capturedSamples());
+  if (raw_bypass > 0.01f)
+  {
+    std::printf("muted unit_render input should stay silent while the pad is up\n");
+    return 17;
+  }
+  if (raw_fx.capturedSamples() < 80000U || raw_loop_rms < 0.05f)
+  {
+    std::printf("loop should come from get_raw_input even when unit_render input is muted\n");
+    return 18;
   }
 
   return 0;
