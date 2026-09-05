@@ -1,0 +1,37 @@
+{
+  "id": "warpsmorph",
+  "experimental": true,
+  "name": "WarpsMorph",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Cross-mod morph in the spirit of Mutable Warps. One axis walks diode ring, XOR, comparator, mini-vocoder, and wavefolder. Y sets the internal carrier and harshness. Touch blends in the internal oscillator.",
+  "params": [
+    {
+      "name": "ALGO",
+      "role": "X",
+      "detail": "Morph: RING \u2192 XOR \u2192 CMP \u2192 VOC \u2192 FOLD"
+    },
+    {
+      "name": "TONE",
+      "role": "Y",
+      "detail": "Internal carrier frequency / harshness"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet"
+    },
+    {
+      "name": "CARR",
+      "role": "Edit",
+      "detail": "Internal carrier mix when the pad is up"
+    },
+    {
+      "name": "DRV",
+      "role": "Edit",
+      "detail": "Output fold / drive"
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "id": "echofreeze",
+  "experimental": true,
+  "name": "EchoFreeze",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Octatrack-style echo freeze. A tempo-synced delay keeps writing AUDIO IN until you lock it. Touch toggles Lock: Send drops out and the captured buffer loops forever. X = buffer length in beats, Y = playback rate / pitch.",
+  "params": [
+    {
+      "name": "SIZE",
+      "role": "X",
+      "detail": "Locked buffer length, tempo-synced (1/8\u20132 beats)"
+    },
+    {
+      "name": "PITCH",
+      "role": "Y",
+      "detail": "Playback rate when locked (down an octave to up a fifth)"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Wet level of the frozen buffer"
+    },
+    {
+      "name": "DECAY",
+      "role": "Edit",
+      "detail": "Feedback fade while locked"
+    },
+    {
+      "name": "MODE",
+      "role": "Edit",
+      "detail": "HOLD = lock while touching, TOGL = tap to lock/unlock"
+    }
+  ]
+}

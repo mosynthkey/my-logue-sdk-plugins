@@ -1,0 +1,42 @@
+{
+  "id": "gridsdrum",
+  "experimental": true,
+  "name": "GridsDrum",
+  "type": "synth",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Generative BD/SD/HH phrase engine mapped like Mutable Grids. X = kick/snare map, Y = hat density. Hold the pad to run the clocked sequencer. Flicking into the top-right corner fires a one-bar Fill.",
+  "params": [
+    {
+      "name": "MAPX",
+      "role": "X",
+      "detail": "Pattern map X (kick vs snare geography)"
+    },
+    {
+      "name": "HATS",
+      "role": "Y",
+      "detail": "Hi-hat density"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet"
+    },
+    {
+      "name": "TONE",
+      "role": "Edit",
+      "detail": "Drum voicing (pitch / noise color)"
+    },
+    {
+      "name": "DEC",
+      "role": "Edit",
+      "detail": "Shared decay"
+    },
+    {
+      "name": "SWING",
+      "role": "Edit",
+      "detail": "16th swing amount"
+    }
+  ]
+}

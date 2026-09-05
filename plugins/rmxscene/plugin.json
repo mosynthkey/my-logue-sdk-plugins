@@ -1,0 +1,37 @@
+{
+  "id": "rmxscene",
+  "experimental": true,
+  "name": "RmxScene",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Pioneer RMX-style Scene FX with a defined release. X morphs Build (noise+HPF) into Break (crush+echo). Y is intensity. Lifting the pad leaves a short echo or snaps back, instead of just dropping the wet mix.",
+  "params": [
+    {
+      "name": "SCENE",
+      "role": "X",
+      "detail": "Build (right) \u2194 Break (left) scene morph"
+    },
+    {
+      "name": "DPTH",
+      "role": "Y",
+      "detail": "Scene intensity"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Wet level while the pad is held"
+    },
+    {
+      "name": "REL",
+      "role": "Edit",
+      "detail": "Release: ECHO tail or SNAP back"
+    },
+    {
+      "name": "NOISE",
+      "role": "Edit",
+      "detail": "Build-up noise amount"
+    }
+  ]
+}

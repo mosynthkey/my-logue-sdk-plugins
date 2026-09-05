@@ -1,0 +1,47 @@
+{
+  "id": "perciter",
+  "experimental": true,
+  "name": "PercIter",
+  "type": "synth",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Basimilus-inspired percussion pad. Additive / FM body, noise, and folder morph from Skin to Metal on Y. X is pitch. Each touch is a trigger; rapid taps make a fill.",
+  "params": [
+    {
+      "name": "PITCH",
+      "role": "X",
+      "detail": "Body pitch"
+    },
+    {
+      "name": "MORPH",
+      "role": "Y",
+      "detail": "Skin \u2194 Metal morph"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet"
+    },
+    {
+      "name": "FOLD",
+      "role": "Edit",
+      "detail": "Wavefold amount"
+    },
+    {
+      "name": "DEC",
+      "role": "Edit",
+      "detail": "Amp / noise decay"
+    },
+    {
+      "name": "NOIS",
+      "role": "Edit",
+      "detail": "Noise / rattle mix"
+    },
+    {
+      "name": "MODE",
+      "role": "Edit",
+      "detail": "SKIN, LIQ, METL bias"
+    }
+  ]
+}

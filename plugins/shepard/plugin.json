@@ -1,0 +1,37 @@
+{
+  "id": "shepard",
+  "experimental": true,
+  "name": "Shepard",
+  "type": "synth",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Infinite Shepard / Risset riser. Not a reverb swell: stacked octaves keep climbing forever. X = rise speed, Y = brightness / noise. Hold to build; release dumps the tone so the drop can hit.",
+  "params": [
+    {
+      "name": "RATE",
+      "role": "X",
+      "detail": "How fast the tone climbs"
+    },
+    {
+      "name": "TONE",
+      "role": "Y",
+      "detail": "Brightness and noise mix"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet"
+    },
+    {
+      "name": "PART",
+      "role": "Edit",
+      "detail": "How many octave layers stay audible"
+    },
+    {
+      "name": "NOIS",
+      "role": "Edit",
+      "detail": "Air / noise layer for RMX-style spiral"
+    }
+  ]
+}

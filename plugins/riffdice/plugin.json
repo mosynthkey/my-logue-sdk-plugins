@@ -1,0 +1,47 @@
+{
+  "id": "riffdice",
+  "experimental": true,
+  "name": "RiffDice",
+  "type": "synth",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Elektron-style conditional riff generator. A 16-step scale sequence carries always / 1:2 / percent trigs. Touch runs the phrase. X walks the root, Y raises the chance that conditional steps fire, so the same pad position re-rolls each bar.",
+  "params": [
+    {
+      "name": "ROOT",
+      "role": "X",
+      "detail": "Phrase root (also driven by the pad X)"
+    },
+    {
+      "name": "PROB",
+      "role": "Y",
+      "detail": "How easily 1:2 and % steps fire"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet"
+    },
+    {
+      "name": "SCALE",
+      "role": "Edit",
+      "detail": "MIN, MAJ, DOR, PENT"
+    },
+    {
+      "name": "LEN",
+      "role": "Edit",
+      "detail": "Phrase length 8 or 16"
+    },
+    {
+      "name": "SLIDE",
+      "role": "Edit",
+      "detail": "Portamento on marked steps"
+    },
+    {
+      "name": "OCT",
+      "role": "Edit",
+      "detail": "Octave register"
+    }
+  ]
+}

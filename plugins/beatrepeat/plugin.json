@@ -1,0 +1,37 @@
+{
+  "id": "beatrepeat",
+  "experimental": true,
+  "name": "BeatRepeat",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Clock-synced Beat Repeat for NTS-3. Continuously captures AUDIO IN (get_raw_input on firmware 1.4+) and stutters slices on the grid. X = loop length (1/32\u20132 beats), Y = fire probability, touch = force freeze. SLICE picks which fragment of the last beat to chew on.",
+  "params": [
+    {
+      "name": "LEN",
+      "role": "X",
+      "detail": "Loop length, tempo-synced from 1/32 to 2 beats"
+    },
+    {
+      "name": "PROB",
+      "role": "Y",
+      "detail": "Chance a new slice starts on the next 16th"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet while repeating"
+    },
+    {
+      "name": "SLICE",
+      "role": "Edit",
+      "detail": "Which fragment of the captured beat to loop"
+    },
+    {
+      "name": "FEED",
+      "role": "Edit",
+      "detail": "How much the repeated slice recirculates"
+    }
+  ]
+}

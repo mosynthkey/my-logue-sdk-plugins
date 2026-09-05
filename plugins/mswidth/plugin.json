@@ -1,0 +1,32 @@
+{
+  "id": "mswidth",
+  "experimental": true,
+  "name": "MsWidth",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Mid/Side width and center kill. X = Mid gain, Y = Side gain. Touch snaps to a Center Kill preset (mute Mid, keep Side) for vocal-away DJ edits.",
+  "params": [
+    {
+      "name": "MID",
+      "role": "X",
+      "detail": "Mid (center) gain, unity at noon"
+    },
+    {
+      "name": "SIDE",
+      "role": "Y",
+      "detail": "Side (width) gain, unity at noon"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet of the M/S stage"
+    },
+    {
+      "name": "HP",
+      "role": "Edit",
+      "detail": "High-pass the Side channel so kick stays centered"
+    }
+  ]
+}

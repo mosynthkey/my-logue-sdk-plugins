@@ -1,0 +1,37 @@
+{
+  "id": "eucgate",
+  "experimental": true,
+  "name": "EucGate",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "DJ Transform gate plus Euclidean / probability chopping. Not an LFO tremolo: hits sit on a musical grid. X = hit count, Y = duty or probability. Touch = Fill (all gates open / roll).",
+  "params": [
+    {
+      "name": "HITS",
+      "role": "X",
+      "detail": "Euclidean hits per bar (1\u201316)"
+    },
+    {
+      "name": "DUTY",
+      "role": "Y",
+      "detail": "Gate length and extra probability"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "How completely closed steps mute"
+    },
+    {
+      "name": "STEPS",
+      "role": "Edit",
+      "detail": "Grid: 8, 12, or 16 steps"
+    },
+    {
+      "name": "ROT",
+      "role": "Edit",
+      "detail": "Rotate the Euclidean pattern"
+    }
+  ]
+}

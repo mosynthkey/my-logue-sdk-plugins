@@ -1,0 +1,47 @@
+{
+  "id": "chordres",
+  "experimental": true,
+  "name": "ChordRes",
+  "type": "synth",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Pad chords with a tempo-synced residue arpeggio after release. Touch plays a voicing; lift starts a decaying 1/16 descent that can overlap a second chord. X = progression axis, Y = voicing spread.",
+  "params": [
+    {
+      "name": "PROG",
+      "role": "X",
+      "detail": "Diatonic progression axis (I\u2013vi\u2013IV\u2013V\u2026)"
+    },
+    {
+      "name": "VOIC",
+      "role": "Y",
+      "detail": "Voicing openness"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet"
+    },
+    {
+      "name": "ROOT",
+      "role": "Edit",
+      "detail": "Key center"
+    },
+    {
+      "name": "TYPE",
+      "role": "Edit",
+      "detail": "MIN or MAJ"
+    },
+    {
+      "name": "RES",
+      "role": "Edit",
+      "detail": "Residue length / density"
+    },
+    {
+      "name": "DEC",
+      "role": "Edit",
+      "detail": "Residue fade time"
+    }
+  ]
+}
