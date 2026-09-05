@@ -3,11 +3,10 @@
 /*
  * File: transitionlooper.h
  *
- * Tempo-synced 16-step DJ transition looper for NTS-3. Always records the
- * last bar plus wrap-glue from raw AUDIO IN (NTS-3 mutes unit_render input
- * while the pad is up). Pad up bypasses; pad down fades into the frozen
- * loop using volume, filter, bass-swap, echo, brake, or roll transitions.
- * Playback is a direct loop read (no time-stretch) to stay light on the M7.
+ * Tempo-synced 16-step DJ transition looper for NTS-3. Prefers raw AUDIO IN
+ * (get_raw_input) because unit_render input is muted while the pad is up.
+ * If that pre-roll is still silent, the first hold captures one live bar
+ * and then freezes. Pad up bypasses; pad down fades into the frozen loop.
  */
 
 #include "macros.h"
@@ -26,6 +25,7 @@ public:
   static constexpr float kMinBpm = 40.f;
   static constexpr float kMaxBpm = 300.f;
   static constexpr float kTwoPi = 6.283185307179586f;
+  static constexpr float kMinCapturePeak = 0.003f;
 
   uint32_t getBufferSize() const override final
   {
@@ -164,8 +164,12 @@ public:
     write_pos_ = 0U;
     echo_pos_ = 0U;
     captured_samples_ = 0U;
+    samples_since_unfreeze_ = 0U;
+    arm_samples_ = 0U;
+    captured_peak_ = 0.f;
     frozen_ = false;
     pad_held_ = false;
+    arming_ = false;
     wet_ = 0.f;
     wet_target_ = 0.f;
     play_pos_ = 0.f;
@@ -221,6 +225,7 @@ public:
     if (phase == k_unit_touch_phase_ended || phase == k_unit_touch_phase_cancelled)
     {
       pad_held_ = false;
+      arming_ = false;
       wet_target_ = 0.f;
       return;
     }
@@ -232,12 +237,20 @@ public:
     if (pad_held_)
       return;
 
-    if (captured_samples_ < kMinLoopSamples)
-      return;
-
     pad_held_ = true;
-    freezeLoop();
-    wet_target_ = 1.f;
+    if (hasUsableCapture())
+    {
+      freezeLoop();
+      wet_target_ = 1.f;
+      return;
+    }
+
+    // Pre-roll was silence (muted unit_render input / missing raw API).
+    // Keep recording the now-live pad-down input for one bar, then freeze.
+    arming_ = true;
+    arm_samples_ = 0U;
+    captured_peak_ = 0.f;
+    wet_target_ = 0.f;
   }
 
   void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final
@@ -249,24 +262,52 @@ public:
   // effect is off; get_raw_input() still carries AUDIO IN for looper capture.
   void process(const float *__restrict in, const float *__restrict raw, float *__restrict out, uint32_t frames)
   {
-    const float *record = (raw != nullptr) ? raw : in;
-
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
-      const float dry_left = in[0];
-      const float dry_right = in[1];
+      float live_left = in[0];
+      float live_right = in[1];
+      float rec_left = live_left;
+      float rec_right = live_right;
+      if (raw != nullptr)
+      {
+        const float in_energy = absf(live_left) + absf(live_right);
+        const float raw_energy = absf(raw[0]) + absf(raw[1]);
+        if (raw_energy > in_energy)
+        {
+          rec_left = raw[0];
+          rec_right = raw[1];
+          if (pad_held_)
+          {
+            live_left = rec_left;
+            live_right = rec_right;
+          }
+        }
+      }
 
       if (!frozen_)
-        recordSample(record[0], record[1]);
+      {
+        recordSample(rec_left, rec_right);
+        if (samples_since_unfreeze_ < 0xFFFFFFF0U)
+          ++samples_since_unfreeze_;
+        if (arming_ && arm_samples_ < 0xFFFFFFF0U)
+          ++arm_samples_;
+        if (arming_ && arm_samples_ >= loop_length_ && captured_peak_ >= kMinCapturePeak)
+        {
+          freezeLoop();
+          wet_target_ = 1.f;
+          arming_ = false;
+        }
+      }
 
       advanceWet();
 
       if (wet_ <= 0.f)
       {
-        out[0] = dry_left;
-        out[1] = dry_right;
+        out[0] = live_left;
+        out[1] = live_right;
         in += 2;
-        record += 2;
+        if (raw != nullptr)
+          raw += 2;
         out += 2;
         continue;
       }
@@ -276,21 +317,22 @@ public:
       if (frozen_)
         renderLoop(loop_left, loop_right);
 
-      float live_left = dry_left;
-      float live_right = dry_right;
       applyTransition(live_left, live_right, loop_left, loop_right);
 
       out[0] = live_left + loop_left * mix_;
       out[1] = live_right + loop_right * mix_;
 
       in += 2;
-      record += 2;
+      if (raw != nullptr)
+        raw += 2;
       out += 2;
     }
   }
 
   bool isFrozen() const { return frozen_; }
+  bool isArming() const { return arming_; }
   float wetAmount() const { return wet_; }
+  float capturedPeak() const { return captured_peak_; }
   uint32_t loopLength() const { return loop_length_; }
   uint32_t capturedSamples() const { return captured_samples_; }
 
@@ -302,6 +344,17 @@ private:
     if (value > 1.f)
       return 1.f;
     return value;
+  }
+
+  static float absf(float value)
+  {
+    return value < 0.f ? -value : value;
+  }
+
+  bool hasUsableCapture() const
+  {
+    return captured_samples_ >= kMinLoopSamples && captured_peak_ >= kMinCapturePeak &&
+           samples_since_unfreeze_ >= loop_length_;
   }
 
   static uint32_t wrapAdd(uint32_t index, uint32_t length)
@@ -396,6 +449,10 @@ private:
       write_pos_ = 0U;
     if (captured_samples_ < record_length_)
       ++captured_samples_;
+
+    const float peak = absf(left) > absf(right) ? absf(left) : absf(right);
+    if (peak > captured_peak_)
+      captured_peak_ = peak;
   }
 
   void advanceWet()
@@ -418,6 +475,8 @@ private:
     if (!pad_held_ && wet_ <= 0.f && frozen_)
     {
       frozen_ = false;
+      captured_peak_ = 0.f;
+      samples_since_unfreeze_ = 0U;
       updateLoopGeometry();
     }
   }
@@ -678,6 +737,7 @@ private:
   float live_coeff_ = 0.05f;
   float loop_coeff_ = 0.05f;
   float bass_coeff_ = 0.023f;
+  float captured_peak_ = 0.f;
 
   uint32_t loop_length_ = 96000U;
   uint32_t glue_length_ = 2048U;
@@ -687,9 +747,12 @@ private:
   uint32_t write_pos_ = 0U;
   uint32_t echo_pos_ = 0U;
   uint32_t captured_samples_ = 0U;
+  uint32_t samples_since_unfreeze_ = 0U;
+  uint32_t arm_samples_ = 0U;
   uint8_t type_ = TYPE_VOL;
   uint8_t sync_ = SYNC_4;
   bool frozen_ = false;
   bool pad_held_ = false;
+  bool arming_ = false;
   bool filter_dirty_ = true;
 };
