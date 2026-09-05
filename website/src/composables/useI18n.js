@@ -34,6 +34,7 @@ export const japanesePluginDescriptions = {
   gridsdrum: "MI Grids的なXYでジャンル密度を決め、BD/SD/HHフレーズを生成します。タッチでシーケンサ走行、右上フリックで1小節Fillです。",
   riffdice: "Elektronのconditional trigを音源側に内蔵したリフ・ダイスです。Xはルート、Yは密度/確率、タッチでフレーズ走行です。",
   chordres: "触った位置のコードを鳴らしたあと、離すと残存アルペジオがテンポ同期で溶けていきます。Xはコード進行軸、Yはヴォイシング、離すとResidueが始まります。",
+  scenesabot: "数小節のループを常時録音し、タッチで破壊モードに入ります。Glitch Padとは違い、Xはアルゴリズムではなくループ上の16分位置、Yは破壊範囲（1ステップのフィル〜全小節）です。TYPEは逆再生 / ラチェット / クラッシュ / ストレッチ / 全部入りです。",
 };
 
 const messages = {
