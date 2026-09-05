@@ -408,7 +408,7 @@ PLUGINS = [
         ),
         "params": [
             ("PROG", 0, 1023, 0, NONE, 0, 0, "x", "Diatonic progression axis (I–vi–IV–V…)"),
-            ("VOIC", 0, 1023, 400, NONE, 0, 0, "y", "Voicing openness"),
+            ("VOIC", 0, 1023, 400, NONE, 0, 0, "y", "Close, drop-2, or open voicing (octave shifts, not detune)"),
             ("MIX", 0, 1000, 1000, PCT, 1, 1, "depth", "Dry/wet"),
             ("ROOT", 24, 48, 36, NOTE, 0, 0, "none", "Key center"),
             ("TYPE", 0, 1, 0, STR, 0, 0, "none", "MIN or MAJ"),

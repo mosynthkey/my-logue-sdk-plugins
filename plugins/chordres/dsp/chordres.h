@@ -225,34 +225,53 @@ private:
 
   void buildChord(Layer &layer)
   {
-    static const int8_t kMajProg[] = {0, 2, 4, 5, 7, 9, 11, 0};
-    static const int8_t kMinProg[] = {0, 2, 3, 5, 7, 8, 10, 0};
-    static const int8_t kMajThird[] = {0, 4, 7, 11};
-    static const int8_t kMinThird[] = {0, 3, 7, 10};
-    const float axis = prog_norm_ * 6.999f;
-    const uint32_t degree = static_cast<uint32_t>(axis);
-    const int8_t root_off = major_ ? kMajProg[degree] : kMinProg[degree];
-    const bool chord_major = major_ ? (degree != 1 && degree != 2 && degree != 5) : (degree == 2 || degree == 5);
-    const int8_t *third = chord_major ? kMajThird : kMinThird;
-    const float spread = 0.f + voic_norm_ * 12.f;
+    static const int8_t kMajDegree[] = {0, 2, 4, 5, 7, 9, 11};
+    static const int8_t kMinDegree[] = {0, 2, 3, 5, 7, 8, 10};
+    // 0=maj7, 1=m7, 2=dom7, 3=half-dim7. Minor V is harmonic (dom7).
+    static const int8_t kMajQuality[] = {0, 1, 1, 0, 2, 1, 3};
+    static const int8_t kMinQuality[] = {1, 3, 0, 1, 2, 0, 2};
+    static const int8_t kInterval[][4] = {
+        {0, 4, 7, 11},
+        {0, 3, 7, 10},
+        {0, 4, 7, 10},
+        {0, 3, 6, 10},
+    };
+
+    uint32_t degree = static_cast<uint32_t>(prog_norm_ * 6.999f);
+    if (degree > 6U)
+      degree = 6U;
+
+    const int8_t quality = major_ ? kMajQuality[degree] : kMinQuality[degree];
+    const int8_t root_off = major_ ? kMajDegree[degree] : kMinDegree[degree];
+    int8_t octave[kVoices] = {0, 0, 0, 0};
+    if (voic_norm_ >= 0.66f)
+    {
+      octave[1] = 12;
+      octave[3] = 12;
+    }
+    else if (voic_norm_ >= 0.33f)
+    {
+      octave[2] = -12;
+    }
+
     layer.count = 4U;
     layer.steps_left = 8.f + res_norm_ * 24.f;
+    const float base = static_cast<float>(root_note_ + 12 + root_off);
     for (uint32_t voiceIndex = 0; voiceIndex < kVoices; ++voiceIndex)
     {
-      const float extra = (voiceIndex >= 2U) ? spread * (static_cast<float>(voiceIndex) - 1.f) * 0.35f : 0.f;
-      layer.notes[voiceIndex] = static_cast<float>(root_note_ + 12 + root_off + third[voiceIndex]) + extra;
+      layer.notes[voiceIndex] =
+          base + static_cast<float>(kInterval[quality][voiceIndex] + octave[voiceIndex]);
       layer.phase[voiceIndex] = 0.f;
     }
-    // Highest note first so residue descends.
-    for (uint32_t a = 0; a < kVoices; ++a)
+    for (uint32_t highIndex = 0; highIndex < kVoices; ++highIndex)
     {
-      for (uint32_t b = a + 1U; b < kVoices; ++b)
+      for (uint32_t lowIndex = highIndex + 1U; lowIndex < kVoices; ++lowIndex)
       {
-        if (layer.notes[a] < layer.notes[b])
+        if (layer.notes[highIndex] < layer.notes[lowIndex])
         {
-          const float tmp = layer.notes[a];
-          layer.notes[a] = layer.notes[b];
-          layer.notes[b] = tmp;
+          const float swapped = layer.notes[highIndex];
+          layer.notes[highIndex] = layer.notes[lowIndex];
+          layer.notes[lowIndex] = swapped;
         }
       }
     }
