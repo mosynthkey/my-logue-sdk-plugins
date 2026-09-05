@@ -642,6 +642,8 @@ private:
   {
     if (layer_index >= kParaphonicLayerCount || note_count == 0U)
       return;
+    if (note_count > kMaxStackedNotes)
+      note_count = static_cast<uint8_t>(kMaxStackedNotes);
 
     ParaphonicVoice &voice = paraphonic_voices_[layer_index];
     voice.active = true;
@@ -734,6 +736,9 @@ private:
 
   float renderUnisonSaw(ParaphonicVoice &voice)
   {
+    if (voice.note_count == 0U)
+      return 0.f;
+
     float saw_sum = 0.f;
     for (uint8_t noteIndex = 0; noteIndex < voice.note_count; ++noteIndex)
     {

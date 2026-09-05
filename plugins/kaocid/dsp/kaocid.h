@@ -809,11 +809,13 @@ private:
   void advanceClockOneSample()
   {
     samples_until_tick_ -= 1.f;
-    while (samples_until_tick_ <= 0.f)
+    uint32_t guard = 0U;
+    while (samples_until_tick_ <= 0.f && samples_per_tick_ > 0.f && guard < 4U)
     {
       samples_until_tick_ += samples_per_tick_;
       step_index_ = (step_index_ + 1U) % kStepsPerBar;
       triggerStep(step_index_, true);
+      ++guard;
     }
   }
 

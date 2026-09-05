@@ -64,8 +64,6 @@ public:
 
     pad_active_ = true;
     pad_releasing_ = false;
-    engine_.setParameter(GrainPadEngine::SCAN, static_cast<int32_t>(x));
-    engine_.setParameter(GrainPadEngine::PITCH, static_cast<int32_t>(y));
     engine_.setTouchTargets(scan_norm, pitch_ratio, true, false);
   }
 

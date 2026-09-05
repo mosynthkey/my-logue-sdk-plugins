@@ -93,6 +93,7 @@ public:
     mix_ = 1.f;
     fifo_count_ = 0U;
     ola_read_pos_ = 0U;
+    analysis_write_pos_ = 0U;
 
     clearBuffers();
   }
@@ -135,9 +136,8 @@ public:
       ola_[ola_read_pos_] = 0.f;
       ola_read_pos_ = (ola_read_pos_ + 1U) & (kFftSize - 1U);
 
-      const float processed = dryGain * monoIn + wetGain * wet;
-      out[frameIndex * 2U] = dryGain * dryLeft + wetGain * processed;
-      out[frameIndex * 2U + 1U] = dryGain * dryRight + wetGain * processed;
+      out[frameIndex * 2U] = dryGain * dryLeft + wetGain * wet;
+      out[frameIndex * 2U + 1U] = dryGain * dryRight + wetGain * wet;
     }
   }
 
@@ -153,8 +153,9 @@ private:
   float stretch_;
   float smear_;
   float mix_;
-  uint32_t fifo_count_;
-  uint32_t ola_read_pos_;
+  uint32_t fifo_count_ = 0U;
+  uint32_t ola_read_pos_ = 0U;
+  uint32_t analysis_write_pos_ = 0U;
 
   void clearBuffers()
   {
@@ -169,14 +170,15 @@ private:
 
     for (uint32_t binIndex = 0; binIndex < kNumBins; ++binIndex)
       mag_prev_[binIndex] = 0.f;
+
+    analysis_write_pos_ = 0U;
+    fifo_count_ = 0U;
   }
 
   void pushSample(float sample)
   {
-    for (uint32_t sampleIndex = 0; sampleIndex < kFftSize - 1U; ++sampleIndex)
-      analysis_[sampleIndex] = analysis_[sampleIndex + 1U];
-
-    analysis_[kFftSize - 1U] = sample;
+    analysis_[analysis_write_pos_] = sample;
+    analysis_write_pos_ = (analysis_write_pos_ + 1U) & (kFftSize - 1U);
     ++fifo_count_;
   }
 
@@ -220,8 +222,9 @@ private:
 
     for (uint32_t sampleIndex = 0; sampleIndex < kFftSize; ++sampleIndex)
     {
+      const uint32_t analysisIndex = (analysis_write_pos_ + sampleIndex) & (kFftSize - 1U);
       const float window = kHannWindow[sampleIndex];
-      fft_re_[sampleIndex] = analysis_[sampleIndex] * window;
+      fft_re_[sampleIndex] = analysis_[analysisIndex] * window;
       fft_im_[sampleIndex] = 0.f;
     }
 
@@ -289,6 +292,8 @@ private:
       mag_prev_[binIndex] = mag_[binIndex];
     }
 
+    fft_im_[0] = 0.f;
+    fft_im_[kNumBins - 1U] = 0.f;
     for (uint32_t binIndex = 1U; binIndex < kNumBins - 1U; ++binIndex)
     {
       fft_re_[kFftSize - binIndex] = fft_re_[binIndex];

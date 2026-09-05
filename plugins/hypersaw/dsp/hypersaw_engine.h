@@ -20,7 +20,6 @@ class HyperSawEngine
 {
 public:
   static constexpr uint32_t kVoiceCount = 9U;
-  static constexpr float kTwoPi = 6.283185307179586f;
   static constexpr float kOutputTrim = 0.34f;
   static constexpr float kGainSmoothing = 0.002f;
 
@@ -111,9 +110,9 @@ public:
       sub_right += sub_sample * pan_right_[voiceIndex];
 
       saw_phase_[voiceIndex] += w0_[voiceIndex];
-      saw_phase_[voiceIndex] -= static_cast<float>(static_cast<uint32_t>(saw_phase_[voiceIndex]));
+      saw_phase_[voiceIndex] -= floorf(saw_phase_[voiceIndex]);
       sub_phase_[voiceIndex] += sub_w0_[voiceIndex];
-      sub_phase_[voiceIndex] -= static_cast<float>(static_cast<uint32_t>(sub_phase_[voiceIndex]));
+      sub_phase_[voiceIndex] -= floorf(sub_phase_[voiceIndex]);
     }
 
     const float sub_amount = params_.sub_mix;
@@ -154,6 +153,8 @@ public:
 
     const uint8_t previous = index > 0U ? wt_saw_notes[index - 1U] : 0U;
     const float interval = static_cast<float>(wt_saw_notes[index] - previous);
+    if (interval <= 0.f)
+      return static_cast<float>(index);
     const float fractional = static_cast<float>(index) + (note - static_cast<float>(previous)) / interval;
     const float maximum = static_cast<float>(k_wt_saw_notes_cnt - 1U);
     return fractional < maximum ? fractional : maximum;
@@ -183,7 +184,9 @@ public:
     {
       target_voice_gain_[voiceIndex] = densityGain(params_.density, voiceIndex);
 
-      const float detune_ratio = 1.f + (kDetuneCoeff[voiceIndex] * spread_amount) * (1.f / 720.f);
+      float detune_ratio = 1.f + (kDetuneCoeff[voiceIndex] * spread_amount) * (1.f / 720.f);
+      if (detune_ratio < 0.05f)
+        detune_ratio = 0.05f;
       const float voice_w0 = base_w0_ * detune_ratio;
       w0_[voiceIndex] = voice_w0;
       sub_w0_[voiceIndex] = voice_w0 * 0.5f;
