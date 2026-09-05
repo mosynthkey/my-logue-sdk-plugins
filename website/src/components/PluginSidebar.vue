@@ -12,9 +12,21 @@ defineProps({
     type: String,
     default: null,
   },
+  downloadAllBusy: {
+    type: Boolean,
+    default: false,
+  },
+  downloadAllDisabled: {
+    type: Boolean,
+    default: false,
+  },
+  downloadAllError: {
+    type: String,
+    default: "",
+  },
 });
 
-const emit = defineEmits(["select-plugin"]);
+const emit = defineEmits(["select-plugin", "download-all"]);
 const { locale, setLocale, t } = useI18n();
 
 function pluginTargets(plugin) {
@@ -61,6 +73,23 @@ function pluginTargets(plugin) {
             <option value="ja">日本語</option>
           </select>
         </div>
+      </div>
+
+      <div class="sidebar__download">
+        <button
+          type="button"
+          class="sidebar__download-all"
+          :disabled="downloadAllDisabled || downloadAllBusy"
+          @click="emit('download-all')"
+        >
+          <svg class="device-button__icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3v12" />
+            <path d="m7 11 5 5 5-5" />
+            <path d="M5 19h14" />
+          </svg>
+          <span>{{ downloadAllBusy ? t("downloadAllBusy") : t("downloadAll") }}</span>
+        </button>
+        <p v-if="downloadAllError" class="sidebar__download-error">{{ downloadAllError }}</p>
       </div>
     </header>
 

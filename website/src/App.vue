@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onUnmounted, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import PluginDetail from "./components/PluginDetail.vue";
 import PluginSidebar from "./components/PluginSidebar.vue";
 import SendModal from "./components/SendModal.vue";
@@ -8,6 +8,7 @@ import { provideI18n } from "./composables/useI18n.js";
 import { useMidiSend } from "./composables/useMidiSend.js";
 import { usePluginSelection } from "./composables/usePluginSelection.js";
 import { useSiteQuery } from "./composables/useSiteQuery.js";
+import { downloadVisibleUnitsZip, unitZipEntries } from "./utils/downloadUnitsZip.js";
 
 const { catalog, loadError, loading } = useCatalog();
 const { t } = provideI18n();
@@ -46,6 +47,25 @@ const {
   onMidiSettingChange,
 } = useMidiSend();
 
+const zipBusy = ref(false);
+const zipError = ref("");
+const zipDisabled = computed(() => unitZipEntries(sidebarPlugins.value).length === 0);
+
+async function onDownloadAllUnits() {
+  if (zipBusy.value || zipDisabled.value) {
+    return;
+  }
+  zipBusy.value = true;
+  zipError.value = "";
+  try {
+    await downloadVisibleUnitsZip(sidebarPlugins.value);
+  } catch {
+    zipError.value = t("downloadAllError");
+  } finally {
+    zipBusy.value = false;
+  }
+}
+
 watch(catalog, (nextCatalog) => {
   if (nextCatalog?.plugins?.length) {
     initializeSelection();
@@ -73,15 +93,22 @@ onUnmounted(() => {
       v-if="catalog"
       :plugins="sidebarPlugins"
       :selected-plugin-id="selectedPluginId"
+      :download-all-busy="zipBusy"
+      :download-all-disabled="zipDisabled"
+      :download-all-error="zipError"
       @select-plugin="selectPlugin"
+      @download-all="onDownloadAllUnits"
     />
 
     <PluginDetail
       v-if="activePlugin"
       :plugin="activePlugin"
       :active-target="activeTarget"
+      :download-all-busy="zipBusy"
+      :download-all-disabled="zipDisabled"
       @select-target="(target) => selectTarget(activePlugin.id, target)"
       @send="openSendModal"
+      @download-all="onDownloadAllUnits"
     />
 
     <div
