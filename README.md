@@ -30,6 +30,7 @@ Plugins:
 - **AirHorn** — DJ air horn at the original recorded pitch. A pitch envelope recreates the opening drop, then a long 16-bit loop holds the settled tone. Targets `nts-1_mkii`, `nts-3_kaoss`, and `microkorg2`.
 - **Kaocid** — TB-303 style acid bass with auto phrase generator, `nts-3_kaoss` (`genericfx`, hold pad = tempo-synced 16-step pattern with glides, retouch = new phrase). Panel: Cutoff, Resonance, Wave, Env Mod, Decay, Accent, plus ROOT and Mix. Voice inspired by gsynth TB-303 (Andy Sloane, 2001).
 - **TechnoRumble** — Techno rumble kick processor (`revfx` on mkII, `genericfx` on NTS-3): long reverb tail, sub LPF, drive, and transient-triggered sidechain duck. Feed a kick on AUDIO IN or synth output.
+- **TransitionLooper** — NTS-3 DJ transition looper: always holds a tempo-synced 16-step stereo loop plus wrap glue. Pad up bypasses; hold fades into the stored loop (volume, HPF/LPF, bass swap, echo out, brake, or roll) with a compact WSOLA time-stretch engine.
 
 ## Targets
 
