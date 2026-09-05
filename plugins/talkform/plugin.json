@@ -1,0 +1,37 @@
+{
+  "id": "talkform",
+  "experimental": true,
+  "name": "TalkForm",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Talk / Digi Talk formant filter for input. X and Y set the first and second formants (vowel mouth shape). Touch snaps to a quantized Japanese-vowel grid so the pad reads as \u3042\u3044\u3046\u3048\u304a instead of a free sweep.",
+  "params": [
+    {
+      "name": "F1",
+      "role": "X",
+      "detail": "First formant (vowel brightness)"
+    },
+    {
+      "name": "F2",
+      "role": "Y",
+      "detail": "Second formant (vowel width)"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet"
+    },
+    {
+      "name": "Q",
+      "role": "Edit",
+      "detail": "Formant resonance"
+    },
+    {
+      "name": "DIGI",
+      "role": "Edit",
+      "detail": "FREE sweep or DIGI vowel snap (also via touch)"
+    }
+  ]
+}

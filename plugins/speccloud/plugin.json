@@ -1,0 +1,37 @@
+{
+  "id": "speccloud",
+  "experimental": true,
+  "name": "SpecCloud",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "FFT spectral band clouds. Input is split into logarithmic bands whose gains are randomly re-rolled. X = band count, Y = re-roll probability / smoothing. Touch instantly redraws the cloud.",
+  "params": [
+    {
+      "name": "BANDS",
+      "role": "X",
+      "detail": "Number of log bands (4\u201332)"
+    },
+    {
+      "name": "FLUX",
+      "role": "Y",
+      "detail": "Per-hop chance a band gain is redrawn"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet"
+    },
+    {
+      "name": "SMOOTH",
+      "role": "Edit",
+      "detail": "How slowly band gains glide after a roll"
+    },
+    {
+      "name": "SEED",
+      "role": "Edit",
+      "detail": "Cloud seed for repeatable chaos"
+    }
+  ]
+}

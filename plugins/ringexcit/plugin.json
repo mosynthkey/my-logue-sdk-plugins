@@ -1,0 +1,37 @@
+{
+  "id": "ringexcit",
+  "experimental": true,
+  "name": "RingExcit",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Input-excited resonator. Kick or noise plucks a Karplus-Strong string plus three modal partials. X = frequency / structure, Y = brightness and decay. Touch fires an internal noise pluck so it also works as a one-shot.",
+  "params": [
+    {
+      "name": "FREQ",
+      "role": "X",
+      "detail": "Fundamental frequency (~40\u2013800 Hz)"
+    },
+    {
+      "name": "TONE",
+      "role": "Y",
+      "detail": "Brightness and damping"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet"
+    },
+    {
+      "name": "STRUC",
+      "role": "Edit",
+      "detail": "Resonator: STR, MOD, HYB"
+    },
+    {
+      "name": "POS",
+      "role": "Edit",
+      "detail": "Pickup / partial spread"
+    }
+  ]
+}

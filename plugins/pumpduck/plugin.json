@@ -1,0 +1,37 @@
+{
+  "id": "pumpduck",
+  "experimental": true,
+  "name": "PumpDuck",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Envelope-follower sidechain. Follows AUDIO IN (raw input when available) and ducks amplitude, a resonant filter, or an internal plate. X = attack/release feel, Y = depth. Touch cycles the duck destination.",
+  "params": [
+    {
+      "name": "TIME",
+      "role": "X",
+      "detail": "Follower attack/release (pump feel)"
+    },
+    {
+      "name": "DPTH",
+      "role": "Y",
+      "detail": "How far the destination is ducked"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet of the processed path"
+    },
+    {
+      "name": "DEST",
+      "role": "Edit",
+      "detail": "Duck target: AMP, FILT, PLAT"
+    },
+    {
+      "name": "HPF",
+      "role": "Edit",
+      "detail": "High-pass the detector so it locks to kick"
+    }
+  ]
+}

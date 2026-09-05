@@ -1,0 +1,37 @@
+{
+  "id": "databend",
+  "experimental": true,
+  "name": "DataBend",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Media-failure buffer: CD skip, torn tape, and bit-rot as one macro. X = Bend (stutter / varispeed), Y = Corrupt (dropouts and broken words). Touch freezes the damaged frame into a noise wall.",
+  "params": [
+    {
+      "name": "BEND",
+      "role": "X",
+      "detail": "Stutter / varispeed bend amount"
+    },
+    {
+      "name": "CRUD",
+      "role": "Y",
+      "detail": "Bit-rot, dropouts, held samples"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet"
+    },
+    {
+      "name": "RATE",
+      "role": "Edit",
+      "detail": "How often a new glitch event fires"
+    },
+    {
+      "name": "BITS",
+      "role": "Edit",
+      "detail": "Extra word-length crush"
+    }
+  ]
+}
