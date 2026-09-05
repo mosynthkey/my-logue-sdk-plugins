@@ -6,7 +6,8 @@ const STORAGE_KEY = "logue-sdk-preview-language";
 export const japanesePluginDescriptions = {
   airfm: "Alesis airSynthに着想を得た、FM効果音シンセです。",
   airhorn: "AirHornを鳴らします。\n現在も調整中で、正式版\u2060は近日公開予定。",
-  fbackosc: "JP-8080に着想を得たFeedback oscillatorです。band-limited sawをkey-tracked resonant comb filterに通します。",
+  fbackosc: "JP-8080に着想を得たFeedback oscillatorです。band-limited sawをkey-tracked resonant comb filterに通します。FEEDを上げても1/(1-fb)で音量が跳ねないよう補償しています。",
+  mohowl: "作者モチーフのフィードバックハウリングです。パッドを押すとJP-8080風の金切り声が出ます。Xはピッチ、Yはフィードバック、SWOOPはアタックの音程の上がり方です。",
   hypersaw: "Virus TIに着想を得た9-voice detuned saw stackです。Density、Spread、HyperSub、stereo widthを調整できます。",
   kaocid: "XY Padで演奏する303系のシンセです。Tapするとフレーズが生成されます。\n現在も調整中で、正式版\u2060は近日公開予定。",
   loopkey: "keyboardで操作するmicro-looper oscillatorです。external audio inputをloopし、MIDI noteでloop lengthを設定します。Tempo sync、gate mode、evolutionに対応します。",
