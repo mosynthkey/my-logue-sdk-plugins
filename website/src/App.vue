@@ -1,5 +1,6 @@
 <script setup>
-import { onMounted, onUnmounted, watch } from "vue";
+import { onMounted, onUnmounted, ref, watch } from "vue";
+import DspExplainModal from "./components/DspExplainModal.vue";
 import PluginDetail from "./components/PluginDetail.vue";
 import PluginSidebar from "./components/PluginSidebar.vue";
 import SendModal from "./components/SendModal.vue";
@@ -46,6 +47,30 @@ const {
   onMidiSettingChange,
 } = useMidiSend();
 
+const dspExplainOpen = ref(false);
+const dspExplainPlugin = ref(null);
+
+function openDspExplainModal(plugin) {
+  dspExplainPlugin.value = plugin;
+  dspExplainOpen.value = true;
+  document.body.classList.add("modal-open");
+}
+
+function closeDspExplainModal() {
+  dspExplainOpen.value = false;
+  dspExplainPlugin.value = null;
+  if (!isOpen.value) {
+    document.body.classList.remove("modal-open");
+  }
+}
+
+function handleCloseSendModal() {
+  closeSendModal();
+  if (dspExplainOpen.value) {
+    document.body.classList.add("modal-open");
+  }
+}
+
 watch(catalog, (nextCatalog) => {
   if (nextCatalog?.plugins?.length) {
     initializeSelection();
@@ -53,8 +78,13 @@ watch(catalog, (nextCatalog) => {
 });
 
 function onKeyDown(event) {
-  if (event.key === "Escape" && isOpen.value) {
-    closeSendModal();
+  if (event.key !== "Escape") return;
+  if (dspExplainOpen.value) {
+    closeDspExplainModal();
+    return;
+  }
+  if (isOpen.value) {
+    handleCloseSendModal();
   }
 }
 
@@ -82,6 +112,7 @@ onUnmounted(() => {
       :active-target="activeTarget"
       @select-target="(target) => selectTarget(activePlugin.id, target)"
       @send="openSendModal"
+      @explain-dsp="openDspExplainModal"
     />
 
     <div
@@ -116,13 +147,19 @@ onUnmounted(() => {
       :slot-label="slotLabel"
       :midi-hint="midiHint"
       :slot-options="slotOptions"
-      @close="closeSendModal"
+      @close="handleCloseSendModal"
       @send="sendPlugin"
       @update:selected-output-id="selectedOutputId = $event"
       @update:selected-input-id="selectedInputId = $event"
       @update:channel="channel = $event"
       @update:slot="slot = $event"
       @midi-setting-change="onMidiSettingChange"
+    />
+
+    <DspExplainModal
+      :is-open="dspExplainOpen"
+      :plugin="dspExplainPlugin"
+      @close="closeDspExplainModal"
     />
   </div>
 </template>
