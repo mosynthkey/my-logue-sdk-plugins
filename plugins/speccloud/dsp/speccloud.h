@@ -10,6 +10,7 @@
 #include "fx_dsp.h"
 #include "macros.h"
 #include "processor.h"
+#include "runtime.h"
 #include "spectralfft.h"
 #include <stdint.h>
 
