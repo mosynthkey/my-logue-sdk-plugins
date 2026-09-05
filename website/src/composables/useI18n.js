@@ -16,6 +16,7 @@ export const japanesePluginDescriptions = {
   technorumble: "Techno rumble kick processorです。長いreverb tail、sub LPF、drive、kick transientに反応するsidechain duckを1ユニットにまとめています。NTS-3はAUDIO IN、mkIIはsynth出力にkickを入れて使います。X/TIME = decay、Y/DEPTH = cutoff、Depth/MIX = dry/wetです。",
   tapeosc: "tape motorのstart/stopを再現するVarispeed oscillatorです。band-limited synth waveformがpitch envelopeではなく、tape deckのように減速してfreezeします。",
   transitionlooper: "DJの繋ぎ用ルーパーです。テンポ同期した16ステップのステレオループをAUDIO INから取り込みます。ファーム1.4以降はパッドを離しているあいだも事前録音できます。事前録音が無音のときは、最初のホールドで1小節録ってからループします。パッドを離しているときはバイパス、押しているあいだは保存したループへフェードします。Xはフェード時間、Yはフィルタの振り幅、TYPEは音量 / ハイパス / ローパス / ベーススワップ / エコーアウト / ブレーキ / ループロールです。",
+  glitchpad: "Illformed Glitch²に着想を得たNTS-3用グリッチです。AUDIO INをテンポ同期バッファに取り込み、XYパッドでシーンを演奏します。触っていないときはバイパス。Xはシーン（リトリガー / リバース / シャッフル / テープストップ / ストレッチ / ゲート / クラッシュ / ディレイ）、Yはスライスの長さ、Depthはwetです。128シーンのシーケンサUIは移植していません。",
 };
 
 const messages = {
