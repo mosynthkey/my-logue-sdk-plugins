@@ -45,7 +45,8 @@
 #include <algorithm>
 
 static TransitionLooper s_transitionlooper_instance;
-static const unit_runtime_genericfx_context_t *s_fx_context = nullptr;
+static unit_runtime_desc_t s_runtime_desc;
+static unit_runtime_genericfx_get_raw_input_ptr s_get_raw_input = nullptr;
 
 static int32_t cached_values[UNIT_GENERICFX_MAX_PARAM_COUNT];
 
@@ -75,7 +76,14 @@ __unit_callback int8_t unit_init(const unit_runtime_desc_t *desc)
     return k_unit_err_memory;
 
   std::fill(allocated_buffer, allocated_buffer + s_transitionlooper_instance.getBufferSize(), 0.f);
-  s_fx_context = static_cast<const unit_runtime_genericfx_context_t *>(desc->hooks.runtime_context);
+  s_runtime_desc = *desc;
+  s_get_raw_input = nullptr;
+  if (s_runtime_desc.hooks.runtime_context != nullptr)
+  {
+    const unit_runtime_genericfx_context_t *fx_context =
+        static_cast<const unit_runtime_genericfx_context_t *>(s_runtime_desc.hooks.runtime_context);
+    s_get_raw_input = fx_context->get_raw_input;
+  }
   s_transitionlooper_instance.init(allocated_buffer);
 
   for (uint8_t paramIndex = 0; paramIndex < UNIT_GENERICFX_MAX_PARAM_COUNT; ++paramIndex)
@@ -90,7 +98,7 @@ __unit_callback int8_t unit_init(const unit_runtime_desc_t *desc)
 __unit_callback void unit_teardown()
 {
   s_transitionlooper_instance.teardown();
-  s_fx_context = nullptr;
+  s_get_raw_input = nullptr;
 }
 
 __unit_callback void unit_reset()
@@ -111,8 +119,15 @@ __unit_callback void unit_suspend()
 __unit_callback void unit_render(const float *in, float *out, uint32_t frames)
 {
   const float *raw = nullptr;
-  if (s_fx_context != nullptr && s_fx_context->get_raw_input != nullptr)
-    raw = s_fx_context->get_raw_input();
+  if (s_runtime_desc.hooks.runtime_context != nullptr)
+  {
+    const unit_runtime_genericfx_context_t *fx_context =
+        static_cast<const unit_runtime_genericfx_context_t *>(s_runtime_desc.hooks.runtime_context);
+    if (fx_context->get_raw_input != nullptr)
+      raw = fx_context->get_raw_input();
+  }
+  if (raw == nullptr && s_get_raw_input != nullptr)
+    raw = s_get_raw_input();
   s_transitionlooper_instance.process(in, raw, out, frames);
 }
 

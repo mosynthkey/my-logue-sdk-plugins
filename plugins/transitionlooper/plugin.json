@@ -4,7 +4,7 @@
   "name": "TransitionLooper",
   "type": "fx",
   "targets": ["nts-3_kaoss"],
-  "description": "DJ transition looper for NTS-3. Always captures AUDIO IN into a tempo-synced 16-step stereo loop plus wrap glue, even while the pad is up. Untouched = bypass. Hold the pad to fade from live input into the stored loop; release to fade back. X = fade time (1/32 to 2 bars), Y = filter sweep range, Depth = wet. TYPE selects a DJ mix: volume blend, high-pass filter fade, low-pass fade, bass swap, echo out, brake, or loop roll.",
+  "description": "DJ transition looper for NTS-3. Captures AUDIO IN into a tempo-synced 16-step stereo loop plus wrap glue. Firmware 1.4+ can pre-roll while the pad is up via get_raw_input; otherwise the first hold records one live bar and then loops. Untouched = bypass. Hold the pad to fade into the stored loop; release to fade back. X = fade time, Y = filter sweep range, Depth = wet. TYPE: VOL, HPF, LPF, BASS, ECHO, BRK, ROLL.",
   "params": [
     { "name": "TIME", "role": "X", "detail": "Fade in/out length, tempo-synced from a 1/32 note to 2 bars" },
     { "name": "TONE", "role": "Y", "detail": "How far filter and bass-swap sweeps travel" },
