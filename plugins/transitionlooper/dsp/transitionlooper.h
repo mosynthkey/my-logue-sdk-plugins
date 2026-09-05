@@ -403,8 +403,8 @@ private:
     loop_origin_ = wrapU32(static_cast<int32_t>(newest_index) - static_cast<int32_t>(play_window_) + 1,
                            record_length_);
 
-    const float phase_in_bar = fmodf(static_cast<float>(captured_samples_), static_cast<float>(loop_length_));
-    analysis_pos_ = phase_in_bar;
+    const uint32_t phase_in_bar = loop_length_ == 0U ? 0U : (captured_samples_ % loop_length_);
+    analysis_pos_ = static_cast<float>(phase_in_bar);
     if (analysis_pos_ >= static_cast<float>(play_window_))
       analysis_pos_ = 0.f;
 
