@@ -6,13 +6,12 @@
  * Tempo-synced 16-step DJ transition looper for NTS-3. Always records the
  * last bar plus wrap-glue. Pad up bypasses; pad down fades into the frozen
  * loop using volume, filter, bass-swap, echo, brake, or roll transitions.
- * Y drives a compact WSOLA time-stretch engine (pitch held).
+ * Playback is a direct loop read (no time-stretch) to stay light on the M7.
  */
 
 #include "macros.h"
 #include "processor.h"
 #include "runtime.h"
-#include <math.h>
 #include <stdint.h>
 
 class TransitionLooper : public Processor
@@ -21,7 +20,6 @@ public:
   static constexpr uint32_t kMaxLoopSamples = 288000U;
   static constexpr uint32_t kMaxEchoSamples = 48000U;
   static constexpr uint32_t kStepsPerBar = 16U;
-  static constexpr uint32_t kGrainCount = 2U;
   static constexpr uint32_t kMinLoopSamples = 1024U;
   static constexpr uint32_t kMinGlueSamples = 64U;
   static constexpr float kMinBpm = 40.f;
@@ -36,13 +34,11 @@ public:
   enum
   {
     TIME = 0U,
-    STRCH,
+    TONE,
     MIX,
     TYPE,
     GLUE,
-    SIZE,
     SYNC,
-    TONE,
     NUM_PARAMS
   };
 
@@ -73,9 +69,11 @@ public:
     {
     case TIME:
       time_norm_ = param_10bit_to_f32(value);
+      updateFadeIncrement();
       break;
-    case STRCH:
-      stretch_target_ = stretchFromParam(value);
+    case TONE:
+      tone_norm_ = param_10bit_to_f32(value);
+      filter_dirty_ = true;
       break;
     case MIX:
       mix_ = value / 1000.f;
@@ -91,14 +89,17 @@ public:
         type = 0;
       if (type >= NUM_TYPES)
         type = NUM_TYPES - 1;
-      type_ = static_cast<uint8_t>(type);
+      if (type_ != static_cast<uint8_t>(type))
+      {
+        type_ = static_cast<uint8_t>(type);
+        filter_dirty_ = true;
+      }
       break;
     }
     case GLUE:
       glue_norm_ = param_10bit_to_f32(value);
-      break;
-    case SIZE:
-      size_norm_ = param_10bit_to_f32(value);
+      if (!frozen_)
+        updateLoopGeometry();
       break;
     case SYNC:
     {
@@ -110,9 +111,6 @@ public:
       sync_ = static_cast<uint8_t>(sync);
       break;
     }
-    case TONE:
-      tone_norm_ = param_10bit_to_f32(value);
-      break;
     default:
       break;
     }
@@ -141,15 +139,14 @@ public:
       allocated_buffer[sampleIndex] = 0.f;
 
     time_norm_ = 0.4f;
-    stretch_target_ = 1.f;
     mix_ = 1.f;
-    type_ = TYPE_HPF;
+    type_ = TYPE_VOL;
     glue_norm_ = 0.39f;
-    size_norm_ = 0.5f;
     sync_ = SYNC_4;
     tone_norm_ = 0.68f;
     bpm_ = 120.f;
     updateLoopGeometry();
+    updateFadeIncrement();
     reset();
   }
 
@@ -170,26 +167,20 @@ public:
     pad_held_ = false;
     wet_ = 0.f;
     wet_target_ = 0.f;
-    analysis_pos_ = 0.f;
+    play_pos_ = 0.f;
     play_window_ = 0U;
-    stretch_smooth_ = 1.f;
     live_lp_left_ = 0.f;
     live_lp_right_ = 0.f;
-    live_lp2_left_ = 0.f;
-    live_lp2_right_ = 0.f;
     loop_lp_left_ = 0.f;
     loop_lp_right_ = 0.f;
-    loop_lp2_left_ = 0.f;
-    loop_lp2_right_ = 0.f;
     bass_lp_live_left_ = 0.f;
     bass_lp_live_right_ = 0.f;
-    bass_lp2_live_left_ = 0.f;
-    bass_lp2_live_right_ = 0.f;
     bass_lp_loop_left_ = 0.f;
     bass_lp_loop_right_ = 0.f;
-    bass_lp2_loop_left_ = 0.f;
-    bass_lp2_loop_right_ = 0.f;
-    resetGrains();
+    filter_dirty_ = true;
+    live_coeff_ = 0.05f;
+    loop_coeff_ = 0.05f;
+    bass_coeff_ = 0.023f;
 
     if (loop_left_ != nullptr)
     {
@@ -214,6 +205,7 @@ public:
     if (tempo >= kMinBpm && tempo <= kMaxBpm)
     {
       bpm_ = tempo;
+      updateFadeIncrement();
       if (!frozen_)
         updateLoopGeometry();
     }
@@ -259,18 +251,26 @@ public:
 
       advanceWet();
 
+      if (wet_ <= 0.f)
+      {
+        out[0] = dry_left;
+        out[1] = dry_right;
+        in += 2;
+        out += 2;
+        continue;
+      }
+
       float loop_left = 0.f;
       float loop_right = 0.f;
-      if (wet_ > 0.f && frozen_)
+      if (frozen_)
         renderLoop(loop_left, loop_right);
 
       float live_left = dry_left;
       float live_right = dry_right;
       applyTransition(live_left, live_right, loop_left, loop_right);
 
-      const float loop_gain = mix_;
-      out[0] = live_left + loop_left * loop_gain;
-      out[1] = live_right + loop_right * loop_gain;
+      out[0] = live_left + loop_left * mix_;
+      out[1] = live_right + loop_right * mix_;
 
       in += 2;
       out += 2;
@@ -283,14 +283,6 @@ public:
   uint32_t capturedSamples() const { return captured_samples_; }
 
 private:
-  struct Grain
-  {
-    bool active;
-    float src_pos;
-    uint32_t age;
-    uint32_t length;
-  };
-
   static float clamp01(float value)
   {
     if (value < 0.f)
@@ -300,46 +292,24 @@ private:
     return value;
   }
 
-  static float hermite(float y0, float y1, float y2, float y3, float frac)
-  {
-    const float c1 = 0.5f * (y2 - y0);
-    const float c2 = y0 - 2.5f * y1 + 2.f * y2 - 0.5f * y3;
-    const float c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
-    return ((c3 * frac + c2) * frac + c1) * frac + y1;
-  }
-
-  static float equalPowerIn(float amount)
-  {
-    return sinf(clamp01(amount) * 1.57079632679f);
-  }
-
-  static float equalPowerOut(float amount)
-  {
-    return cosf(clamp01(amount) * 1.57079632679f);
-  }
-
-  static float expLerpHz(float min_hz, float max_hz, float amount)
-  {
-    const float clamped = clamp01(amount);
-    return min_hz * powf(max_hz / min_hz, clamped);
-  }
-
-  static float stretchFromParam(int32_t value)
-  {
-    const float norm = param_10bit_to_f32(value);
-    if (norm <= 0.5f)
-      return 0.5f + norm;
-    return 1.f + (norm - 0.5f) * 2.f;
-  }
-
-  static uint32_t wrapU32(int32_t index, uint32_t length)
+  static uint32_t wrapAdd(uint32_t index, uint32_t length)
   {
     if (length == 0U)
       return 0U;
-    int32_t wrapped = index % static_cast<int32_t>(length);
-    if (wrapped < 0)
-      wrapped += static_cast<int32_t>(length);
-    return static_cast<uint32_t>(wrapped);
+    return index >= length ? index - length : index;
+  }
+
+  void updateFadeIncrement()
+  {
+    const float min_beats = 0.125f;
+    const float max_beats = 8.f;
+    const float beats = min_beats * fasterpowf(max_beats / min_beats, time_norm_);
+    float seconds = beats * 60.f / bpm_;
+    if (seconds < 0.01f)
+      seconds = 0.01f;
+    fade_increment_ = 1.f / (seconds * getSampleRate());
+    if (fade_increment_ > 1.f)
+      fade_increment_ = 1.f;
   }
 
   void updateLoopGeometry()
@@ -376,23 +346,10 @@ private:
       record_length_ = kMaxLoopSamples;
   }
 
-  void resetGrains()
-  {
-    for (uint32_t grainIndex = 0; grainIndex < kGrainCount; ++grainIndex)
-    {
-      grains_[grainIndex].active = false;
-      grains_[grainIndex].src_pos = 0.f;
-      grains_[grainIndex].age = 0U;
-      grains_[grainIndex].length = 0U;
-    }
-    spawn_phase_ = 0.f;
-  }
-
   void freezeLoop()
   {
     updateLoopGeometry();
     frozen_ = true;
-    stretch_smooth_ = stretch_target_;
     play_window_ = loop_length_;
     if (captured_samples_ < loop_length_)
       play_window_ = captured_samples_;
@@ -400,28 +357,19 @@ private:
       play_window_ = kMinLoopSamples;
 
     const uint32_t newest_index = write_pos_ == 0U ? record_length_ - 1U : write_pos_ - 1U;
-    loop_origin_ = wrapU32(static_cast<int32_t>(newest_index) - static_cast<int32_t>(play_window_) + 1,
-                           record_length_);
+    int32_t origin = static_cast<int32_t>(newest_index) - static_cast<int32_t>(play_window_) + 1;
+    if (origin < 0)
+      origin += static_cast<int32_t>(record_length_);
+    loop_origin_ = static_cast<uint32_t>(origin);
 
     const uint32_t phase_in_bar = loop_length_ == 0U ? 0U : (captured_samples_ % loop_length_);
-    analysis_pos_ = static_cast<float>(phase_in_bar);
-    if (analysis_pos_ >= static_cast<float>(play_window_))
-      analysis_pos_ = 0.f;
+    play_pos_ = static_cast<float>(phase_in_bar);
+    if (play_pos_ >= static_cast<float>(play_window_))
+      play_pos_ = 0.f;
 
-    resetGrains();
-    const uint32_t grain_length = grainLengthSamples();
-    spawnGrain(0U, analysis_pos_, grain_length);
-    const float hop_in = hopInSamples(grain_length);
-    spawnGrain(1U, wrapPlayPos(analysis_pos_ + hop_in), grain_length);
-    spawn_phase_ = 0.f;
-
-    float seed_left = 0.f;
-    float seed_right = 0.f;
-    readLoopAtNoGlue(analysis_pos_, seed_left, seed_right);
-    loop_lp_left_ = seed_left;
-    loop_lp_right_ = seed_right;
-    loop_lp2_left_ = seed_left;
-    loop_lp2_right_ = seed_right;
+    loop_lp_left_ = 0.f;
+    loop_lp_right_ = 0.f;
+    filter_dirty_ = true;
   }
 
   void recordSample(float left, float right)
@@ -431,29 +379,28 @@ private:
 
     loop_left_[write_pos_] = left;
     loop_right_[write_pos_] = right;
-    write_pos_ = (write_pos_ + 1U) % record_length_;
+    ++write_pos_;
+    if (write_pos_ >= record_length_)
+      write_pos_ = 0U;
     if (captured_samples_ < record_length_)
       ++captured_samples_;
   }
 
   void advanceWet()
   {
-    const float fade_seconds = fadeSeconds();
-    float increment = 1.f / (fade_seconds * getSampleRate());
-    if (increment > 1.f)
-      increment = 1.f;
-
     if (wet_ < wet_target_)
     {
-      wet_ += increment;
+      wet_ += fade_increment_;
       if (wet_ > wet_target_)
         wet_ = wet_target_;
+      filter_dirty_ = true;
     }
     else if (wet_ > wet_target_)
     {
-      wet_ -= increment;
+      wet_ -= fade_increment_;
       if (wet_ < wet_target_)
         wet_ = wet_target_;
+      filter_dirty_ = true;
     }
 
     if (!pad_held_ && wet_ <= 0.f && frozen_)
@@ -461,177 +408,6 @@ private:
       frozen_ = false;
       updateLoopGeometry();
     }
-  }
-
-  float fadeSeconds() const
-  {
-    const float min_beats = 0.125f;
-    const float max_beats = 8.f;
-    const float beats = min_beats * powf(max_beats / min_beats, time_norm_);
-    float seconds = beats * 60.f / bpm_;
-    if (seconds < 0.01f)
-      seconds = 0.01f;
-    return seconds;
-  }
-
-  uint32_t grainLengthSamples() const
-  {
-    uint32_t length = 512U + static_cast<uint32_t>(size_norm_ * 1536.f);
-    if (length < 256U)
-      length = 256U;
-    if (length > play_window_ / 2U && play_window_ > 512U)
-      length = play_window_ / 2U;
-    return length;
-  }
-
-  float hopInSamples(uint32_t grain_length) const
-  {
-    const float hop_out = static_cast<float>(grain_length) * 0.5f;
-    float stretch = stretch_smooth_;
-    if (stretch < 0.35f)
-      stretch = 0.35f;
-    if (stretch > 2.2f)
-      stretch = 2.2f;
-    return hop_out / stretch;
-  }
-
-  float wrapPlayPos(float position) const
-  {
-    const float window = static_cast<float>(play_window_ == 0U ? 1U : play_window_);
-    while (position >= window)
-      position -= window;
-    while (position < 0.f)
-      position += window;
-    return position;
-  }
-
-  void spawnGrain(uint32_t grain_index, float src_pos, uint32_t length)
-  {
-    grains_[grain_index].active = true;
-    grains_[grain_index].src_pos = wrapPlayPos(src_pos);
-    grains_[grain_index].age = 0U;
-    grains_[grain_index].length = length;
-  }
-
-  float hann(uint32_t age, uint32_t length) const
-  {
-    if (length <= 1U)
-      return 0.f;
-    const float phase = static_cast<float>(age) / static_cast<float>(length - 1U);
-    return 0.5f * (1.f - cosf(phase * kTwoPi));
-  }
-
-  void readLoopAt(float play_pos, float &left, float &right) const
-  {
-    const float window = static_cast<float>(play_window_);
-    float pos = wrapPlayPos(play_pos);
-    const int32_t base = static_cast<int32_t>(pos);
-    const float frac = pos - static_cast<float>(base);
-
-    float tap_left[4];
-    float tap_right[4];
-    for (int32_t tapOffset = -1; tapOffset <= 2; ++tapOffset)
-    {
-      const uint32_t play_index = wrapU32(base + tapOffset, play_window_);
-      const uint32_t absolute = wrapU32(static_cast<int32_t>(loop_origin_) + static_cast<int32_t>(play_index),
-                                        record_length_);
-      tap_left[tapOffset + 1] = loop_left_[absolute];
-      tap_right[tapOffset + 1] = loop_right_[absolute];
-    }
-
-    left = hermite(tap_left[0], tap_left[1], tap_left[2], tap_left[3], frac);
-    right = hermite(tap_right[0], tap_right[1], tap_right[2], tap_right[3], frac);
-
-    const float glue = static_cast<float>(glue_length_);
-    if (glue >= 8.f && pos > window - glue)
-    {
-      const float fade = (pos - (window - glue)) / glue;
-      const float start_pos = pos - window + glue;
-      float start_left = 0.f;
-      float start_right = 0.f;
-      readLoopAtNoGlue(start_pos, start_left, start_right);
-      const float out_gain = equalPowerOut(fade);
-      const float in_gain = equalPowerIn(fade);
-      left = left * out_gain + start_left * in_gain;
-      right = right * out_gain + start_right * in_gain;
-    }
-  }
-
-  void readLoopAtNoGlue(float play_pos, float &left, float &right) const
-  {
-    float pos = wrapPlayPos(play_pos);
-    const int32_t base = static_cast<int32_t>(pos);
-    const float frac = pos - static_cast<float>(base);
-
-    float tap_left[4];
-    float tap_right[4];
-    for (int32_t tapOffset = -1; tapOffset <= 2; ++tapOffset)
-    {
-      const uint32_t play_index = wrapU32(base + tapOffset, play_window_);
-      const uint32_t absolute = wrapU32(static_cast<int32_t>(loop_origin_) + static_cast<int32_t>(play_index),
-                                        record_length_);
-      tap_left[tapOffset + 1] = loop_left_[absolute];
-      tap_right[tapOffset + 1] = loop_right_[absolute];
-    }
-
-    left = hermite(tap_left[0], tap_left[1], tap_left[2], tap_left[3], frac);
-    right = hermite(tap_right[0], tap_right[1], tap_right[2], tap_right[3], frac);
-  }
-
-  float amdfAt(float pos_a, float pos_b, uint32_t compare_length) const
-  {
-    float error = 0.f;
-    const uint32_t stride = 4U;
-    uint32_t taps = 0U;
-    for (uint32_t tapIndex = 0; tapIndex < compare_length; tapIndex += stride)
-    {
-      float a_left = 0.f;
-      float a_right = 0.f;
-      float b_left = 0.f;
-      float b_right = 0.f;
-      readLoopAtNoGlue(pos_a + static_cast<float>(tapIndex), a_left, a_right);
-      readLoopAtNoGlue(pos_b + static_cast<float>(tapIndex), b_left, b_right);
-      const float a_mono = a_left + a_right;
-      const float b_mono = b_left + b_right;
-      const float delta = a_mono - b_mono;
-      error += delta >= 0.f ? delta : -delta;
-      ++taps;
-    }
-    if (taps == 0U)
-      return 0.f;
-    return error / static_cast<float>(taps);
-  }
-
-  float wsolaOffset(float expected_pos, float reference_pos) const
-  {
-    const int32_t radius = 48;
-    const int32_t stride = 4;
-    float best_error = 1.0e9f;
-    int32_t best_offset = 0;
-    for (int32_t offset = -radius; offset <= radius; offset += stride)
-    {
-      const float candidate = expected_pos + static_cast<float>(offset);
-      const float error = amdfAt(reference_pos, candidate, 64U);
-      if (error < best_error)
-      {
-        best_error = error;
-        best_offset = offset;
-      }
-    }
-    return static_cast<float>(best_offset);
-  }
-
-  void updateStretch()
-  {
-    float target = stretch_target_;
-    if (type_ == TYPE_BRK)
-    {
-      if (wet_target_ >= 1.f)
-        target = 0.45f + stretch_target_ * wet_;
-      else
-        target = stretch_target_ * (0.35f + 0.65f * wet_);
-    }
-    stretch_smooth_ += (target - stretch_smooth_) * 0.0015f;
   }
 
   void updatePlayWindow()
@@ -644,13 +420,11 @@ private:
       return;
 
     const float roll_amount = wet_target_ >= 1.f ? wet_ : (1.f - wet_);
-    uint32_t shifts = static_cast<uint32_t>(roll_amount * 4.f + 0.0001f);
+    uint32_t shifts = static_cast<uint32_t>(roll_amount * 4.f);
     if (sync_ == SYNC_16)
-      shifts += 1U;
-    else if (sync_ == SYNC_8)
-      shifts += 0U;
-    else if (sync_ == SYNC_2)
-      shifts = shifts > 0U ? shifts - 1U : 0U;
+      ++shifts;
+    else if (sync_ == SYNC_2 && shifts > 0U)
+      --shifts;
 
     uint32_t window = loop_length_ >> shifts;
     const uint32_t min_window = loop_length_ / kStepsPerBar;
@@ -661,81 +435,56 @@ private:
     play_window_ = window;
   }
 
+  void readLoopLinear(float play_pos, float &left, float &right) const
+  {
+    const uint32_t window = play_window_ == 0U ? 1U : play_window_;
+    float pos = play_pos;
+    while (pos >= static_cast<float>(window))
+      pos -= static_cast<float>(window);
+    while (pos < 0.f)
+      pos += static_cast<float>(window);
+
+    const uint32_t index_a = static_cast<uint32_t>(pos);
+    const float frac = pos - static_cast<float>(index_a);
+    const uint32_t index_b = wrapAdd(index_a + 1U, window);
+    const uint32_t abs_a = wrapAdd(loop_origin_ + index_a, record_length_);
+    const uint32_t abs_b = wrapAdd(loop_origin_ + index_b, record_length_);
+
+    left = loop_left_[abs_a] + (loop_left_[abs_b] - loop_left_[abs_a]) * frac;
+    right = loop_right_[abs_a] + (loop_right_[abs_b] - loop_right_[abs_a]) * frac;
+
+    if (glue_length_ >= 8U && index_a + glue_length_ >= window)
+    {
+      const float fade = (pos - static_cast<float>(window - glue_length_)) / static_cast<float>(glue_length_);
+      const float start_pos = pos - static_cast<float>(window) + static_cast<float>(glue_length_);
+      float start_left = 0.f;
+      float start_right = 0.f;
+      const uint32_t start_index = static_cast<uint32_t>(start_pos);
+      const float start_frac = start_pos - static_cast<float>(start_index);
+      const uint32_t start_next = wrapAdd(start_index + 1U, window);
+      const uint32_t start_abs = wrapAdd(loop_origin_ + start_index, record_length_);
+      const uint32_t start_abs_next = wrapAdd(loop_origin_ + start_next, record_length_);
+      start_left = loop_left_[start_abs] + (loop_left_[start_abs_next] - loop_left_[start_abs]) * start_frac;
+      start_right = loop_right_[start_abs] + (loop_right_[start_abs_next] - loop_right_[start_abs]) * start_frac;
+      const float out_gain = 1.f - fade;
+      left = left * out_gain + start_left * fade;
+      right = right * out_gain + start_right * fade;
+    }
+  }
+
   void renderLoop(float &left, float &right)
   {
-    updateStretch();
     updatePlayWindow();
+    readLoopLinear(play_pos_, left, right);
 
-    const bool near_unity = stretch_smooth_ > 0.97f && stretch_smooth_ < 1.03f && type_ != TYPE_BRK;
-    if (near_unity)
-    {
-      readLoopAt(analysis_pos_, left, right);
-      analysis_pos_ = wrapPlayPos(analysis_pos_ + 1.f);
-      resetGrains();
-      return;
-    }
+    float rate = 1.f;
+    if (type_ == TYPE_BRK)
+      rate = 0.4f + 0.6f * wet_;
 
-    const uint32_t grain_length = grainLengthSamples();
-    const float hop_out = static_cast<float>(grain_length) * 0.5f;
-    const float hop_in = hopInSamples(grain_length);
-
-    left = 0.f;
-    right = 0.f;
-    float env_sum = 0.f;
-    for (uint32_t grainIndex = 0; grainIndex < kGrainCount; ++grainIndex)
-    {
-      Grain &grain = grains_[grainIndex];
-      if (!grain.active)
-        continue;
-
-      const float env = hann(grain.age, grain.length);
-      float grain_left = 0.f;
-      float grain_right = 0.f;
-      readLoopAt(grain.src_pos, grain_left, grain_right);
-      left += grain_left * env;
-      right += grain_right * env;
-      env_sum += env;
-
-      grain.src_pos = wrapPlayPos(grain.src_pos + 1.f);
-      ++grain.age;
-      if (grain.age >= grain.length)
-        grain.active = false;
-    }
-
-    spawn_phase_ += 1.f;
-    if (spawn_phase_ >= hop_out)
-    {
-      spawn_phase_ -= hop_out;
-      uint32_t free_grain = kGrainCount;
-      for (uint32_t grainIndex = 0; grainIndex < kGrainCount; ++grainIndex)
-      {
-        if (!grains_[grainIndex].active)
-        {
-          free_grain = grainIndex;
-          break;
-        }
-      }
-      if (free_grain < kGrainCount)
-      {
-        float expected = wrapPlayPos(analysis_pos_ + hop_in);
-        float reference = analysis_pos_;
-        for (uint32_t grainIndex = 0; grainIndex < kGrainCount; ++grainIndex)
-        {
-          if (grains_[grainIndex].active)
-            reference = grains_[grainIndex].src_pos;
-        }
-        expected = wrapPlayPos(expected + wsolaOffset(expected, reference));
-        spawnGrain(free_grain, expected, grain_length);
-        analysis_pos_ = expected;
-      }
-    }
-
-    if (env_sum > 1.f)
-    {
-      const float norm = 1.f / env_sum;
-      left *= norm;
-      right *= norm;
-    }
+    play_pos_ += rate;
+    const float window = static_cast<float>(play_window_ == 0U ? 1U : play_window_);
+    if (play_pos_ >= window)
+      play_pos_ -= window;
   }
 
   void applyOnePole(float &state, float input, float coeff) const
@@ -743,9 +492,9 @@ private:
     state += coeff * (input - state);
   }
 
-  float filterCoeff(float hz) const
+  float filterCoeffFromHz(float hz) const
   {
-    float coeff = 1.f - expf(-kTwoPi * hz / getSampleRate());
+    float coeff = kTwoPi * hz / getSampleRate();
     if (coeff < 0.00005f)
       coeff = 0.00005f;
     if (coeff > 0.95f)
@@ -753,23 +502,34 @@ private:
     return coeff;
   }
 
-  void filterPair(float &lp_left, float &lp_right, float &lp2_left, float &lp2_right, float left, float right,
-                  float hz, bool highpass, float &out_left, float &out_right)
+  float expLerpHz(float min_hz, float max_hz, float amount) const
   {
-    const float coeff = filterCoeff(hz);
-    applyOnePole(lp_left, left, coeff);
-    applyOnePole(lp_right, right, coeff);
-    applyOnePole(lp2_left, lp_left, coeff);
-    applyOnePole(lp2_right, lp_right, coeff);
-    if (highpass)
+    return min_hz * fasterpowf(max_hz / min_hz, clamp01(amount));
+  }
+
+  void refreshFilterCoeffs()
+  {
+    if (!filter_dirty_)
+      return;
+    filter_dirty_ = false;
+
+    const float amount = wet_;
+    const float tone = 0.25f + tone_norm_ * 0.75f;
+    if (type_ == TYPE_HPF)
     {
-      out_left = left - lp2_left;
-      out_right = right - lp2_right;
+      const float hpf_max = expLerpHz(400.f, 6500.f, tone);
+      live_coeff_ = filterCoeffFromHz(expLerpHz(22.f, hpf_max, amount));
+      loop_coeff_ = filterCoeffFromHz(expLerpHz(hpf_max, 22.f, amount));
     }
-    else
+    else if (type_ == TYPE_LPF)
     {
-      out_left = lp2_left;
-      out_right = lp2_right;
+      const float lpf_min = expLerpHz(400.f, 180.f, tone);
+      live_coeff_ = filterCoeffFromHz(expLerpHz(12000.f, lpf_min, amount));
+      loop_coeff_ = filterCoeffFromHz(expLerpHz(lpf_min, 12000.f, amount));
+    }
+    else if (type_ == TYPE_BASS)
+    {
+      bass_coeff_ = filterCoeffFromHz(180.f);
     }
   }
 
@@ -783,16 +543,21 @@ private:
       delay_samples = static_cast<float>(kMaxEchoSamples - 4U);
 
     const uint32_t delay_int = static_cast<uint32_t>(delay_samples);
-    const int32_t read_index = static_cast<int32_t>(echo_pos_) - static_cast<int32_t>(delay_int);
-    const uint32_t read_a = wrapU32(read_index, kMaxEchoSamples);
-    const uint32_t read_b = wrapU32(read_index + 1, kMaxEchoSamples);
-    const float delayed_left = echo_left_[read_a] * 0.6f + echo_left_[read_b] * 0.4f;
-    const float delayed_right = echo_right_[read_a] * 0.6f + echo_right_[read_b] * 0.4f;
+    int32_t read_index = static_cast<int32_t>(echo_pos_) - static_cast<int32_t>(delay_int);
+    if (read_index < 0)
+      read_index += static_cast<int32_t>(kMaxEchoSamples);
+    const uint32_t read_a = static_cast<uint32_t>(read_index);
+    const uint32_t read_b = wrapAdd(read_a + 1U, kMaxEchoSamples);
+    const float delayed_left = echo_left_[read_a];
+    const float delayed_right = echo_right_[read_a];
+    (void)read_b;
 
     const float feedback = 0.42f + send_amount * 0.28f;
     echo_left_[echo_pos_] = left * send_amount + delayed_left * feedback;
     echo_right_[echo_pos_] = right * send_amount + delayed_right * feedback;
-    echo_pos_ = (echo_pos_ + 1U) % kMaxEchoSamples;
+    ++echo_pos_;
+    if (echo_pos_ >= kMaxEchoSamples)
+      echo_pos_ = 0U;
 
     left += delayed_left * send_amount;
     right += delayed_right * send_amount;
@@ -801,92 +566,70 @@ private:
   void applyTransition(float &live_left, float &live_right, float &loop_left, float &loop_right)
   {
     const float amount = wet_;
-    const float live_gain = equalPowerOut(amount);
-    const float loop_gain = equalPowerIn(amount);
-    const float tone = 0.25f + tone_norm_ * 0.75f;
-    const float hpf_max = expLerpHz(400.f, 6500.f, tone);
-    const float lpf_min = expLerpHz(400.f, 180.f, tone);
+    const float live_gain = 1.f - amount;
+    const float loop_gain = amount;
+
+    refreshFilterCoeffs();
 
     switch (type_)
     {
-    case TYPE_VOL:
-      live_left *= live_gain;
-      live_right *= live_gain;
-      loop_left *= loop_gain;
-      loop_right *= loop_gain;
-      break;
-
     case TYPE_HPF:
     {
-      float live_hpf_left = live_left;
-      float live_hpf_right = live_right;
-      float loop_hpf_left = loop_left;
-      float loop_hpf_right = loop_right;
-      filterPair(live_lp_left_, live_lp_right_, live_lp2_left_, live_lp2_right_, live_left, live_right,
-                 expLerpHz(22.f, hpf_max, amount), true, live_hpf_left, live_hpf_right);
-      filterPair(loop_lp_left_, loop_lp_right_, loop_lp2_left_, loop_lp2_right_, loop_left, loop_right,
-                 expLerpHz(hpf_max, 22.f, amount), true, loop_hpf_left, loop_hpf_right);
-      const float live_end = amount > 0.8f ? equalPowerOut((amount - 0.8f) * 5.f) : 1.f;
-      const float loop_start = amount < 0.2f ? equalPowerIn(amount * 5.f) : 1.f;
-      live_left = live_hpf_left * live_end;
-      live_right = live_hpf_right * live_end;
-      loop_left = loop_hpf_left * loop_start;
-      loop_right = loop_hpf_right * loop_start;
+      applyOnePole(live_lp_left_, live_left, live_coeff_);
+      applyOnePole(live_lp_right_, live_right, live_coeff_);
+      applyOnePole(loop_lp_left_, loop_left, loop_coeff_);
+      applyOnePole(loop_lp_right_, loop_right, loop_coeff_);
+      const float live_end = amount > 0.8f ? 1.f - (amount - 0.8f) * 5.f : 1.f;
+      const float loop_start = amount < 0.2f ? amount * 5.f : 1.f;
+      live_left = (live_left - live_lp_left_) * live_end;
+      live_right = (live_right - live_lp_right_) * live_end;
+      loop_left = (loop_left - loop_lp_left_) * loop_start;
+      loop_right = (loop_right - loop_lp_right_) * loop_start;
       break;
     }
 
     case TYPE_LPF:
     {
-      float live_lpf_left = live_left;
-      float live_lpf_right = live_right;
-      float loop_lpf_left = loop_left;
-      float loop_lpf_right = loop_right;
-      filterPair(live_lp_left_, live_lp_right_, live_lp2_left_, live_lp2_right_, live_left, live_right,
-                 expLerpHz(12000.f, lpf_min, amount), false, live_lpf_left, live_lpf_right);
-      filterPair(loop_lp_left_, loop_lp_right_, loop_lp2_left_, loop_lp2_right_, loop_left, loop_right,
-                 expLerpHz(lpf_min, 12000.f, amount), false, loop_lpf_left, loop_lpf_right);
-      live_left = live_lpf_left * live_gain;
-      live_right = live_lpf_right * live_gain;
-      loop_left = loop_lpf_left * loop_gain;
-      loop_right = loop_lpf_right * loop_gain;
+      applyOnePole(live_lp_left_, live_left, live_coeff_);
+      applyOnePole(live_lp_right_, live_right, live_coeff_);
+      applyOnePole(loop_lp_left_, loop_left, loop_coeff_);
+      applyOnePole(loop_lp_right_, loop_right, loop_coeff_);
+      live_left = live_lp_left_ * live_gain;
+      live_right = live_lp_right_ * live_gain;
+      loop_left = loop_lp_left_ * loop_gain;
+      loop_right = loop_lp_right_ * loop_gain;
       break;
     }
 
     case TYPE_BASS:
     {
-      const float split_hz = 180.f;
-      float live_low_left = 0.f;
-      float live_low_right = 0.f;
-      float loop_low_left = 0.f;
-      float loop_low_right = 0.f;
-      filterPair(bass_lp_live_left_, bass_lp_live_right_, bass_lp2_live_left_, bass_lp2_live_right_, live_left,
-                 live_right, split_hz, false, live_low_left, live_low_right);
-      filterPair(bass_lp_loop_left_, bass_lp_loop_right_, bass_lp2_loop_left_, bass_lp2_loop_right_, loop_left,
-                 loop_right, split_hz, false, loop_low_left, loop_low_right);
-      const float live_high_left = live_left - live_low_left;
-      const float live_high_right = live_right - live_low_right;
-      const float loop_high_left = loop_left - loop_low_left;
-      const float loop_high_right = loop_right - loop_low_right;
+      applyOnePole(bass_lp_live_left_, live_left, bass_coeff_);
+      applyOnePole(bass_lp_live_right_, live_right, bass_coeff_);
+      applyOnePole(bass_lp_loop_left_, loop_left, bass_coeff_);
+      applyOnePole(bass_lp_loop_right_, loop_right, bass_coeff_);
+      const float live_high_left = live_left - bass_lp_live_left_;
+      const float live_high_right = live_right - bass_lp_live_right_;
+      const float loop_high_left = loop_left - bass_lp_loop_left_;
+      const float loop_high_right = loop_right - bass_lp_loop_right_;
       const float bass_swap = amount < 0.5f ? 0.f : clamp01((amount - 0.5f) * 8.f);
-      live_left = live_high_left * live_gain + live_low_left * (1.f - bass_swap);
-      live_right = live_high_right * live_gain + live_low_right * (1.f - bass_swap);
-      loop_left = loop_high_left * loop_gain + loop_low_left * bass_swap;
-      loop_right = loop_high_right * loop_gain + loop_low_right * bass_swap;
+      live_left = live_high_left * live_gain + bass_lp_live_left_ * (1.f - bass_swap);
+      live_right = live_high_right * live_gain + bass_lp_live_right_ * (1.f - bass_swap);
+      loop_left = loop_high_left * loop_gain + bass_lp_loop_left_ * bass_swap;
+      loop_right = loop_high_right * loop_gain + bass_lp_loop_right_ * bass_swap;
       break;
     }
 
     case TYPE_ECHO:
     {
-      float outgoing_left = live_left;
-      float outgoing_right = live_right;
-      applyEcho(outgoing_left, outgoing_right, amount);
-      live_left = outgoing_left * live_gain;
-      live_right = outgoing_right * live_gain;
+      applyEcho(live_left, live_right, amount);
+      live_left *= live_gain;
+      live_right *= live_gain;
       loop_left *= loop_gain;
       loop_right *= loop_gain;
       break;
     }
 
+    case TYPE_VOL:
     case TYPE_BRK:
     case TYPE_ROLL:
     default:
@@ -904,33 +647,26 @@ private:
   float *echo_right_ = nullptr;
 
   float time_norm_ = 0.4f;
-  float stretch_target_ = 1.f;
-  float stretch_smooth_ = 1.f;
   float mix_ = 1.f;
   float glue_norm_ = 0.39f;
-  float size_norm_ = 0.5f;
   float tone_norm_ = 0.68f;
   float bpm_ = 120.f;
   float wet_ = 0.f;
   float wet_target_ = 0.f;
-  float analysis_pos_ = 0.f;
-  float spawn_phase_ = 0.f;
+  float fade_increment_ = 0.0001f;
+  float play_pos_ = 0.f;
   float live_lp_left_ = 0.f;
   float live_lp_right_ = 0.f;
-  float live_lp2_left_ = 0.f;
-  float live_lp2_right_ = 0.f;
   float loop_lp_left_ = 0.f;
   float loop_lp_right_ = 0.f;
-  float loop_lp2_left_ = 0.f;
-  float loop_lp2_right_ = 0.f;
   float bass_lp_live_left_ = 0.f;
   float bass_lp_live_right_ = 0.f;
-  float bass_lp2_live_left_ = 0.f;
-  float bass_lp2_live_right_ = 0.f;
   float bass_lp_loop_left_ = 0.f;
   float bass_lp_loop_right_ = 0.f;
-  float bass_lp2_loop_left_ = 0.f;
-  float bass_lp2_loop_right_ = 0.f;
+  float live_coeff_ = 0.05f;
+  float loop_coeff_ = 0.05f;
+  float bass_coeff_ = 0.023f;
+
   uint32_t loop_length_ = 96000U;
   uint32_t glue_length_ = 2048U;
   uint32_t record_length_ = 98048U;
@@ -939,9 +675,9 @@ private:
   uint32_t write_pos_ = 0U;
   uint32_t echo_pos_ = 0U;
   uint32_t captured_samples_ = 0U;
-  uint8_t type_ = TYPE_HPF;
+  uint8_t type_ = TYPE_VOL;
   uint8_t sync_ = SYNC_4;
   bool frozen_ = false;
   bool pad_held_ = false;
-  Grain grains_[kGrainCount];
+  bool filter_dirty_ = true;
 };

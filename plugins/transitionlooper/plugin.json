@@ -4,15 +4,13 @@
   "name": "TransitionLooper",
   "type": "fx",
   "targets": ["nts-3_kaoss"],
-  "description": "DJ transition looper for NTS-3. Always captures a tempo-synced 16-step stereo loop plus wrap glue. Untouched = bypass. Hold the pad to fade from live input into the stored loop; release to fade back. X = fade time (1/32 to 2 bars), Y = pitch-preserving WSOLA stretch (0.5x–2x), Depth = wet. TYPE selects a DJ mix: volume blend, high-pass filter fade, low-pass fade, bass swap, echo out, brake, or loop roll.",
+  "description": "DJ transition looper for NTS-3. Always captures a tempo-synced 16-step stereo loop plus wrap glue. Untouched = bypass. Hold the pad to fade from live input into the stored loop; release to fade back. X = fade time (1/32 to 2 bars), Y = filter sweep range, Depth = wet. TYPE selects a DJ mix: volume blend, high-pass filter fade, low-pass fade, bass swap, echo out, brake, or loop roll.",
   "params": [
     { "name": "TIME", "role": "X", "detail": "Fade in/out length, tempo-synced from a 1/32 note to 2 bars" },
-    { "name": "STRCH", "role": "Y", "detail": "WSOLA time stretch of the loop (0.5x–2x, center = 1.0, pitch held)" },
+    { "name": "TONE", "role": "Y", "detail": "How far filter and bass-swap sweeps travel" },
     { "name": "MIX", "role": "Depth", "detail": "Loop wet level while the pad is held" },
     { "name": "TYPE", "role": "Edit", "detail": "Transition: VOL, HPF, LPF, BASS, ECHO, BRK, ROLL" },
     { "name": "GLUE", "role": "Edit", "detail": "Loop wrap crossfade length (click-free splice)" },
-    { "name": "SIZE", "role": "Edit", "detail": "Stretch grain length (short = tighter transients, long = smoother)" },
-    { "name": "SYNC", "role": "Edit", "detail": "Echo / roll division: 1/16, 1/8, 1/4, 1/2" },
-    { "name": "TONE", "role": "Edit", "detail": "How far filter and bass-swap sweeps travel" }
+    { "name": "SYNC", "role": "Edit", "detail": "Echo / roll division: 1/16, 1/8, 1/4, 1/2" }
   ]
 }
