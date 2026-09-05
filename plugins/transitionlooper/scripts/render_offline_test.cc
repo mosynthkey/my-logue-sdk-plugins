@@ -110,13 +110,11 @@ int main()
   fx.init(ram.data());
   fx.setTempo(120.f);
   fx.setParameter(TransitionLooper::TIME, 80);
-  fx.setParameter(TransitionLooper::STRCH, 512);
+  fx.setParameter(TransitionLooper::TONE, 700);
   fx.setParameter(TransitionLooper::MIX, 1000);
   fx.setParameter(TransitionLooper::TYPE, TransitionLooper::TYPE_VOL);
   fx.setParameter(TransitionLooper::GLUE, 400);
-  fx.setParameter(TransitionLooper::SIZE, 512);
   fx.setParameter(TransitionLooper::SYNC, TransitionLooper::SYNC_4);
-  fx.setParameter(TransitionLooper::TONE, 700);
 
   const uint32_t bar_frames = 96000U;
   const uint32_t extra_frames = 8000U;
@@ -187,10 +185,9 @@ int main()
   hpf_fx.init(hpf_ram.data());
   hpf_fx.setTempo(120.f);
   hpf_fx.setParameter(TransitionLooper::TIME, 470);
-  hpf_fx.setParameter(TransitionLooper::STRCH, 512);
+  hpf_fx.setParameter(TransitionLooper::TONE, 900);
   hpf_fx.setParameter(TransitionLooper::MIX, 1000);
   hpf_fx.setParameter(TransitionLooper::TYPE, TransitionLooper::TYPE_HPF);
-  hpf_fx.setParameter(TransitionLooper::TONE, 900);
   std::vector<float> two_left(bar_frames, 0.f);
   std::vector<float> two_right(bar_frames, 0.f);
   fillTwoTone(two_left, two_right, 70.f, 2500.f, 0.5f);
@@ -206,28 +203,6 @@ int main()
   {
     std::printf("HPF fade-in should start thin and restore lows as the loop arrives\n");
     return 16;
-  }
-
-  TransitionLooper stretch_fx;
-  std::vector<float> stretch_ram(stretch_fx.getBufferSize(), 0.f);
-  stretch_fx.init(stretch_ram.data());
-  stretch_fx.setTempo(120.f);
-  stretch_fx.setParameter(TransitionLooper::TIME, 40);
-  stretch_fx.setParameter(TransitionLooper::STRCH, 900);
-  stretch_fx.setParameter(TransitionLooper::MIX, 1000);
-  stretch_fx.setParameter(TransitionLooper::TYPE, TransitionLooper::TYPE_VOL);
-  stretch_fx.setParameter(TransitionLooper::SIZE, 700);
-  std::vector<float> ignored;
-  renderWithInput(stretch_fx, left.data(), right.data(), bar_frames, ignored);
-  stretch_fx.touchEvent(0, k_unit_touch_phase_began, 512U, 512U);
-  std::vector<float> stretched;
-  renderWithInput(stretch_fx, silent_left.data(), silent_right.data(), 24000U, stretched);
-  const float stretched_rms = windowRms(stretched, 8000U, 8000U);
-  std::printf("stretched_rms=%.6f\n", stretched_rms);
-  if (stretched_rms < 0.03f)
-  {
-    std::printf("time-stretched loop should still be audible\n");
-    return 15;
   }
 
   return 0;
