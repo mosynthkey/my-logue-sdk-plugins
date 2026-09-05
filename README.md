@@ -31,6 +31,7 @@ Plugins:
 - **Kaocid** — TB-303 style acid bass with auto phrase generator, `nts-3_kaoss` (`genericfx`, hold pad = tempo-synced 16-step pattern with glides, retouch = new phrase). Panel: Cutoff, Resonance, Wave, Env Mod, Decay, Accent, plus ROOT and Mix. Voice inspired by gsynth TB-303 (Andy Sloane, 2001).
 - **TechnoRumble** — Techno rumble kick processor (`revfx` on mkII, `genericfx` on NTS-3): long reverb tail, sub LPF, drive, and transient-triggered sidechain duck. Feed a kick on AUDIO IN or synth output.
 - **TransitionLooper** — NTS-3 DJ transition looper: captures AUDIO IN into a tempo-synced 16-step stereo loop plus wrap glue. Prefers `get_raw_input` (firmware 1.4+) while the pad is up; if that pre-roll is silent, the first hold records one live bar and then loops. Pad up bypasses; hold fades into the stored loop (volume, HPF/LPF, bass swap, echo out, brake, or roll).
+- **GlitchPad** — NTS-3 XY-pad glitch inspired by Illformed Glitch². Keeps a tempo-synced AUDIO IN buffer and plays eight scenes from the pad (retrigger, reverse, shuffle, tape stop, granular stretch, gate, crush, delay). X = scene, Y = slice / rate, Depth = mix. Not a port of the 128-scene sequencer UI.
 
 ## Targets
 
