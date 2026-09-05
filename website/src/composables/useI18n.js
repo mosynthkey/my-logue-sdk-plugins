@@ -34,6 +34,7 @@ export const japanesePluginDescriptions = {
   gridsdrum: "MI Grids的なXYでジャンル密度を決め、BD/SD/HHフレーズを生成します。タッチでシーケンサ走行、右上フリックで1小節Fillです。",
   riffdice: "Elektronのconditional trigを音源側に内蔵したリフ・ダイスです。Xはルート、Yは密度/確率、タッチでフレーズ走行です。",
   chordres: "触った位置のコードを鳴らしたあと、離すと残存アルペジオがテンポ同期で溶けていきます。Xはコード進行軸、Yはヴォイシング、離すとResidueが始まります。",
+  hclap: "808 / 909のアナログ・ハンドクラップをXYパッドで鳴らします。ホールドでフレーズ走行。Xは手数（2と4から16分まで）、Yは808→909。\n現在も調整中で、正式版\u2060は近日公開予定。",
 };
 
 const messages = {

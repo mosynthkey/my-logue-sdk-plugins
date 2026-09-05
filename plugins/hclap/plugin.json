@@ -1,0 +1,16 @@
+{
+  "id": "hclap",
+  "experimental": true,
+  "name": "HClap",
+  "type": "drum",
+  "targets": ["nts-3_kaoss"],
+  "description": "808/909 analog hand clap on a phrase pad. Hold to run. X = hit density (2-and-4 toward every 16th), Y = 808 toward 909.\nStill being fine-tuned; the official release is coming soon.",
+  "params": [
+    { "name": "DENS", "role": "X", "detail": "Euclidean hits per bar, rotated onto beats 2 and 4 (1–16, then 32nd flams)" },
+    { "name": "TYPE", "role": "Y", "detail": "808 (bottom: analog noise, one VCA) to 909 (top: LFSR, dual VCA)" },
+    { "name": "MIX", "role": "Depth", "detail": "Dry/wet" },
+    { "name": "TONE", "role": "Edit", "detail": "Band-pass colour (R332-style)" },
+    { "name": "DEC", "role": "Edit", "detail": "Fake-reverb tail length" },
+    { "name": "SNAP", "role": "Edit", "detail": "Burst vs tail mix" }
+  ]
+}
