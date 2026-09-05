@@ -19,11 +19,11 @@ public:
 
   enum
   {
-    PITCH = 0U,
-    FEED,
-    MIX,
+    LFO = 0U,
     HARM,
-    SWOOP,
+    MIX,
+    PITCH,
+    RATE,
     DEC,
     LEVEL,
     NUM_PARAMS
@@ -34,11 +34,11 @@ public:
     MoHowlEngine::Params params = engine_.getParams();
     switch (index)
     {
-    case PITCH:
-      params.pitch = param_10bit_to_f32(value);
+    case LFO:
+      params.lfo_depth = param_10bit_to_f32(value);
       break;
-    case FEED:
-      params.feedback = param_10bit_to_f32(value);
+    case HARM:
+      params.harmonics = param_10bit_to_f32(value);
       break;
     case MIX:
       mix_ = value / 1000.f;
@@ -47,11 +47,11 @@ public:
       if (mix_ > 1.f)
         mix_ = 1.f;
       return;
-    case HARM:
-      params.harmonics = param_10bit_to_f32(value);
+    case PITCH:
+      params.pitch = param_10bit_to_f32(value);
       break;
-    case SWOOP:
-      params.swoop = param_10bit_to_f32(value);
+    case RATE:
+      params.lfo_rate = param_10bit_to_f32(value);
       break;
     case DEC:
       params.decay = param_10bit_to_f32(value);
