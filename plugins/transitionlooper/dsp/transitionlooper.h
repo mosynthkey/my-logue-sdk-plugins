@@ -4,7 +4,8 @@
  * File: transitionlooper.h
  *
  * Tempo-synced 16-step DJ transition looper for NTS-3. Always records the
- * last bar plus wrap-glue. Pad up bypasses; pad down fades into the frozen
+ * last bar plus wrap-glue from raw AUDIO IN (NTS-3 mutes unit_render input
+ * while the pad is up). Pad up bypasses; pad down fades into the frozen
  * loop using volume, filter, bass-swap, echo, brake, or roll transitions.
  * Playback is a direct loop read (no time-stretch) to stay light on the M7.
  */
@@ -241,13 +242,22 @@ public:
 
   void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final
   {
+    process(in, nullptr, out, frames);
+  }
+
+  // Record from raw when provided. NTS-3 unit_render input is muted while the
+  // effect is off; get_raw_input() still carries AUDIO IN for looper capture.
+  void process(const float *__restrict in, const float *__restrict raw, float *__restrict out, uint32_t frames)
+  {
+    const float *record = (raw != nullptr) ? raw : in;
+
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
       const float dry_left = in[0];
       const float dry_right = in[1];
 
       if (!frozen_)
-        recordSample(dry_left, dry_right);
+        recordSample(record[0], record[1]);
 
       advanceWet();
 
@@ -256,6 +266,7 @@ public:
         out[0] = dry_left;
         out[1] = dry_right;
         in += 2;
+        record += 2;
         out += 2;
         continue;
       }
@@ -273,6 +284,7 @@ public:
       out[1] = live_right + loop_right * mix_;
 
       in += 2;
+      record += 2;
       out += 2;
     }
   }

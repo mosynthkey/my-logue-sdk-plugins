@@ -45,6 +45,7 @@
 #include <algorithm>
 
 static TransitionLooper s_transitionlooper_instance;
+static const unit_runtime_genericfx_context_t *s_fx_context = nullptr;
 
 static int32_t cached_values[UNIT_GENERICFX_MAX_PARAM_COUNT];
 
@@ -74,6 +75,7 @@ __unit_callback int8_t unit_init(const unit_runtime_desc_t *desc)
     return k_unit_err_memory;
 
   std::fill(allocated_buffer, allocated_buffer + s_transitionlooper_instance.getBufferSize(), 0.f);
+  s_fx_context = static_cast<const unit_runtime_genericfx_context_t *>(desc->hooks.runtime_context);
   s_transitionlooper_instance.init(allocated_buffer);
 
   for (uint8_t paramIndex = 0; paramIndex < UNIT_GENERICFX_MAX_PARAM_COUNT; ++paramIndex)
@@ -88,6 +90,7 @@ __unit_callback int8_t unit_init(const unit_runtime_desc_t *desc)
 __unit_callback void unit_teardown()
 {
   s_transitionlooper_instance.teardown();
+  s_fx_context = nullptr;
 }
 
 __unit_callback void unit_reset()
@@ -107,7 +110,10 @@ __unit_callback void unit_suspend()
 
 __unit_callback void unit_render(const float *in, float *out, uint32_t frames)
 {
-  s_transitionlooper_instance.process(in, out, frames);
+  const float *raw = nullptr;
+  if (s_fx_context != nullptr && s_fx_context->get_raw_input != nullptr)
+    raw = s_fx_context->get_raw_input();
+  s_transitionlooper_instance.process(in, raw, out, frames);
 }
 
 __unit_callback void unit_set_param_value(uint8_t id, int32_t value)
