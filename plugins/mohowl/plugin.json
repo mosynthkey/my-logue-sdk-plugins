@@ -1,0 +1,17 @@
+{
+  "id": "mohowl",
+  "experimental": true,
+  "name": "MoHowl",
+  "type": "synth",
+  "targets": ["nts-3_kaoss"],
+  "description": "Author-motif feedback howl for NTS-3. Pad-triggered JP-8080-style comb scream: X = pitch, Y = feedback, hold to sustain. SWOOP lifts the attack like a yell; DEC is the release.",
+  "params": [
+    { "name": "PITCH", "role": "X", "detail": "Howl pitch (C2–C6)" },
+    { "name": "FEED", "role": "Y", "detail": "Feedback / scream intensity" },
+    { "name": "MIX", "role": "Depth", "detail": "Dry/wet" },
+    { "name": "HARM", "role": "Edit", "detail": "Comb harmonic spacing (same as FbOsc HARM)" },
+    { "name": "SWOOP", "role": "Edit", "detail": "Attack pitch rise (0 = flat, 1 = +1 octave)" },
+    { "name": "DEC", "role": "Edit", "detail": "Release time after lifting the pad" },
+    { "name": "LEVEL", "role": "Edit", "detail": "Wet level" }
+  ]
+}

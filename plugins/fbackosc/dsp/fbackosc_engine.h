@@ -5,22 +5,33 @@
  *
  * JP-8080-inspired Feedback oscillator engine.
  * Band-limited saw through a key-tracked resonant comb filter.
- * Platform-agnostic core used by NTS-1 mkII and microKORG2 targets.
+ * Platform-agnostic core used by NTS-1 mkII, microKORG2, and MoHowl.
  *
  */
 
+#ifndef FBACKOSC_MAX_DELAY
+#define FBACKOSC_MAX_DELAY 8192U
+#endif
+
+#ifndef FBACKOSC_NO_OSC_API
 #include "osc_api.h"
-#include "utils/float_math.h"
-#include <math.h>
+#endif
+
 #include <stdint.h>
 
 class FBackOscEngine
 {
 public:
-  static constexpr uint32_t kMaxDelaySamples = 8192U;
-  static constexpr float kOutputTrim = 0.55f;
+  static constexpr uint32_t kMaxDelaySamples = FBACKOSC_MAX_DELAY;
+  // Single saw sits near -7.5 dBFS. Comb peak gain 1/(1-fb) is compensated
+  // in render() so FEED changes timbre, not a 20 dB jump.
+  static constexpr float kOutputTrim = 0.42f;
   static constexpr float kMaxFeedback = 0.93f;
   static constexpr float kParameterSmoothing = 0.002f;
+  static constexpr float kLoopDamping = 0.97f;
+  static constexpr float kLoopDcPole = 0.002f;
+  static constexpr float kOutputDcCoeff = 0.995f;
+  static constexpr float kCompensateKeep = 0.42f;
 
   struct Params
   {
@@ -32,14 +43,23 @@ public:
   {
     saw_phase_ = 0.f;
     clearDelayLine();
-    dc_state_ = 0.f;
+    dc_x_ = 0.f;
+    dc_y_ = 0.f;
+    loop_dc_ = 0.f;
     feedback_coeff_ = target_feedback_coeff_;
     delay_samples_ = target_delay_samples_;
   }
 
   void randomizePhase()
   {
+#ifdef FBACKOSC_NO_OSC_API
+    phase_rng_ = phase_rng_ * 1664525U + 1013904223U;
+    saw_phase_ = static_cast<float>(phase_rng_ >> 8) * (1.f / 16777216.f);
+#else
     saw_phase_ = osc_white();
+    if (saw_phase_ < 0.f)
+      saw_phase_ = saw_phase_ * 0.5f + 0.5f;
+#endif
   }
 
   void setParams(const Params &params)
@@ -53,7 +73,11 @@ public:
   void setPitch(float w0, float note)
   {
     base_w0_ = w0;
+#ifndef FBACKOSC_NO_OSC_API
     bl_idx_ = bandLimitedSawIndex(note);
+#else
+    (void)note;
+#endif
     updateDerived();
   }
 
@@ -62,35 +86,76 @@ public:
     feedback_coeff_ += (target_feedback_coeff_ - feedback_coeff_) * kParameterSmoothing;
     delay_samples_ += (target_delay_samples_ - delay_samples_) * kParameterSmoothing;
 
-    const float saw_sample = osc_bl2_sawf(saw_phase_, bl_idx_);
-
-    saw_phase_ += base_w0_;
-    saw_phase_ -= floorf(saw_phase_);
+    const float saw_sample = generateSaw();
 
     const float delayed = readDelay(delay_samples_);
-    float comb_sample = saw_sample + feedback_coeff_ * delayed;
-    if (comb_sample > 4.f)
-      comb_sample = 4.f;
-    else if (comb_sample < -4.f)
-      comb_sample = -4.f;
+    loop_dc_ += kLoopDcPole * (delayed - loop_dc_);
+    const float delayed_ac = delayed - loop_dc_;
+
+    float comb_sample = saw_sample + feedback_coeff_ * delayed_ac * kLoopDamping;
+    if (comb_sample > 8.f)
+      comb_sample = 8.f;
+    else if (comb_sample < -8.f)
+      comb_sample = -8.f;
     writeDelay(comb_sample);
 
-    float output = comb_sample * kOutputTrim;
+    const float one_minus_fb = 1.f - feedback_coeff_;
+    const float compensate = one_minus_fb / (1.f - feedback_coeff_ * kCompensateKeep);
+    float output = comb_sample * kOutputTrim * compensate;
     output = softClip(output);
 
-    // One-pole DC blocker
-    const float blocked = output - dc_state_;
-    dc_state_ = output + 0.995f * dc_state_;
+    const float blocked = output - dc_x_ + kOutputDcCoeff * dc_y_;
+    dc_x_ = output;
+    dc_y_ = blocked;
     return blocked;
   }
 
 private:
+  static float lerp(float frac, float a, float b)
+  {
+    return a + frac * (b - a);
+  }
+
   static float softClip(float sample)
   {
-    const float abs_sample = fabsf(sample);
-    if (abs_sample < 1.f)
-      return sample;
-    return sample / (1.f + abs_sample - 1.f);
+    float x = sample;
+    if (x > 1.f)
+      x = 1.f;
+    else if (x < -1.f)
+      x = -1.f;
+    return x - x * x * x * (1.f / 3.f);
+  }
+
+#ifdef FBACKOSC_NO_OSC_API
+  static float polyBlep(float phase, float increment)
+  {
+    if (increment < 1e-8f)
+      return 0.f;
+    if (phase < increment)
+    {
+      const float t = phase / increment;
+      return t + t - t * t - 1.f;
+    }
+    if (phase > 1.f - increment)
+    {
+      const float t = (phase - 1.f) / increment;
+      return t * t + t + t + 1.f;
+    }
+    return 0.f;
+  }
+#endif
+
+  float generateSaw()
+  {
+#ifdef FBACKOSC_NO_OSC_API
+    const float saw_sample = (2.f * saw_phase_ - 1.f) - polyBlep(saw_phase_, base_w0_);
+#else
+    const float saw_sample = osc_bl2_sawf(saw_phase_, bl_idx_);
+#endif
+    saw_phase_ += base_w0_;
+    if (saw_phase_ >= 1.f)
+      saw_phase_ -= 1.f;
+    return saw_sample;
   }
 
   static float harmonicRatio(float harmonics_0_1)
@@ -101,6 +166,7 @@ private:
     return 1.f + x * (1.f + x * (0.5f + x * (0.1666666667f + x * (0.0416666667f + x * 0.0083333333f))));
   }
 
+#ifndef FBACKOSC_NO_OSC_API
   static float bandLimitedSawIndex(float note)
   {
     uint32_t index = 0U;
@@ -115,6 +181,7 @@ private:
     const float maximum = static_cast<float>(k_wt_saw_notes_cnt - 1U);
     return fractional < maximum ? fractional : maximum;
   }
+#endif
 
   void updateDerived()
   {
@@ -123,7 +190,6 @@ private:
     const float ratio = harmonicRatio(params_.harmonics);
     if (base_w0_ > 1e-8f)
     {
-      // w0 is cycles/sample (osc_w0f_for_note). Comb period is 1 / (f * ratio).
       float delay = 1.f / (base_w0_ * ratio);
       if (delay < 2.f)
         delay = 2.f;
@@ -152,8 +218,8 @@ private:
 
     const uint32_t index0 = static_cast<uint32_t>(read_pos) % kMaxDelaySamples;
     const uint32_t index1 = (index0 + 1U) % kMaxDelaySamples;
-    const float frac = read_pos - floorf(read_pos);
-    return linintf(frac, delay_line_[index0], delay_line_[index1]);
+    const float frac = read_pos - static_cast<float>(index0);
+    return lerp(frac, delay_line_[index0], delay_line_[index1]);
   }
 
   void writeDelay(float sample)
@@ -164,13 +230,20 @@ private:
 
   Params params_;
   float base_w0_ = 0.f;
+#ifndef FBACKOSC_NO_OSC_API
   float bl_idx_ = 0.f;
+#endif
   float feedback_coeff_ = 0.f;
   float target_feedback_coeff_ = 0.f;
   float delay_samples_ = 64.f;
   float target_delay_samples_ = 64.f;
   float saw_phase_ = 0.f;
-  float dc_state_ = 0.f;
+  float dc_x_ = 0.f;
+  float dc_y_ = 0.f;
+  float loop_dc_ = 0.f;
   float delay_line_[kMaxDelaySamples] = {};
   uint32_t write_pos_ = 0U;
+#ifdef FBACKOSC_NO_OSC_API
+  uint32_t phase_rng_ = 0xA341316CU;
+#endif
 };
