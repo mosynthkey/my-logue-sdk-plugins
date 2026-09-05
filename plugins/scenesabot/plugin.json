@@ -1,0 +1,37 @@
+{
+  "id": "scenesabot",
+  "experimental": true,
+  "name": "SceneSabot",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Loop-Saboteur / Octatrack Delay Ctrl for NTS-3. Always records a tempo-synced 1/2/4-bar stereo loop from AUDIO IN (get_raw_input on firmware 1.4+). Pad up stays dry. Touch arms sabotage: X scrubs the 16th-step destruction point, Y sets how much of the window is wrecked. TYPE picks reverse, ratchet, crush, stretch, or all of them at once.",
+  "params": [
+    {
+      "name": "POS",
+      "role": "X",
+      "detail": "Which 16th-step on the loop to jump to and destroy"
+    },
+    {
+      "name": "AMT",
+      "role": "Y",
+      "detail": "Fill one step at the left, destroy the whole loop at the right"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet while sabotage is armed"
+    },
+    {
+      "name": "BARS",
+      "role": "Edit",
+      "detail": "Recorded loop length: 1, 2, or 4 bars"
+    },
+    {
+      "name": "TYPE",
+      "role": "Edit",
+      "detail": "REV, RCHT, CRSH, STRC, or ALL (combine / morph with AMT)"
+    }
+  ]
+}

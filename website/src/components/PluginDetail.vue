@@ -20,9 +20,17 @@ const props = defineProps({
     type: String,
     required: true,
   },
+  downloadAllBusy: {
+    type: Boolean,
+    default: false,
+  },
+  downloadAllDisabled: {
+    type: Boolean,
+    default: false,
+  },
 });
 
-const emit = defineEmits(["select-target", "send"]);
+const emit = defineEmits(["select-target", "send", "download-all"]);
 const { pluginDescription, t } = useI18n();
 
 const activeBuild = computed(() => buildForTarget(props.plugin, props.activeTarget));
@@ -68,6 +76,25 @@ const sends = computed(() => sendableBuilds(props.plugin));
             </svg>
             <span>{{ targetName(build.target) }}</span>
           </a>
+          <button
+            type="button"
+            class="device-button"
+            :disabled="downloadAllDisabled || downloadAllBusy"
+            :aria-label="t('downloadAll')"
+            :title="t('downloadAll')"
+            @click="emit('download-all')"
+          >
+            <svg
+              class="device-button__icon"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path d="M12 3v12" />
+              <path d="m7 11 5 5 5-5" />
+              <path d="M5 19h14" />
+            </svg>
+            <span>{{ downloadAllBusy ? t("downloadAllBusy") : t("downloadAll") }}</span>
+          </button>
         </div>
       </div>
 

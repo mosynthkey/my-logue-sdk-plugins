@@ -16,7 +16,7 @@
     {
       "name": "VOIC",
       "role": "Y",
-      "detail": "Voicing openness"
+      "detail": "Close, drop-2, or open voicing (octave shifts, not detune)"
     },
     {
       "name": "MIX",

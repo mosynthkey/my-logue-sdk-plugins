@@ -408,12 +408,39 @@ PLUGINS = [
         ),
         "params": [
             ("PROG", 0, 1023, 0, NONE, 0, 0, "x", "Diatonic progression axis (I–vi–IV–V…)"),
-            ("VOIC", 0, 1023, 400, NONE, 0, 0, "y", "Voicing openness"),
+            ("VOIC", 0, 1023, 400, NONE, 0, 0, "y", "Close, drop-2, or open voicing (octave shifts, not detune)"),
             ("MIX", 0, 1000, 1000, PCT, 1, 1, "depth", "Dry/wet"),
             ("ROOT", 24, 48, 36, NOTE, 0, 0, "none", "Key center"),
             ("TYPE", 0, 1, 0, STR, 0, 0, "none", "MIN or MAJ"),
             ("RES", 0, 1023, 640, NONE, 0, 0, "none", "Residue length / density"),
             ("DEC", 0, 1023, 500, NONE, 0, 0, "none", "Residue fade time"),
+        ],
+    },
+    {
+        "id": "scenesabot",
+        "class": "SceneSabot",
+        "name": "SceneSabot",
+        "unit_id": "0x00000021U",
+        "type": "fx",
+        "description": (
+            "Loop-Saboteur / Octatrack Delay Ctrl for NTS-3. Always records a tempo-synced "
+            "1/2/4-bar stereo loop from AUDIO IN (get_raw_input on firmware 1.4+). Pad up "
+            "stays dry. Touch arms sabotage: X scrubs the 16th-step destruction point, "
+            "Y sets how much of the window is wrecked. TYPE picks reverse, ratchet, crush, "
+            "stretch, or all of them at once."
+        ),
+        "ja": (
+            "数小節のループを常時録音し、タッチで破壊モードに入ります。"
+            "Glitch Padとは違い、Xはアルゴリズムではなくループ上の16分位置、"
+            "Yは破壊範囲（1ステップのフィル〜全小節）です。"
+            "TYPEは逆再生 / ラチェット / クラッシュ / ストレッチ / 全部入りです。"
+        ),
+        "params": [
+            ("POS", 0, 1023, 0, NONE, 0, 0, "x", "Which 16th-step on the loop to jump to and destroy"),
+            ("AMT", 0, 1023, 380, NONE, 0, 0, "y", "Fill one step at the left, destroy the whole loop at the right"),
+            ("MIX", 0, 1000, 1000, PCT, 1, 1, "depth", "Dry/wet while sabotage is armed"),
+            ("BARS", 0, 2, 2, STR, 0, 0, "none", "Recorded loop length: 1, 2, or 4 bars"),
+            ("TYPE", 0, 4, 4, STR, 0, 0, "none", "REV, RCHT, CRSH, STRC, or ALL (combine / morph with AMT)"),
         ],
     },
 ]
