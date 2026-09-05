@@ -32,6 +32,7 @@ Plugins:
 - **TechnoRumble** — Techno rumble kick processor (`revfx` on mkII, `genericfx` on NTS-3): long reverb tail, sub LPF, drive, and transient-triggered sidechain duck. Feed a kick on AUDIO IN or synth output.
 - **TransitionLooper** — NTS-3 DJ transition looper: captures AUDIO IN into a tempo-synced 16-step stereo loop plus wrap glue. Prefers `get_raw_input` (firmware 1.4+) while the pad is up; if that pre-roll is silent, the first hold records one live bar and then loops. Pad up bypasses; hold fades into the stored loop (volume, HPF/LPF, bass swap, echo out, brake, or roll).
 - **GlitchPad** — NTS-3 XY-pad glitch inspired by Illformed Glitch². Keeps a tempo-synced AUDIO IN buffer and plays eight scenes from the pad (retrigger, reverse, shuffle, tape stop, granular stretch, gate, crush, delay). X = scene, Y = slice / rate, Depth = mix. Not a port of the 128-scene sequencer UI.
+- **HClap** — NTS-3 808/909 analog hand clap. Hold the pad for a 16-step Euclidean phrase (X = density, spine on 2 and 4). Y morphs TR-808 (transistor noise, one VCA) into TR-909 (LFSR, dual VCA). Experimental; open with `?experimental`.
 - **NTS-3 idea pack (experimental)** — performance FX/OSC units that do not overlap stock NTS-3, Kaocid, airFM, or GlitchPad: BeatRepeat, EchoFreeze, RingExcit, SpecCloud, WarpsMorph, PumpDuck, RmxScene, EucGate, TalkForm, MsWidth, DataBend, ReesePhr, PercIter, Shepard, GridsDrum, RiffDice, ChordRes. Open the site with `?experimental` to preview them.
 
 ## Targets
