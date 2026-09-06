@@ -22,6 +22,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run SysEx packing tests
         run: node tests/nts1-midi.test.mjs
+      - name: Run plugin category tests
+        run: node tests/plugin-category.test.mjs
 
   build:
     runs-on: ubuntu-latest
