@@ -15,11 +15,13 @@ const { t } = provideI18n();
 const siteQuery = useSiteQuery();
 const {
   selectedPluginId,
+  selectedCategory,
   activePlugin,
   activeTarget,
   sidebarPlugins,
   selectPlugin,
   selectTarget,
+  selectCategory,
   initializeSelection,
 } = usePluginSelection(catalog, siteQuery);
 
@@ -103,7 +105,9 @@ onUnmounted(() => {
       v-if="catalog"
       :plugins="sidebarPlugins"
       :selected-plugin-id="selectedPluginId"
+      :selected-category="selectedCategory"
       @select-plugin="selectPlugin"
+      @select-category="selectCategory"
     />
 
     <PluginDetail

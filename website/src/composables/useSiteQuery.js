@@ -1,4 +1,5 @@
 import { computed, ref } from "vue";
+import { normalizeCategory } from "../utils/pluginCategory.js";
 import { isExperimentalEnabled } from "../utils/visiblePlugins.js";
 
 function readSearchParams() {
@@ -52,11 +53,31 @@ export function useSiteQuery() {
     return searchParams.value.get("target")?.trim() || null;
   }
 
+  function requestedCategory() {
+    return normalizeCategory(searchParams.value.get("category")?.trim());
+  }
+
+  function syncCategory(category) {
+    const nextParams = new URLSearchParams(searchParams.value);
+    const normalized = normalizeCategory(category);
+
+    if (normalized === "all") {
+      nextParams.delete("category");
+    } else {
+      nextParams.set("category", normalized);
+    }
+
+    searchParams.value = nextParams;
+    writeSearchParams(nextParams);
+  }
+
   return {
     searchParams,
     showExperimental,
     syncSelection,
+    syncCategory,
     requestedPluginId,
     requestedTarget,
+    requestedCategory,
   };
 }

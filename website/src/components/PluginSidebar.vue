@@ -1,6 +1,7 @@
 <script setup>
 import LanguageLabel from "./LanguageLabel.vue";
 import { useI18n } from "../composables/useI18n.js";
+import { PLUGIN_CATEGORIES, categoryMessageKey } from "../utils/pluginCategory.js";
 import { targetName } from "../utils/plugin.js";
 
 defineProps({
@@ -12,16 +13,26 @@ defineProps({
     type: String,
     default: null,
   },
+  selectedCategory: {
+    type: String,
+    default: "all",
+  },
 });
 
-const emit = defineEmits(["select-plugin"]);
+const emit = defineEmits(["select-plugin", "select-category"]);
 const { locale, setLocale, t } = useI18n();
+const categories = ["all", ...PLUGIN_CATEGORIES];
 
 function pluginTargets(plugin) {
   if (Array.isArray(plugin.targets) && plugin.targets.length > 0) {
     return plugin.targets;
   }
   return (plugin.builds || []).map((build) => build.target);
+}
+
+function categoryLabel(category) {
+  const messageKey = categoryMessageKey(category);
+  return messageKey ? t(messageKey) : category;
 }
 </script>
 
@@ -64,7 +75,55 @@ function pluginTargets(plugin) {
       </div>
     </header>
 
+    <div class="sidebar__filters">
+      <div
+        class="category-filter category-filter--desktop"
+        role="group"
+        :aria-label="t('category')"
+      >
+        <span class="plugin-picker__label">{{ t("category") }}</span>
+        <div class="category-filter__chips">
+          <button
+            v-for="category in categories"
+            :key="category"
+            type="button"
+            class="category-filter__chip"
+            :class="{ 'is-active': category === selectedCategory }"
+            :aria-pressed="category === selectedCategory"
+            @click="emit('select-category', category)"
+          >
+            {{ categoryLabel(category) }}
+          </button>
+        </div>
+      </div>
+
+      <div class="category-filter category-filter--mobile">
+        <label class="plugin-picker__label" for="category-select">{{ t("category") }}</label>
+        <select
+          id="category-select"
+          class="plugin-picker__select"
+          :aria-label="t('selectCategory')"
+          :value="selectedCategory"
+          @change="emit('select-category', $event.target.value)"
+        >
+          <option
+            v-for="category in categories"
+            :key="category"
+            :value="category"
+          >
+            {{ categoryLabel(category) }}
+          </option>
+        </select>
+      </div>
+    </div>
+
     <nav class="plugin-nav" :aria-label="t('pluginList')">
+      <p
+        v-if="plugins.length === 0"
+        class="plugin-nav__empty"
+      >
+        {{ t("noPluginsInCategory") }}
+      </p>
       <button
         v-for="plugin in plugins"
         :key="plugin.id"
