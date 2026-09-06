@@ -1,0 +1,37 @@
+{
+  "id": "riddimjg",
+  "experimental": true,
+  "name": "RiddimJg",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Sound-system riddim juggle. Always records a loop and splits it into version slices. Touch arms playback; X picks the version, Y is crossfade speed. No glitch destruction \u2014 selector switching.",
+  "params": [
+    {
+      "name": "VER",
+      "role": "X",
+      "detail": "Which version slice to hear"
+    },
+    {
+      "name": "XFD",
+      "role": "Y",
+      "detail": "Crossfade speed between versions"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet while juggling"
+    },
+    {
+      "name": "SLCS",
+      "role": "Edit",
+      "detail": "4, 6, or 8 slices"
+    },
+    {
+      "name": "BARS",
+      "role": "Edit",
+      "detail": "1, 2, or 4 bar loop"
+    }
+  ]
+}

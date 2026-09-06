@@ -1,0 +1,32 @@
+{
+  "id": "microgap",
+  "experimental": true,
+  "name": "MicroGap",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Vacuum micro-gap before a drop. Touch arms a mute quantized to the next downbeat. X = gap length (30\u2013200 ms), Y = tiny noise floor so the cut is not digital-dead.",
+  "params": [
+    {
+      "name": "GAP",
+      "role": "X",
+      "detail": "Gap length, about 30\u2013200 ms"
+    },
+    {
+      "name": "NOIS",
+      "role": "Y",
+      "detail": "Noise floor during the gap"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "How completely the gap mutes"
+    },
+    {
+      "name": "QNT",
+      "role": "Edit",
+      "detail": "FREE or BEAT (next downbeat)"
+    }
+  ]
+}

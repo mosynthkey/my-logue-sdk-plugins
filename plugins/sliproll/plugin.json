@@ -1,0 +1,32 @@
+{
+  "id": "sliproll",
+  "experimental": true,
+  "name": "SlipRoll",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Pioneer DJM Slip Roll. Touch captures the current slice and loops it while the underlying track keeps advancing. Changing X recaptures. Y is how much live dry remains (Helix). Release returns to the real timeline.",
+  "params": [
+    {
+      "name": "LEN",
+      "role": "X",
+      "detail": "Roll length, 1/16 to 2 beats"
+    },
+    {
+      "name": "SLIP",
+      "role": "Y",
+      "detail": "Live dry remaining under the roll"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Roll wet level"
+    },
+    {
+      "name": "GLUE",
+      "role": "Edit",
+      "detail": "Loop splice crossfade"
+    }
+  ]
+}

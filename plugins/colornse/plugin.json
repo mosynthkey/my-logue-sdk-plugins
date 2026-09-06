@@ -1,0 +1,32 @@
+{
+  "id": "colornse",
+  "experimental": true,
+  "name": "ColorNse",
+  "type": "synth",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "DJM Color FX Noise. Touch gates white / pink / brown noise through a filter that morphs HPF to LPF. X = filter morph, Y = noise color and drive.",
+  "params": [
+    {
+      "name": "FILT",
+      "role": "X",
+      "detail": "Filter morph: HPF (left) to LPF (right)"
+    },
+    {
+      "name": "COLR",
+      "role": "Y",
+      "detail": "Noise color and drive"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Level"
+    },
+    {
+      "name": "CUT",
+      "role": "Edit",
+      "detail": "Filter cutoff span"
+    }
+  ]
+}
