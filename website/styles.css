@@ -282,6 +282,43 @@ body.modal-open {
   word-break: normal;
 }
 
+.detail__dsp-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  min-height: var(--control-height);
+  padding: 0 var(--control-pad-x);
+  border: 1px solid var(--line-strong);
+  border-radius: 0;
+  background: var(--surface-raised);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--control-font-size);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+
+.detail__dsp-button-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.detail__dsp-button:hover,
+.detail__dsp-button:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+
 .detail__section {
   width: 100%;
   margin-top: clamp(16px, 2.5vw, 24px);
@@ -1068,6 +1105,52 @@ body.modal-open {
   color: var(--modal-ink);
   font-family: var(--font-body);
   font-weight: 400;
+}
+
+.modal__dialog--wide {
+  width: min(720px, 100%);
+}
+
+.dsp-explain__body {
+  margin: 0 0 20px;
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: var(--ink);
+  white-space: pre-line;
+}
+
+.dsp-explain__diagram-title {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: var(--control-font-size);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.mermaid-wrap {
+  margin: 0 0 8px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  overflow-x: auto;
+}
+
+.mermaid-host {
+  min-height: 120px;
+}
+
+.mermaid-host svg {
+  display: block;
+  margin: 0 auto;
+}
+
+.mermaid-error {
+  margin: 8px 0 0;
+  color: var(--err);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: var(--control-font-size);
 }
 
 .modal__header {

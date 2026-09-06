@@ -22,7 +22,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["select-target", "send"]);
+const emit = defineEmits(["select-target", "send", "explain-dsp"]);
 const { pluginDescription, t } = useI18n();
 
 const activeBuild = computed(() => buildForTarget(props.plugin, props.activeTarget));
@@ -35,6 +35,23 @@ const sends = computed(() => sendableBuilds(props.plugin));
     <header class="detail__head">
       <h2 class="detail__name">{{ plugin.name }}</h2>
       <p class="detail__desc">{{ pluginDescription(plugin) }}</p>
+      <button
+        type="button"
+        class="detail__dsp-button"
+        @click="emit('explain-dsp', plugin)"
+      >
+        <svg
+          class="detail__dsp-button-icon"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <rect x="3" y="4" width="6" height="6" rx="0.5" />
+          <rect x="15" y="4" width="6" height="6" rx="0.5" />
+          <rect x="9" y="14" width="6" height="6" rx="0.5" />
+          <path d="M9 7h6M12 10v4" />
+        </svg>
+        <span>{{ t("dspHowItWorks") }}</span>
+      </button>
     </header>
 
     <section
