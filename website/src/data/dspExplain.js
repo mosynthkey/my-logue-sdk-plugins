@@ -137,6 +137,18 @@ export const dspExplainById = {
   BP --> Sum[Morph 808 or 909] --> Mix[Dry or wet] --> Out[Out]
   In[Audio in] --> Mix`,
   },
+  hsnare: {
+    en: "Tempo 16-step Euclidean snare, sibling of HClap. Y morphs 808 bridged-T sines plus one HPF snappy into 909 triangle VCOs with a 20 ms pitch bend and split LPF/HPF noise, then dry/wet.",
+    ja: "HClapの兄弟ユニットで、テンポ同期のユークリッド・スネアです。Yで808のブリッジドT正弦＋HPFスナッピーから、909の三角VCO・20msピッチベンド・分割スナッピーへモーフィングし、ドライ／ウェットします。",
+    mermaid: `flowchart LR
+  Clock[16th Euclid] --> Trig[Voice triggers]
+  Trig --> Shell[173/336 Hz shells or tri VCOs]
+  Noise[Analog and LFSR] --> Snap[HPF or split snappy]
+  Trig --> Snap
+  Shell --> Sum[Morph 808 or 909] --> Mix[Dry or wet] --> Out[Out]
+  Snap --> Sum
+  In[Audio in] --> Mix`,
+  },
   hypersaw: {
     en: "Virus-style HyperSaw: up to 9 detuned band-limited saws plus square subs. Density fades voices in, spread/width pans them, then the stack is normalized (mono-sum on NTS-1).",
     ja: "Virus系ハイパーソーです。最大9本のデチューン帯域制限ソー（＋サブ矩形）を密度でフェードインし、スプレッド／幅でパンして正規化します（NTS-1ではモノ合算）。",
