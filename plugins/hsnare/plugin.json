@@ -1,0 +1,16 @@
+{
+  "id": "hsnare",
+  "experimental": true,
+  "name": "HSnare",
+  "type": "drum",
+  "targets": ["nts-3_kaoss"],
+  "description": "808/909 analog snare on a phrase pad. Hold to run. X = hit density (2-and-4 toward every 16th), Y = 808 toward 909.\nStill being fine-tuned; the official release is coming soon.",
+  "params": [
+    { "name": "DENS", "role": "X", "detail": "Euclidean hits per bar, rotated onto beats 2 and 4 (1–16, then 32nd flams)" },
+    { "name": "TYPE", "role": "Y", "detail": "808 (bottom: bridged-T shells, one HPF snappy) to 909 (top: triangle VCOs, pitch bend, split snappy)" },
+    { "name": "MIX", "role": "Depth", "detail": "Dry/wet" },
+    { "name": "TONE", "role": "Edit", "detail": "Low vs high shell mix" },
+    { "name": "SNAP", "role": "Edit", "detail": "Snappy noise vs drum body" },
+    { "name": "TUNE", "role": "Edit", "detail": "Shell pitch (909 Tune; also shifts the 808 T-networks)" }
+  ]
+}
