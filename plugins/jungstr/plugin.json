@@ -1,0 +1,32 @@
+{
+  "id": "jungstr",
+  "experimental": true,
+  "name": "JungStr",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Akai S-series jungle vocal stretch. Extreme time-stretch of AUDIO IN with metallic grain windows. X = stretch ratio, Y = grain / artifact size. Touch = on.",
+  "params": [
+    {
+      "name": "STRC",
+      "role": "X",
+      "detail": "Stretch ratio, toward extreme"
+    },
+    {
+      "name": "GRAIN",
+      "role": "Y",
+      "detail": "Window size / metallic artifacts"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet"
+    },
+    {
+      "name": "HOLD",
+      "role": "Edit",
+      "detail": "How long captured audio is reused"
+    }
+  ]
+}

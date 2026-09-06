@@ -1,0 +1,32 @@
+{
+  "id": "pullup",
+  "experimental": true,
+  "name": "PullUp",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Pull-up / rewind. Always records. Touch jumps back to bar 1, a drop cue, or the latest hot cue. Y sets rewind theater (instant vs short reverse).",
+  "params": [
+    {
+      "name": "CUE",
+      "role": "X",
+      "detail": "Jump target: bar 1 / drop / last cue"
+    },
+    {
+      "name": "WIND",
+      "role": "Y",
+      "detail": "Rewind theater length"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Wet of the rewind / replay"
+    },
+    {
+      "name": "BARS",
+      "role": "Edit",
+      "detail": "Recorded loop: 1, 2, or 4 bars"
+    }
+  ]
+}

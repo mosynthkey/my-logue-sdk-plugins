@@ -1,0 +1,32 @@
+{
+  "id": "revroll",
+  "experimental": true,
+  "name": "RevRoll",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "DJM Rev Roll. Captures a tempo-synced slice on touch and repeats it backwards. X = slice length, Y = reverse playback curve. Release returns forward.",
+  "params": [
+    {
+      "name": "LEN",
+      "role": "X",
+      "detail": "Captured slice, 1/16 to 2 beats"
+    },
+    {
+      "name": "CURV",
+      "role": "Y",
+      "detail": "Reverse speed curve (slow suck to 1x)"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Wet level"
+    },
+    {
+      "name": "GLUE",
+      "role": "Edit",
+      "detail": "Loop splice crossfade"
+    }
+  ]
+}

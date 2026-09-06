@@ -1,0 +1,32 @@
+{
+  "id": "echoout",
+  "experimental": true,
+  "name": "EchoOut",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "DJ Echo Out throw. Touch mutes the dry instantly and leaves a tempo-synced echo; lift keeps the wet decaying until it dies. X = delay note, Y = how fast the feedback falls after release.",
+  "params": [
+    {
+      "name": "NOTE",
+      "role": "X",
+      "detail": "Delay note: 1/8 to 2 beats"
+    },
+    {
+      "name": "FALL",
+      "role": "Y",
+      "detail": "How fast feedback dies after release"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Wet level of the thrown echo"
+    },
+    {
+      "name": "FB",
+      "role": "Edit",
+      "detail": "Feedback while the pad is held"
+    }
+  ]
+}

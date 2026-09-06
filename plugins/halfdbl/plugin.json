@@ -1,0 +1,32 @@
+{
+  "id": "halfdbl",
+  "experimental": true,
+  "name": "HalfDbl",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Half / double-time bridge. Always records AUDIO IN. Touch plays the buffer at 0.5x / 1x / 2x (X snaps). Y = 0 is chipmunk/slow pitch, Y = 1 keeps pitch.",
+  "params": [
+    {
+      "name": "RATE",
+      "role": "X",
+      "detail": "Playback rate: 0.5, 1, or 2"
+    },
+    {
+      "name": "CORR",
+      "role": "Y",
+      "detail": "Pitch correction amount"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet while bridged"
+    },
+    {
+      "name": "BARS",
+      "role": "Edit",
+      "detail": "Recorded window: 1, 2, or 4 bars"
+    }
+  ]
+}

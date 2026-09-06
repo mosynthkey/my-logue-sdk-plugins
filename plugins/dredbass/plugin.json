@@ -1,0 +1,32 @@
+{
+  "id": "dredbass",
+  "experimental": true,
+  "name": "DredBass",
+  "type": "synth",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "UKG / jungle suction bass. A low oscillator through an LPF whose envelope opens backward so the note feels reversed. X = pitch, Y = suction depth.",
+  "params": [
+    {
+      "name": "PITCH",
+      "role": "X",
+      "detail": "Bass pitch"
+    },
+    {
+      "name": "SUCK",
+      "role": "Y",
+      "detail": "LPF suction depth and direction"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Level"
+    },
+    {
+      "name": "DEC",
+      "role": "Edit",
+      "detail": "How long the mouth stays open"
+    }
+  ]
+}
