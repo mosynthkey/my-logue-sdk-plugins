@@ -458,7 +458,6 @@ void AudioWorkletProcessorCreated(EMSCRIPTEN_WEBAUDIO_T audioContext, bool succe
 
   ram.resize(processor.getBufferSize());
   processor.init(ram.data());
-  processor.setStereoMix(true);
 
   // single mono input, single stereo output
   int outputChannelCounts[1] = {2};

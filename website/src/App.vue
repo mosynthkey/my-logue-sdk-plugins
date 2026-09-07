@@ -34,19 +34,15 @@ const {
   deviceStatusText,
   deviceStatusKind,
   sendDisabled,
-  outputPorts,
-  inputPorts,
-  selectedOutputId,
-  selectedInputId,
+  selectedOutputLabel,
+  selectedInputLabel,
   channel,
   slot,
   slotLabel,
-  midiHint,
   slotOptions,
   openSendModal,
   closeSendModal,
   sendPlugin,
-  onMidiSettingChange,
 } = useMidiSend();
 
 const dspExplainOpen = ref(false);
@@ -142,22 +138,15 @@ onUnmounted(() => {
       :device-status-text="deviceStatusText"
       :device-status-kind="deviceStatusKind"
       :send-disabled="sendDisabled"
-      :output-ports="outputPorts"
-      :input-ports="inputPorts"
-      :selected-output-id="selectedOutputId"
-      :selected-input-id="selectedInputId"
+      :selected-output-label="selectedOutputLabel"
+      :selected-input-label="selectedInputLabel"
       :channel="channel"
       :slot="slot"
       :slot-label="slotLabel"
-      :midi-hint="midiHint"
       :slot-options="slotOptions"
       @close="handleCloseSendModal"
       @send="sendPlugin"
-      @update:selected-output-id="selectedOutputId = $event"
-      @update:selected-input-id="selectedInputId = $event"
-      @update:channel="channel = $event"
       @update:slot="slot = $event"
-      @midi-setting-change="onMidiSettingChange"
     />
 
     <DspExplainModal

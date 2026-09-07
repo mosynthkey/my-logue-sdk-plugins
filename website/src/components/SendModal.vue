@@ -36,19 +36,11 @@ const props = defineProps({
     type: Boolean,
     required: true,
   },
-  outputPorts: {
-    type: Array,
-    required: true,
-  },
-  inputPorts: {
-    type: Array,
-    required: true,
-  },
-  selectedOutputId: {
+  selectedOutputLabel: {
     type: String,
     required: true,
   },
-  selectedInputId: {
+  selectedInputLabel: {
     type: String,
     required: true,
   },
@@ -64,10 +56,6 @@ const props = defineProps({
     type: String,
     required: true,
   },
-  midiHint: {
-    type: String,
-    required: true,
-  },
   slotOptions: {
     type: Array,
     required: true,
@@ -77,16 +65,13 @@ const props = defineProps({
 const emit = defineEmits([
   "close",
   "send",
-  "update:selectedOutputId",
-  "update:selectedInputId",
-  "update:channel",
   "update:slot",
-  "midi-setting-change",
 ]);
 const { t } = useI18n();
 
 const modalTitle = computed(() => props.plugin?.name || "Plugin");
 const modalKicker = computed(() => t("sendTo", { target: targetName(props.target) }));
+const midiHint = computed(() => t("connectUsbHint", { target: targetName(props.target) }));
 </script>
 
 <template>
@@ -126,6 +111,8 @@ const modalKicker = computed(() => t("sendTo", { target: targetName(props.target
       </div>
 
       <div v-else id="midi-panel">
+        <p class="hint" id="midi-hint">{{ midiHint }}</p>
+
         <p
           id="device-status"
           class="status"
@@ -134,64 +121,22 @@ const modalKicker = computed(() => t("sendTo", { target: targetName(props.target
           {{ deviceStatusText }}
         </p>
 
-        <label class="field">
-          <span>{{ t("output") }}</span>
-          <select
-            id="midi-output"
-            :value="selectedOutputId"
-            @change="emit('update:selectedOutputId', $event.target.value); emit('midi-setting-change')"
-          >
-            <option
-              v-if="outputPorts.length === 0"
-              value=""
-            >
-              {{ t("noPorts") }}
-            </option>
-            <option
-              v-for="port in outputPorts"
-              :key="port.id"
-              :value="port.id"
-            >
-              {{ port.label }}
-            </option>
-          </select>
-        </label>
-
-        <label class="field">
-          <span>{{ t("input") }}</span>
-          <select
-            id="midi-input"
-            :value="selectedInputId"
-            @change="emit('update:selectedInputId', $event.target.value); emit('midi-setting-change')"
-          >
-            <option
-              v-if="inputPorts.length === 0"
-              value=""
-            >
-              {{ t("noPorts") }}
-            </option>
-            <option
-              v-for="port in inputPorts"
-              :key="port.id"
-              :value="port.id"
-            >
-              {{ port.label }}
-            </option>
-          </select>
-        </label>
+        <div class="field-row">
+          <div class="field">
+            <span>{{ t("output") }}</span>
+            <p class="field__value">{{ selectedOutputLabel || t("noPorts") }}</p>
+          </div>
+          <div class="field">
+            <span>{{ t("input") }}</span>
+            <p class="field__value">{{ selectedInputLabel || t("noPorts") }}</p>
+          </div>
+        </div>
 
         <div class="field-row">
-          <label class="field">
+          <div class="field">
             <span>{{ t("channel") }}</span>
-            <input
-              id="channel"
-              type="number"
-              min="1"
-              max="16"
-              :value="channel"
-              @change="emit('update:channel', Number($event.target.value)); emit('midi-setting-change')"
-            >
-          </label>
+            <p class="field__value">{{ channel }}</p>
+          </div>
           <label class="field">
             <span id="slot-label">{{ slotLabel }}</span>
             <select
@@ -209,8 +154,6 @@ const modalKicker = computed(() => t("sendTo", { target: targetName(props.target
             </select>
           </label>
         </div>
-
-        <p class="hint" id="midi-hint">{{ midiHint }}</p>
 
         <div class="modal__actions">
           <button

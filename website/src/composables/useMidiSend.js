@@ -58,7 +58,6 @@ export function useMidiSend() {
   const channel = ref(1);
   const slot = ref(1);
   const slotLabel = ref("osc slot");
-  const midiHint = ref("");
 
   const midiAccess = ref(null);
   let deviceInquiryToken = 0;
@@ -109,6 +108,22 @@ export function useMidiSend() {
     return ports.get(portId) || null;
   }
 
+  const selectedOutputLabel = computed(() => {
+    if (!midiAccess.value || !selectedOutputId.value) {
+      return "";
+    }
+    const port = selectedPort(selectedOutputId.value, midiAccess.value.outputs);
+    return port ? portLabel(port) + portSuffix(port.name) : "";
+  });
+
+  const selectedInputLabel = computed(() => {
+    if (!midiAccess.value || !selectedInputId.value) {
+      return "";
+    }
+    const port = selectedPort(selectedInputId.value, midiAccess.value.inputs);
+    return port ? portLabel(port) + portSuffix(port.name) : "";
+  });
+
   function refreshPortLists() {
     if (!midiAccess.value) {
       outputPorts.value = [];
@@ -133,12 +148,16 @@ export function useMidiSend() {
       selectedOutputId.value = preferredOutput.id;
     } else if (outputPorts.value.length > 0) {
       selectedOutputId.value = outputPorts.value[0].id;
+    } else {
+      selectedOutputId.value = "";
     }
 
     if (preferredInput) {
       selectedInputId.value = preferredInput.id;
     } else if (inputPorts.value.length > 0) {
       selectedInputId.value = inputPorts.value[0].id;
+    } else {
+      selectedInputId.value = "";
     }
   }
 
@@ -251,7 +270,10 @@ export function useMidiSend() {
     const output = selectedPort(selectedOutputId.value, midiAccess.value.outputs);
     const input = selectedPort(selectedInputId.value, midiAccess.value.inputs);
     if (!output || !input) {
-      setDeviceStatus("Select MIDI ports", "error");
+      setDeviceStatus(
+        `Connect ${deviceForTarget(pendingTarget.value).shortLabel} over USB.`,
+        "error",
+      );
       sendDisabled.value = true;
       return;
     }
@@ -261,7 +283,7 @@ export function useMidiSend() {
 
     const expected = deviceForTarget(pendingTarget.value);
     try {
-      const identity = await detectDevice(output, input, { channel: channel.value });
+      const identity = await detectDevice(output, input);
       if (inquiryToken !== deviceInquiryToken) {
         return;
       }
@@ -271,8 +293,11 @@ export function useMidiSend() {
         sendDisabled.value = true;
         return;
       }
+      if (identity.midiChannel != null) {
+        channel.value = identity.midiChannel;
+      }
       setDeviceStatus(formatDeviceStatus(identity, output), "ok");
-      log(`Device identified: ${identity.label}`);
+      log(`Device identified: ${identity.label}${identity.midiChannel != null ? ` · ch ${identity.midiChannel}` : ""}`);
       sendDisabled.value = false;
       if (pendingPlugin.value) {
         const module = moduleFor(pendingPlugin.value, pendingTarget.value);
@@ -286,7 +311,7 @@ export function useMidiSend() {
       if (inquiryToken !== deviceInquiryToken) {
         return;
       }
-      setDeviceStatus(`No ${expected.shortLabel} device found. Check USB connection and channel.`, "error");
+      setDeviceStatus(`No ${expected.shortLabel} device found. Check USB connection.`, "error");
       log(`Device inquiry failed: ${error.message}`, "warn");
       sendDisabled.value = true;
     }
@@ -297,7 +322,6 @@ export function useMidiSend() {
     pendingTarget.value = target;
 
     const device = deviceForTarget(target);
-    midiHint.value = `If two ${device.shortLabel} ports appear, use the last one.`;
 
     clearLog();
     resetSlotStatuses();
@@ -363,7 +387,7 @@ export function useMidiSend() {
     const output = selectedPort(selectedOutputId.value, midiAccess.value.outputs);
     const input = selectedPort(selectedInputId.value, midiAccess.value.inputs);
     if (!output || !input) {
-      setDeviceStatus("Select MIDI ports", "error");
+      setDeviceStatus(`Connect ${deviceForTarget(target).shortLabel} over USB.`, "error");
       return;
     }
 
@@ -376,16 +400,19 @@ export function useMidiSend() {
     try {
       const device = deviceForTarget(target);
       try {
-        const identity = await detectDevice(output, input, { channel: channel.value });
+        const identity = await detectDevice(output, input);
         if (identity.deviceId !== device.id) {
           setDeviceStatus(`This port is ${identity.shortLabel}, not ${device.shortLabel}.`, "error");
           log(`Expected ${device.shortLabel}, got ${identity.label}`, "error");
           return;
         }
-        log(`Device identified: ${identity.label}`);
+        if (identity.midiChannel != null) {
+          channel.value = identity.midiChannel;
+        }
+        log(`Device identified: ${identity.label}${identity.midiChannel != null ? ` · ch ${identity.midiChannel}` : ""}`);
         setDeviceStatus(formatDeviceStatus(identity, output), "ok");
       } catch (error) {
-        setDeviceStatus(`No ${device.shortLabel} device found. Check USB connection and channel.`, "error");
+        setDeviceStatus(`No ${device.shortLabel} device found. Check USB connection.`, "error");
         log(`Device inquiry failed: ${error.message}`, "error");
         return;
       }
@@ -449,14 +476,11 @@ export function useMidiSend() {
     deviceStatusText,
     deviceStatusKind,
     sendDisabled,
-    outputPorts,
-    inputPorts,
-    selectedOutputId,
-    selectedInputId,
+    selectedOutputLabel,
+    selectedInputLabel,
     channel,
     slot,
     slotLabel,
-    midiHint,
     slotOptions,
     openSendModal,
     closeSendModal,

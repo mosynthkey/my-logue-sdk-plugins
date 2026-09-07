@@ -163,13 +163,16 @@ export const dspExplainById = {
   In --> Mix`,
   },
   grainpad: {
-    en: "Granular cloud from embedded PCM. Up to 12 overlapping Hann grains; pad X scans position, Y sets pitch ratio. Knobs set size, density, spray, and release; optional dry/wet on FX targets.",
-    ja: "埋め込みPCMを最大12粒のHannグラニュラで読みます。Xでスキャン位置、Yでピッチ。サイズ／密度／スプレー／リリースをノブで制御し、FXではドライ／ウェットも選べます。",
+    en: "Live-capture granular pad. Touch freezes up to 3 s of AUDIO IN. X/FEEL: sparse ↔ dense cloud. Y: octave mix. ENV = grain attack/release; SPRD / HPF / REVS as edits.",
+    ja: "AUDIO INを最大3秒フリーズしてグレイン雲にします。Xは疎↔密、Yはoct混率。ENVで粒のアタック／リリース、SPRD／HPF／REVSあり。",
     mermaid: `flowchart LR
-  XY[Pad scan and pitch] --> Spawn[Grain scheduler]
-  PCM[Embedded PCM] --> Grains[Hann grains x12]
-  Spawn --> Grains
-  Grains --> Sum[Cloud sum and release] --> Out[Wet or dry-wet]`,
+  In[Audio in] --> Ring[SDRAM max 3s]
+  Touch[Touch freeze] --> Cloud[Grain cloud]
+  Ring --> Cloud
+  Feel[FEEL density] --> Cloud
+  Env[ENV A/R] --> Cloud
+  Cloud --> HPF[Wet HPF] --> Mix[Dry or wet] --> Out[Out]
+  In --> Mix`,
   },
   gridsdrum: {
     en: "Hold-to-run 16-step generative BD/SD/HH with Grids-like density maps. BD/SD are decaying tones (SD adds noise); HH is noise. Top-right touch fills; mix with dry input.",

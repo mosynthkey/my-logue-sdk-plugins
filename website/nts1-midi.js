@@ -196,6 +196,8 @@ export function parseIdentityReply(data) {
   const device = deviceFromFamily(data[familyOffset], data[familyOffset + 1]);
   const modelNumber = data[modelOffset] | (data[modelOffset + 1] << 8);
   const softwareVersion = data[modelOffset + 2] | (data[modelOffset + 3] << 8);
+  const deviceIdByte = data[2];
+  const midiChannel = deviceIdByte >= 0 && deviceIdByte <= 15 ? deviceIdByte + 1 : null;
   return {
     manufacturer: "KORG",
     family: device.family,
@@ -203,6 +205,7 @@ export function parseIdentityReply(data) {
     shortLabel: device.shortLabel,
     modelNumber,
     softwareVersion,
+    midiChannel,
     label: `${device.shortLabel} · model ${modelNumber} · v${softwareVersion >> 8}.${softwareVersion & 0xff}`,
     raw: data,
   };
@@ -302,21 +305,43 @@ function waitForSysex(input, predicate, timeoutMs) {
   });
 }
 
-export async function requestIdentity(output, input, { channel = 1, timeoutMs = 1500 } = {}) {
-  const identityRequest = Uint8Array.from([0xf0, 0x7e, channel - 1, 0x06, 0x01, 0xf7]);
-  const pending = waitForSysex(input, isInquiryReply, timeoutMs);
-  output.send(identityRequest);
-  const reply = await pending;
-  const identity = parseIdentityReply(reply);
-  if (!identity) {
-    throw new Error("Unrecognized device identity reply");
+export async function requestIdentity(output, input, { channel = null, timeoutMs = 1500 } = {}) {
+  // Prefer broadcast inquiry (0x7F). Fall back to per-channel probes if needed.
+  const attempts = [];
+  if (channel != null) {
+    attempts.push({ deviceId: Math.max(0, Math.min(15, channel - 1)), timeoutMs });
   }
-  return identity;
+  attempts.push({ deviceId: 0x7f, timeoutMs });
+  for (let channelIndex = 0; channelIndex < 16; channelIndex += 1) {
+    attempts.push({ deviceId: channelIndex, timeoutMs: 250 });
+  }
+
+  let lastError = null;
+  for (const attempt of attempts) {
+    try {
+      const identityRequest = Uint8Array.from([0xf0, 0x7e, attempt.deviceId, 0x06, 0x01, 0xf7]);
+      const pending = waitForSysex(input, isInquiryReply, attempt.timeoutMs);
+      output.send(identityRequest);
+      const reply = await pending;
+      const identity = parseIdentityReply(reply);
+      if (!identity) {
+        throw new Error("Unrecognized device identity reply");
+      }
+      if (identity.midiChannel == null && attempt.deviceId <= 15) {
+        identity.midiChannel = attempt.deviceId + 1;
+      }
+      return identity;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error("Timed out waiting for SysEx reply");
 }
 
-export async function detectDevice(output, input, { channel = 1, timeoutMs = 1500 } = {}) {
+export async function detectDevice(output, input, { channel = null, timeoutMs = 1500 } = {}) {
   if (!output || !input) {
-    throw new Error("Select MIDI ports");
+    throw new Error("MIDI ports are not available");
   }
   return requestIdentity(output, input, { channel, timeoutMs });
 }
