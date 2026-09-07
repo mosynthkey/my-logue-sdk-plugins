@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-07T14:40:17.791671+00:00",
+  "generatedAt": "2026-09-07T16:07:50.940778+00:00",
   "plugins": [
     {
       "id": "airfm",
@@ -140,9 +140,51 @@
       ]
     },
     {
-      "id": "grainverb",
+      "id": "hypersaw",
       "experimental": true,
-      "name": "GrainVerb",
+      "name": "HyperSaw",
+      "type": "osc",
+      "targets": [
+        "nts-1_mkii",
+        "microkorg2"
+      ],
+      "description": "Virus TI-inspired 9-voice detuned saw stack with Density, Spread, HyperSub, and stereo width.",
+      "params": [
+        {
+          "name": "DENS",
+          "role": "A",
+          "detail": "Active saw count (1-9) with crossfade"
+        },
+        {
+          "name": "SPRD",
+          "role": "B",
+          "detail": "Detune spread (Virus-style curve)"
+        },
+        {
+          "name": "SUB",
+          "role": "Edit",
+          "detail": "HyperSub square mix (1 octave down)"
+        },
+        {
+          "name": "WIDTH",
+          "role": "Edit",
+          "detail": "Stereo spread of detuned voices"
+        }
+      ],
+      "builds": [
+        {
+          "target": "microkorg2",
+          "module": "osc",
+          "file": "./units/hypersaw-microkorg2.mk2unit",
+          "size": 9940,
+          "wasm": null
+        }
+      ]
+    },
+    {
+      "id": "regrain",
+      "experimental": true,
+      "name": "ReGrain",
       "type": "fx",
       "targets": [
         "nts-3_kaoss"
@@ -194,50 +236,8 @@
         {
           "target": "nts-3_kaoss",
           "module": "genericfx",
-          "file": "./units/grainverb-nts-3_kaoss.nts3unit",
-          "size": 12200,
-          "wasm": null
-        }
-      ]
-    },
-    {
-      "id": "hypersaw",
-      "experimental": true,
-      "name": "HyperSaw",
-      "type": "osc",
-      "targets": [
-        "nts-1_mkii",
-        "microkorg2"
-      ],
-      "description": "Virus TI-inspired 9-voice detuned saw stack with Density, Spread, HyperSub, and stereo width.",
-      "params": [
-        {
-          "name": "DENS",
-          "role": "A",
-          "detail": "Active saw count (1-9) with crossfade"
-        },
-        {
-          "name": "SPRD",
-          "role": "B",
-          "detail": "Detune spread (Virus-style curve)"
-        },
-        {
-          "name": "SUB",
-          "role": "Edit",
-          "detail": "HyperSub square mix (1 octave down)"
-        },
-        {
-          "name": "WIDTH",
-          "role": "Edit",
-          "detail": "Stereo spread of detuned voices"
-        }
-      ],
-      "builds": [
-        {
-          "target": "microkorg2",
-          "module": "osc",
-          "file": "./units/hypersaw-microkorg2.mk2unit",
-          "size": 9940,
+          "file": "./units/regrain-nts-3_kaoss.nts3unit",
+          "size": 12144,
           "wasm": null
         }
       ]

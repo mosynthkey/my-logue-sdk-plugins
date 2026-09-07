@@ -1,7 +1,7 @@
 #pragma once
 
 /*
- * File: grainverb.h
+ * File: regrain.h
  *
  * Live-capture granular pad fed by a deep wet reverb, not dry AUDIO IN.
  *
@@ -18,7 +18,7 @@
 #include "utils/float_math.h"
 #include <stdint.h>
 
-class GrainVerb : public Processor
+class ReGrain : public Processor
 {
 public:
   static constexpr uint32_t kMaxCaptureSamples = 144000U;

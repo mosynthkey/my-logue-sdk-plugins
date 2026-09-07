@@ -1,7 +1,7 @@
 /*
  * File: header.c
  *
- * NTS-3 generic effect unit header for GrainVerb
+ * NTS-3 generic effect unit header for ReGrain
  */
 
 #include "unit_genericfx.h"
@@ -15,7 +15,7 @@ const __unit_header genericfx_unit_header_t unit_header = {
         .dev_id = MLSA_DEV_ID,
         .unit_id = 0x00000035U,
         .version = MLSA_VERSION_EXPERIMENTAL,
-        .name = "GrainVerb",
+        .name = "ReGrain",
         .num_params = 8,
         .params = {
             {0, 1023, 0, 665, k_unit_param_type_none, 0, 0, 0, {"FEEL"}},

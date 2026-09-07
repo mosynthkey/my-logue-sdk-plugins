@@ -1,7 +1,7 @@
 {
-  "id": "grainverb",
+  "id": "regrain",
   "experimental": true,
-  "name": "GrainVerb",
+  "name": "ReGrain",
   "type": "fx",
   "targets": ["nts-3_kaoss"],
   "description": "Deep wet reverb continuously feeds an SDRAM capture buffer; touch freezes it into a granular cloud. X/FEEL = density, Y/SIZE = reverb depth. ENV / SYNC / SPRD / TONE / REVS. MIX = dry/wet.",

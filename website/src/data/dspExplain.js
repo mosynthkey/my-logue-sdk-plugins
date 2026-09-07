@@ -174,7 +174,7 @@ export const dspExplainById = {
   Cloud --> HPF[Wet HPF] --> Mix[Dry or wet] --> Out[Out]
   In --> Mix`,
   },
-  grainverb: {
+  regrain: {
     en: "Deep wet reverb continuously feeds the capture buffer; touch freezes it into a granular cloud. X/FEEL = density, Y/SIZE = reverb depth. ENV / TONE / SPRD / REVS.",
     ja: "深いウェット・リバーブを常時かけてその音を録音し、タッチでフリーズしてグレイン雲にします。Xは密度、Yは残響の深さ。ENV／TONE／SPRD／REVSあり。",
     mermaid: `flowchart LR

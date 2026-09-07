@@ -64,7 +64,7 @@
   - 対応: nts-3_kaoss
   - 直近 AUDIO IN を最大3秒フリーズ→Hann風グラニュラー。X=疎↔密、Y=±1oct。ENV=粒のA/R、SPRD / HPF / REVS。
 
-- **GrainVerb** (`grainverb`) — fx（実験的）
+- **ReGrain** (`regrain`) — fx（実験的）
   - 対応: nts-3_kaoss
   - 深いウェット・リバーブを常時かけてその音をキャプチャ。タッチでフリーズ→グレイン雲。X=密度、Y=SIZE（残響の深さ）、TONE/ENV/SPRD/REVS。
 

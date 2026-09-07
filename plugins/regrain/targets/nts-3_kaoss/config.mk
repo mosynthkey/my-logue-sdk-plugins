@@ -2,7 +2,7 @@
 # Configuration for Makefile
 #
 
-PROJECT := grainverb
+PROJECT := regrain
 PROJECT_TYPE := genericfx
 
 ##############################################################################

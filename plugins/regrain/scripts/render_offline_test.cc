@@ -1,4 +1,4 @@
-#include "grainverb.h"
+#include "regrain.h"
 #include "runtime.h"
 #include <cstdio>
 #include <vector>
@@ -6,18 +6,18 @@
 int main()
 {
   constexpr uint32_t kFrames = 128U;
-  GrainVerb fx;
+  ReGrain fx;
   std::vector<float> ram(fx.getBufferSize(), 0.f);
   fx.init(ram.data());
   fx.setTempo(120.f);
-  fx.setParameter(GrainVerb::MIX, 1000);
-  fx.setParameter(GrainVerb::FEEL, 700);
-  fx.setParameter(GrainVerb::SIZE, 800);
-  fx.setParameter(GrainVerb::ENV, 600);
-  fx.setParameter(GrainVerb::SYNC, 1);
-  fx.setParameter(GrainVerb::SPRD, 500);
-  fx.setParameter(GrainVerb::TONE, 450);
-  fx.setParameter(GrainVerb::REVS, 100);
+  fx.setParameter(ReGrain::MIX, 1000);
+  fx.setParameter(ReGrain::FEEL, 700);
+  fx.setParameter(ReGrain::SIZE, 800);
+  fx.setParameter(ReGrain::ENV, 600);
+  fx.setParameter(ReGrain::SYNC, 1);
+  fx.setParameter(ReGrain::SPRD, 500);
+  fx.setParameter(ReGrain::TONE, 450);
+  fx.setParameter(ReGrain::REVS, 100);
 
   std::vector<float> input(kFrames * 2U, 0.f);
   std::vector<float> output(kFrames * 2U, 0.f);
@@ -50,6 +50,6 @@ int main()
     }
   }
 
-  std::printf("grainverb_offline_peak=%.6f\n", peak);
+  std::printf("regrain_offline_peak=%.6f\n", peak);
   return peak > 0.01f ? 0 : 1;
 }
