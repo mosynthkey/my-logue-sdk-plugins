@@ -1,0 +1,18 @@
+{
+  "id": "grainverb",
+  "experimental": true,
+  "name": "GrainVerb",
+  "type": "fx",
+  "targets": ["nts-3_kaoss"],
+  "description": "Deep wet reverb continuously feeds an SDRAM capture buffer; touch freezes it into a granular cloud. X/FEEL = density, Y/SIZE = reverb depth. ENV / SYNC / SPRD / TONE / REVS. MIX = dry/wet.",
+  "params": [
+    { "name": "FEEL", "role": "X", "detail": "Grain density: sparse stitches ↔ dense overlapping cloud" },
+    { "name": "SIZE", "role": "Y", "detail": "Reverb tank depth / decay (feeds the grain source)" },
+    { "name": "MIX", "role": "Edit", "detail": "0 = dry only, max = granular reverb cloud only" },
+    { "name": "ENV", "role": "Edit", "detail": "Grain attack/release length" },
+    { "name": "SYNC", "role": "Edit", "detail": "Base trigger grid: 1/32 … 1/2" },
+    { "name": "SPRD", "role": "Edit", "detail": "Random stereo width of grains" },
+    { "name": "TONE", "role": "Edit", "detail": "Reverb damping (dark ↔ bright)" },
+    { "name": "REVS", "role": "Edit", "detail": "Reverse-grain probability" }
+  ]
+}

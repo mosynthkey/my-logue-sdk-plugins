@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-07T08:43:08.283242+00:00",
+  "generatedAt": "2026-09-07T14:40:17.791671+00:00",
   "plugins": [
     {
       "id": "airfm",
@@ -86,12 +86,12 @@
       "targets": [
         "nts-3_kaoss"
       ],
-      "description": "Live-capture granular pad for NTS-3. Always records AUDIO IN; touch freezes into a fixed left-edge stitch grain (1 Hann grain per SYNC, ~45 ms). X = wet HPF. Y = -1/0/+1 octave mix. PUMP ducks wet on each quarter-note head. SYNC / SHMR / REVS. Depth = wet. LEN = capture window.",
+      "description": "Live-capture granular pad for NTS-3. Touch freezes up to 3 s of AUDIO IN into a grain cloud. X/FEEL: sparse \u2194 dense. Y = octave mix. ENV = grain attack/release. SYNC / SPRD / HPF / REVS. MIX = dry/wet.",
       "params": [
         {
-          "name": "HPF",
+          "name": "FEEL",
           "role": "X",
-          "detail": "High-pass on the granular wet path (~60 Hz\u201310 kHz)"
+          "detail": "Left: sparser stitches. Right: dense overlapping cloud"
         },
         {
           "name": "OCT",
@@ -100,28 +100,28 @@
         },
         {
           "name": "MIX",
-          "role": "Depth",
-          "detail": "Granular wet level while the pad is held"
+          "role": "Edit",
+          "detail": "0 = dry only, max = granular only"
         },
         {
-          "name": "LEN",
+          "name": "ENV",
           "role": "Edit",
-          "detail": "Capture window length (~0.25\u20133 s of recent audio)"
+          "detail": "Grain attack/release length (short/snappy \u2194 long/soft)"
         },
         {
           "name": "SYNC",
           "role": "Edit",
-          "detail": "Grain trigger grid: 1/32, 1/16, 1/8, 1/4, 1/2"
+          "detail": "Base trigger grid: 1/32, 1/16, 1/8, 1/4, 1/2"
         },
         {
-          "name": "PUMP",
+          "name": "SPRD",
           "role": "Edit",
-          "detail": "Wet gain reduction on each quarter-note beat head"
+          "detail": "Random stereo width (0 = mono, max = hard L/R)"
         },
         {
-          "name": "SHMR",
+          "name": "HPF",
           "role": "Edit",
-          "detail": "Shimmer reverb amount (+1 octave feedback)"
+          "detail": "High-pass on the granular wet path (~60 Hz\u201310 kHz)"
         },
         {
           "name": "REVS",
@@ -134,7 +134,68 @@
           "target": "nts-3_kaoss",
           "module": "genericfx",
           "file": "./units/grainpad-nts-3_kaoss.nts3unit",
-          "size": 12520,
+          "size": 11444,
+          "wasm": null
+        }
+      ]
+    },
+    {
+      "id": "grainverb",
+      "experimental": true,
+      "name": "GrainVerb",
+      "type": "fx",
+      "targets": [
+        "nts-3_kaoss"
+      ],
+      "description": "Deep wet reverb continuously feeds an SDRAM capture buffer; touch freezes it into a granular cloud. X/FEEL = density, Y/SIZE = reverb depth. ENV / SYNC / SPRD / TONE / REVS. MIX = dry/wet.",
+      "params": [
+        {
+          "name": "FEEL",
+          "role": "X",
+          "detail": "Grain density: sparse stitches \u2194 dense overlapping cloud"
+        },
+        {
+          "name": "SIZE",
+          "role": "Y",
+          "detail": "Reverb tank depth / decay (feeds the grain source)"
+        },
+        {
+          "name": "MIX",
+          "role": "Edit",
+          "detail": "0 = dry only, max = granular reverb cloud only"
+        },
+        {
+          "name": "ENV",
+          "role": "Edit",
+          "detail": "Grain attack/release length"
+        },
+        {
+          "name": "SYNC",
+          "role": "Edit",
+          "detail": "Base trigger grid: 1/32 \u2026 1/2"
+        },
+        {
+          "name": "SPRD",
+          "role": "Edit",
+          "detail": "Random stereo width of grains"
+        },
+        {
+          "name": "TONE",
+          "role": "Edit",
+          "detail": "Reverb damping (dark \u2194 bright)"
+        },
+        {
+          "name": "REVS",
+          "role": "Edit",
+          "detail": "Reverse-grain probability"
+        }
+      ],
+      "builds": [
+        {
+          "target": "nts-3_kaoss",
+          "module": "genericfx",
+          "file": "./units/grainverb-nts-3_kaoss.nts3unit",
+          "size": 12200,
           "wasm": null
         }
       ]

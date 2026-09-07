@@ -174,6 +174,19 @@ export const dspExplainById = {
   Cloud --> HPF[Wet HPF] --> Mix[Dry or wet] --> Out[Out]
   In --> Mix`,
   },
+  grainverb: {
+    en: "Deep wet reverb continuously feeds the capture buffer; touch freezes it into a granular cloud. X/FEEL = density, Y/SIZE = reverb depth. ENV / TONE / SPRD / REVS.",
+    ja: "深いウェット・リバーブを常時かけてその音を録音し、タッチでフリーズしてグレイン雲にします。Xは密度、Yは残響の深さ。ENV／TONE／SPRD／REVSあり。",
+    mermaid: `flowchart LR
+  In[Audio in] --> Tank[Deep reverb]
+  Tank --> Ring[SDRAM capture]
+  Touch[Touch freeze] --> Cloud[Grain cloud]
+  Ring --> Cloud
+  Size[SIZE decay] --> Tank
+  Feel[FEEL density] --> Cloud
+  Cloud --> Mix[Dry or wet] --> Out[Out]
+  In --> Mix`,
+  },
   gridsdrum: {
     en: "Hold-to-run 16-step generative BD/SD/HH with Grids-like density maps. BD/SD are decaying tones (SD adds noise); HH is noise. Top-right touch fills; mix with dry input.",
     ja: "保持中に16ステップの生成BD/SD/HHを鳴らします。密度マップでトリガし、BD/SDは減衰トーン（SDはノイズ混在）、HHはノイズです。右上タッチでフィル。",
