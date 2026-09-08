@@ -126,7 +126,7 @@ function handleHoldToggle() {
           >
             <button
               type="button"
-              class="preview-chip"
+              class="preview-chip preview-dry-input__play"
               :class="{ 'is-on': dryPlaying }"
               :aria-pressed="dryPlaying"
               :aria-label="t(dryPlaying ? 'stop' : 'play')"
@@ -135,10 +135,6 @@ function handleHoldToggle() {
             >
               {{ t(dryPlaying ? "stop" : "play") }}
             </button>
-
-            <label class="preview-dry-input__label" for="preview-dry-source">
-              {{ t("inputSource") }}
-            </label>
             <select
               id="preview-dry-source"
               class="preview-dry-input__select"
