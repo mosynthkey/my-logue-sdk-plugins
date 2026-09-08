@@ -1,0 +1,42 @@
+{
+  "id": "stepfenv",
+  "experimental": true,
+  "name": "StepFenv",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Tempo-synced step filter envelope for NTS-3. Each step fires a cutoff envelope (attack 0, decay set, sustain 0, release 0) into a resonant low-pass on AUDIO IN. X = cutoff, Y = env depth. Touch resets the grid.",
+  "params": [
+    {
+      "name": "CUT",
+      "role": "X",
+      "detail": "Resting low-pass cutoff (envelope floor)"
+    },
+    {
+      "name": "ENV",
+      "role": "Y",
+      "detail": "How far each step opens the cutoff above CUT"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet"
+    },
+    {
+      "name": "DEC",
+      "role": "Edit",
+      "detail": "Filter envelope decay (~15 ms to 1.2 s). Attack, sustain, and release stay at 0"
+    },
+    {
+      "name": "RES",
+      "role": "Edit",
+      "detail": "Low-pass resonance"
+    },
+    {
+      "name": "STEPS",
+      "role": "Edit",
+      "detail": "Grid: 8, 12, or 16 steps per bar"
+    }
+  ]
+}

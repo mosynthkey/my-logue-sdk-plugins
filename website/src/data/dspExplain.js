@@ -549,6 +549,19 @@ export const dspExplainById = {
   FX --> Mix[Dry or wet] --> Out[Out]
   In --> Mix`,
   },
+  stepfenv: {
+    en: "Tempo-synced step filter envelope on AUDIO IN. Each grid step snaps the cutoff open (attack 0) then decays to the X floor with sustain/release at 0. Y is env depth; DEC sets decay; RES is resonance. Touch resets the grid.",
+    ja: "AUDIO INへのテンポ同期ステップ・フィルタEGです。各ステップでカットオフが即開いて（アタック0）Xの床まで減衰します（サスティン／リリース0）。Yは深さ、DECは減衰、RESはレゾナンス。タッチでグリッドをリセットします。",
+    mermaid: `flowchart LR
+  Tempo[BPM clock] --> Grid[8 12 16 steps]
+  Grid --> Env[Cutoff env A0 D S0 R0]
+  In[Audio in] --> LPF[Resonant LPF]
+  Env --> LPF
+  Cut[X cutoff] --> LPF
+  Depth[Y env depth] --> Env
+  LPF --> Mix[Dry or wet] --> Out[Out]
+  In --> Mix`,
+  },
   talkform: {
     en: "Dual bandpass formant filter on mono input. F1/F2 (or pad) sweep; DIGI/touch snaps to the nearest of five vowels (a i u e o); soft-clip dry/wet.",
     ja: "入力モノの二重フォルマントBPです。F1/F2を掃引し、DIGI／タッチで5母音格子へ吸着します。ソフトクリップ後ドライ／ウェットします。",
