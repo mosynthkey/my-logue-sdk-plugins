@@ -4,8 +4,8 @@
  * File: eucroll.h
  *
  * Euclidean step roll. Always records AUDIO IN. Touch engages a tempo-synced
- * step roll: Euclidean hits re-capture the current step, and Y shortens the
- * loop inside that step (coarse hold → tight roll).
+ * step roll only on Euclidean hit steps; non-hits stay dry. Y shortens the
+ * loop inside a hit step. Depth (PAN) sets per-hit random stereo width.
  */
 
 #include "fx_dsp.h"
@@ -25,10 +25,11 @@ public:
   {
     DENS = 0U,
     ROLL,
-    MIX,
+    PAN,
     STEPS,
     ROT,
     GLUE,
+    MIX,
     NUM_PARAMS
   };
 
@@ -42,8 +43,8 @@ public:
     case ROLL:
       roll_norm_ = param_10bit_to_f32(value);
       break;
-    case MIX:
-      mix_ = fx::clip01(value / 1000.f);
+    case PAN:
+      pan_norm_ = fx::clip01(value / 1000.f);
       break;
     case STEPS:
       steps_sel_ = static_cast<uint8_t>(fx::clip(static_cast<float>(value), 0.f, 2.f));
@@ -53,6 +54,9 @@ public:
       break;
     case GLUE:
       glue_norm_ = param_10bit_to_f32(value);
+      break;
+    case MIX:
+      mix_ = fx::clip01(value / 1000.f);
       break;
     default:
       break;
@@ -83,9 +87,13 @@ public:
     loop_pos_ = 0.f;
     clock_acc_ = 0.f;
     step_index_ = 0U;
+    rng_ = 17U;
+    pan_left_ = 1.f;
+    pan_right_ = 1.f;
     rolling_ = false;
-    pending_capture_ = false;
+    step_hit_ = false;
     has_loop_ = false;
+    arm_current_ = false;
     bpm_ = 120.f;
   }
 
@@ -102,9 +110,12 @@ public:
     clock_acc_ = 0.f;
     step_index_ = 0U;
     rolling_ = false;
-    pending_capture_ = false;
+    step_hit_ = false;
     has_loop_ = false;
+    arm_current_ = false;
     loop_pos_ = 0.f;
+    pan_left_ = 1.f;
+    pan_right_ = 1.f;
   }
 
   void setTempo(float tempo) override final
@@ -118,9 +129,8 @@ public:
     if (phase == k_unit_touch_phase_began)
     {
       rolling_ = true;
-      // Capture immediately so the roll starts on the current step, then
-      // Euclidean hits re-arm later captures on the grid.
-      pending_capture_ = true;
+      // If the current step is already a hit, start rolling immediately.
+      arm_current_ = true;
       return;
     }
     if (phase == k_unit_touch_phase_moved || phase == k_unit_touch_phase_stationary)
@@ -131,7 +141,9 @@ public:
     if (phase == k_unit_touch_phase_ended || phase == k_unit_touch_phase_cancelled)
     {
       rolling_ = false;
-      pending_capture_ = false;
+      step_hit_ = false;
+      has_loop_ = false;
+      arm_current_ = false;
     }
   }
 
@@ -161,11 +173,20 @@ public:
       if (captured_ < kMaxBuf)
         ++captured_;
 
-      if (rolling_ && pending_capture_)
+      if (rolling_ && arm_current_)
       {
-        captureStep(step_samples, roll_div);
-        if (has_loop_)
-          pending_capture_ = false;
+        const uint32_t rotated = (step_index_ + rotate) % steps;
+        if (fx::euclidHit(rotated, hits, steps))
+        {
+          step_hit_ = true;
+          captureStep(step_samples, roll_div);
+        }
+        else
+        {
+          step_hit_ = false;
+          has_loop_ = false;
+        }
+        arm_current_ = false;
       }
 
       clock_acc_ += 1.f;
@@ -173,16 +194,23 @@ public:
       {
         clock_acc_ -= step_samples;
         step_index_ = (step_index_ + 1U) % steps;
-        if (rolling_)
+        const uint32_t rotated = (step_index_ + rotate) % steps;
+        const bool hit = fx::euclidHit(rotated, hits, steps);
+        if (rolling_ && hit)
         {
-          const uint32_t rotated = (step_index_ + rotate) % steps;
-          if (fx::euclidHit(rotated, hits, steps))
-            captureStep(step_samples, roll_div);
+          step_hit_ = true;
+          captureStep(step_samples, roll_div);
+        }
+        else
+        {
+          // Non-hits stay dry; do not continue a previous roll.
+          step_hit_ = false;
+          has_loop_ = false;
         }
       }
 
       // Live Y changes retune the loop length without recapturing origin.
-      if (rolling_ && has_loop_)
+      if (rolling_ && step_hit_ && has_loop_)
       {
         const uint32_t want = loopLengthFromStep(step_samples, roll_div);
         if (want != loop_len_ && want > 8U)
@@ -195,21 +223,26 @@ public:
 
       float wet_left = live_left;
       float wet_right = live_right;
-      if (rolling_ && has_loop_ && loop_len_ > 8U)
+      const bool active = rolling_ && step_hit_ && has_loop_ && loop_len_ > 8U;
+      if (active)
       {
         readLoop(loop_pos_, wet_left, wet_right);
         const float fade = (loop_pos_ < xfade) ? (loop_pos_ / xfade) : 1.f;
         const float tail = static_cast<float>(loop_len_) - loop_pos_;
         const float fade_out = (tail < xfade) ? (tail / xfade) : 1.f;
         const float window = fade * fade_out;
-        wet_left *= window;
-        wet_right *= window;
+        wet_left *= window * pan_left_;
+        wet_right *= window * pan_right_;
         loop_pos_ += 1.f;
         if (loop_pos_ >= static_cast<float>(loop_len_))
+        {
           loop_pos_ -= static_cast<float>(loop_len_);
+          // Fresh random pan each micro-roll repeat.
+          rollPan();
+        }
       }
 
-      const float amount = (rolling_ && has_loop_) ? mix_ : 0.f;
+      const float amount = active ? mix_ : 0.f;
       out[0] = fx::mix(live_left, wet_left, amount);
       out[1] = fx::mix(live_right, wet_right, amount);
       in += 2;
@@ -243,6 +276,22 @@ private:
     return samples;
   }
 
+  void rollPan()
+  {
+    if (pan_norm_ <= 0.001f)
+    {
+      pan_left_ = 1.f;
+      pan_right_ = 1.f;
+      return;
+    }
+    // Equal-power pan from center toward a random side, scaled by Depth.
+    const float side = fx::randomFloat(rng_) * 2.f - 1.f;
+    const float amount = side * pan_norm_;
+    const float angle = (amount + 1.f) * 0.7853981633974483f; // 0..pi/2
+    pan_left_ = fastercosfullf(angle);
+    pan_right_ = fastersinfullf(angle);
+  }
+
   void captureStep(float step_samples, uint32_t roll_div)
   {
     loop_len_ = loopLengthFromStep(step_samples, roll_div);
@@ -266,6 +315,7 @@ private:
     loop_start_ = (write_pos_ + kMaxBuf - origin) % kMaxBuf;
     loop_pos_ = 0.f;
     has_loop_ = true;
+    rollPan();
   }
 
   void readLoop(float pos, float &left, float &right) const
@@ -284,6 +334,7 @@ private:
   uint32_t loop_start_ = 0U;
   uint32_t loop_len_ = 2048U;
   uint32_t step_index_ = 0U;
+  uint32_t rng_ = 17U;
   float loop_pos_ = 0.f;
   float clock_acc_ = 0.f;
   float bpm_ = 120.f;
@@ -291,9 +342,13 @@ private:
   float roll_norm_ = 0.45f;
   float rot_norm_ = 0.f;
   float glue_norm_ = 0.18f;
+  float pan_norm_ = 0.55f;
   float mix_ = 1.f;
+  float pan_left_ = 1.f;
+  float pan_right_ = 1.f;
   uint8_t steps_sel_ = 2;
   bool rolling_ = false;
-  bool pending_capture_ = false;
+  bool step_hit_ = false;
   bool has_loop_ = false;
+  bool arm_current_ = false;
 };

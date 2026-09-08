@@ -6,22 +6,22 @@
   "targets": [
     "nts-3_kaoss"
   ],
-  "description": "Euclidean step roll. Always records AUDIO IN. Touch rolls the current tempo-synced step; Euclidean hits re-capture. X = hit density, Y = roll subdivision inside the step (coarse hold to tight stutter).",
+  "description": "Euclidean step roll. Always records AUDIO IN. Touch rolls only on Euclidean hit steps; non-hits stay dry. X = hit density, Y = roll subdivision inside the hit, Depth = random pan width per micro-roll.",
   "params": [
     {
       "name": "DENS",
       "role": "X",
-      "detail": "Euclidean hits per bar that re-capture the step"
+      "detail": "Euclidean hits per bar that roll"
     },
     {
       "name": "ROLL",
       "role": "Y",
-      "detail": "Loop subdivision inside the step (1\u00d7 to 8\u00d7)"
+      "detail": "Loop subdivision inside a hit step (1\u00d7 to 8\u00d7)"
     },
     {
-      "name": "MIX",
+      "name": "PAN",
       "role": "Depth",
-      "detail": "Roll wet level"
+      "detail": "Random stereo pan depth per micro-roll"
     },
     {
       "name": "STEPS",
@@ -37,6 +37,11 @@
       "name": "GLUE",
       "role": "Edit",
       "detail": "Crossfade at loop boundaries"
+    },
+    {
+      "name": "MIX",
+      "role": "Edit",
+      "detail": "Roll wet level"
     }
   ]
 }

@@ -143,16 +143,20 @@ export const dspExplainById = {
   Euclid --> Gate`,
   },
   eucroll: {
-    en: "Euclidean step roll: always records. Touch loops the current tempo-synced step; Euclidean hits re-capture. X = hit density, Y = subdivision inside the step (1× hold to 8× stutter).",
-    ja: "ユークリッド・ステップロールです。常時録音し、タッチで現在のテンポ同期ステップをループ。ユークリッドヒットで再キャプチャ。Xは密度、Yはステップ内の細分化（1×ホールド〜8×スタッター）です。",
+    en: "Euclidean step roll: always records. Touch rolls only Euclidean hit steps (non-hits stay dry). X = hit density, Y = subdivision inside a hit, Depth = random pan width per micro-roll.",
+    ja: "ユークリッド・ステップロールです。常時録音し、タッチ中はヒット・ステップだけをループ（非ヒットはドライ）。Xは密度、Yはヒット内の細分化、Depthはマイクロロールごとのランダムパン幅です。",
     mermaid: `flowchart LR
   In[Live in] --> Buf[Always-on buffer]
   Clock[Tempo steps] --> Euclid[Euclid hits]
-  Touch[Touch] --> Cap[Capture step]
-  Euclid --> Cap
+  Touch[Touch] --> Gate[Hit gate]
+  Euclid --> Gate
+  Gate -->|hit| Cap[Capture step]
+  Gate -->|miss| Dry[Dry pass]
   Buf --> Cap --> Loop[Subdivided loop]
   Y[Y roll] --> Loop
-  Loop --> Mix[Dry or wet] --> Out[Out]
+  Depth[Depth pan] --> Pan[Random L/R]
+  Loop --> Pan --> Mix[Dry or wet] --> Out[Out]
+  Dry --> Out
   In --> Mix`,
   },
   fbackosc: {
