@@ -41,12 +41,18 @@ const {
   bpmLabel,
   awaitingWasmTap,
   kickDemoActive,
+  showDryInput,
+  drySources,
+  drySourceId,
+  dryPlaying,
   isReady,
   mount,
   teardown,
   setKnobValue,
   setMasterVolume,
   setBpm,
+  setDrySource,
+  toggleDryPlayback,
   handleDepthChange,
   readScopeSnapshot,
   onKeyboardDown,
@@ -114,6 +120,43 @@ function handleHoldToggle() {
         class="preview-toolbar"
       >
         <div class="preview-toolbar__controls">
+          <div
+            v-if="showDryInput"
+            class="preview-dry-input"
+          >
+            <button
+              type="button"
+              class="preview-chip"
+              :class="{ 'is-on': dryPlaying }"
+              :aria-pressed="dryPlaying"
+              :aria-label="t(dryPlaying ? 'stop' : 'play')"
+              :disabled="!isReady"
+              @click="toggleDryPlayback"
+            >
+              {{ t(dryPlaying ? "stop" : "play") }}
+            </button>
+
+            <label class="preview-dry-input__label" for="preview-dry-source">
+              {{ t("inputSource") }}
+            </label>
+            <select
+              id="preview-dry-source"
+              class="preview-dry-input__select"
+              :aria-label="t('selectInputSource')"
+              :value="drySourceId"
+              :disabled="!isReady"
+              @change="setDrySource($event.target.value)"
+            >
+              <option
+                v-for="source in drySources"
+                :key="source.id"
+                :value="source.id"
+              >
+                {{ t(source.labelKey) }}
+              </option>
+            </select>
+          </div>
+
           <button
             v-if="showInstrument && layout === 'keyboard' && !kickDemoActive"
             type="button"

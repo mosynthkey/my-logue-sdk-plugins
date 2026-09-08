@@ -1,6 +1,7 @@
 import { computed, ref, shallowRef } from "vue";
 import { unlockAudioSessionSync } from "../composables/useAudioSession.js";
 import { previewDebugLog } from "../composables/usePreviewDebugLog.js";
+import { defaultDrySourceId, DRY_SOURCES, isDrySourceId } from "./drySources.js";
 import { previewLayout, usesDryInput, usesKickDemo } from "./layout.js";
 import { needsGestureForWasmStart } from "./gesture.js";
 import { PreviewSession } from "./PreviewSession.js";
@@ -54,6 +55,9 @@ export function useWasmPreview(previewShellRef) {
   const depthNormalized = ref(0.5);
   const awaitingWasmTap = ref(false);
   const kickDemoActive = ref(false);
+  const showDryInput = ref(false);
+  const drySourceId = ref("house");
+  const dryPlaying = ref(false);
 
   let session = null;
   let pendingTapFinish = null;
@@ -74,6 +78,29 @@ export function useWasmPreview(previewShellRef) {
     latchEnabled.value = false;
     holdEnabled.value = false;
     audioRunning.value = false;
+    dryPlaying.value = false;
+  }
+
+  function setDrySource(nextSourceId) {
+    if (!isDrySourceId(nextSourceId)) {
+      return;
+    }
+    drySourceId.value = nextSourceId;
+    host()?.setDrySource(nextSourceId);
+  }
+
+  function setDryPlaying(nextPlaying) {
+    dryPlaying.value = Boolean(nextPlaying);
+    host()?.setDryPlaying(dryPlaying.value);
+  }
+
+  function toggleDryPlayback() {
+    const nextPlaying = !dryPlaying.value;
+    if (nextPlaying) {
+      host()?.resumeAudio();
+      audioRunning.value = true;
+    }
+    setDryPlaying(nextPlaying);
   }
 
   function formatKnobValue(index, value) {
@@ -243,6 +270,7 @@ export function useWasmPreview(previewShellRef) {
     depthNormalized.value = 0.5;
     showInstrument.value = false;
     showKnobs.value = false;
+    showDryInput.value = false;
     knobs.value = [];
     knobMappings.value = [];
     if (session) {
@@ -268,6 +296,9 @@ export function useWasmPreview(previewShellRef) {
 
     layout.value = previewLayout(build);
     kickDemoActive.value = usesKickDemo(plugin);
+    showDryInput.value = usesDryInput(plugin, build);
+    drySourceId.value = defaultDrySourceId(plugin);
+    dryPlaying.value = false;
     phase.value = "loading";
     message.value = "Loading preview…";
     knobs.value = buildPlaceholderKnobs(plugin);
@@ -290,8 +321,9 @@ export function useWasmPreview(previewShellRef) {
       const { audioReady } = await session.host.configureAndLoad({
         wasmHref,
         layoutName: layout.value,
-        dryInput: usesDryInput(plugin, build),
-        kickDemo: kickDemoActive.value,
+        dryInput: showDryInput.value,
+        drySource: drySourceId.value,
+        dryPlaying: dryPlaying.value,
         target: build.target,
         deferMain,
       });
@@ -353,6 +385,10 @@ export function useWasmPreview(previewShellRef) {
       message.value = "";
       runtime.setMasterVolume(masterVolume.value);
       runtime.setBpm(bpm.value);
+      if (showDryInput.value) {
+        runtime.setDrySource(drySourceId.value);
+        runtime.setDryPlaying(dryPlaying.value);
+      }
       runtime.resumeAudio();
       syncAudioRunning();
       audioRunning.value = true;
@@ -399,6 +435,10 @@ export function useWasmPreview(previewShellRef) {
     bpmLabel,
     awaitingWasmTap,
     kickDemoActive,
+    showDryInput,
+    drySources: DRY_SOURCES,
+    drySourceId,
+    dryPlaying,
     isLoading,
     isReady,
     hasWasm,
@@ -407,6 +447,8 @@ export function useWasmPreview(previewShellRef) {
     setKnobValue,
     setMasterVolume,
     setBpm,
+    setDrySource,
+    toggleDryPlayback,
     handleDepthChange,
     readScopeSnapshot,
     toggleAudio,

@@ -13,10 +13,11 @@
   let referenceFrequency = 440;
   let envelope = null;
   let dryNodes = [];
+  let drySourceEngine = null;
   let layout = "keyboard";
   let usesDryInput = false;
-  let usesKickDemo = false;
-  let kickDemoEngine = null;
+  let initialDrySource = "house";
+  let initialDryPlaying = false;
   let targetName = "";
   let runtimeReady = false;
   let mainStarted = false;
@@ -59,16 +60,16 @@
     return error === "unwind" || error?.message === "unwind";
   }
 
-  function stopKickDemo() {
-    if (!kickDemoEngine) {
+  function stopDrySourceEngine() {
+    if (!drySourceEngine) {
       return;
     }
-    kickDemoEngine.stop();
-    kickDemoEngine = null;
+    drySourceEngine.stop();
+    drySourceEngine = null;
   }
 
   function stopDryNodes() {
-    stopKickDemo();
+    stopDrySourceEngine();
     for (const node of dryNodes) {
       try {
         if (typeof node.stop === "function") {
@@ -82,48 +83,417 @@
     dryNodes = [];
   }
 
-  function scheduleKickHit(context, mixGain, time) {
+  function createNoiseBuffer(context, durationSeconds) {
+    const frameCount = Math.max(1, Math.floor(context.sampleRate * durationSeconds));
+    const buffer = context.createBuffer(1, frameCount, context.sampleRate);
+    const samples = buffer.getChannelData(0);
+    for (let sampleIndex = 0; sampleIndex < frameCount; sampleIndex += 1) {
+      samples[sampleIndex] = Math.random() * 2 - 1;
+    }
+    return buffer;
+  }
+
+  function scheduleKickHit(context, destination, time, gain = 0.85) {
     const oscillator = context.createOscillator();
     const envelope = context.createGain();
     oscillator.type = "sine";
-    oscillator.frequency.setValueAtTime(165, time);
-    oscillator.frequency.exponentialRampToValueAtTime(42, time + 0.09);
+    oscillator.frequency.setValueAtTime(168, time);
+    oscillator.frequency.exponentialRampToValueAtTime(46, time + 0.08);
     envelope.gain.setValueAtTime(0.0001, time);
-    envelope.gain.exponentialRampToValueAtTime(1.0, time + 0.003);
-    envelope.gain.exponentialRampToValueAtTime(0.0001, time + 0.38);
-    oscillator.connect(envelope).connect(mixGain);
+    envelope.gain.exponentialRampToValueAtTime(gain, time + 0.004);
+    envelope.gain.exponentialRampToValueAtTime(0.0001, time + 0.32);
+    oscillator.connect(envelope).connect(destination);
     oscillator.start(time);
-    oscillator.stop(time + 0.42);
-    dryNodes.push(oscillator, envelope);
+    oscillator.stop(time + 0.36);
   }
 
-  function createFourOnFloorKick(context, destination, bpm) {
+  function scheduleNoiseBurst(context, destination, noiseBuffer, time, duration, gain, highpassHz) {
+    const source = context.createBufferSource();
+    source.buffer = noiseBuffer;
+    const filter = context.createBiquadFilter();
+    filter.type = "highpass";
+    filter.frequency.value = highpassHz;
+    const envelope = context.createGain();
+    envelope.gain.setValueAtTime(gain, time);
+    envelope.gain.exponentialRampToValueAtTime(0.0001, time + duration);
+    source.connect(filter).connect(envelope).connect(destination);
+    source.start(time);
+    source.stop(time + duration + 0.02);
+  }
+
+  function scheduleHat(context, destination, noiseBuffer, time, duration, gain) {
+    scheduleNoiseBurst(context, destination, noiseBuffer, time, duration, gain, 7000);
+  }
+
+  function scheduleClap(context, destination, noiseBuffer, time, gain = 0.42) {
+    const burstOffsets = [0, 0.012, 0.024];
+    for (let burstIndex = 0; burstIndex < burstOffsets.length; burstIndex += 1) {
+      const burstGain = gain * (burstIndex === burstOffsets.length - 1 ? 1 : 0.55);
+      scheduleNoiseBurst(
+        context,
+        destination,
+        noiseBuffer,
+        time + burstOffsets[burstIndex],
+        0.09,
+        burstGain,
+        900,
+      );
+    }
+  }
+
+  function scheduleSnare(context, destination, noiseBuffer, time, gain = 0.48) {
+    const oscillator = context.createOscillator();
+    oscillator.type = "triangle";
+    oscillator.frequency.setValueAtTime(196, time);
+    const toneEnvelope = context.createGain();
+    toneEnvelope.gain.setValueAtTime(gain * 0.35, time);
+    toneEnvelope.gain.exponentialRampToValueAtTime(0.0001, time + 0.12);
+    oscillator.connect(toneEnvelope).connect(destination);
+    oscillator.start(time);
+    oscillator.stop(time + 0.14);
+    scheduleNoiseBurst(context, destination, noiseBuffer, time, 0.14, gain * 0.7, 1400);
+  }
+
+  function scheduleBass(context, destination, time, frequency, duration, gain = 0.32) {
+    const oscillator = context.createOscillator();
+    oscillator.type = "sawtooth";
+    oscillator.frequency.setValueAtTime(frequency, time);
+    const filter = context.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.Q.value = 1.2;
+    filter.frequency.setValueAtTime(480, time);
+    filter.frequency.exponentialRampToValueAtTime(140, time + duration * 0.75);
+    const envelope = context.createGain();
+    envelope.gain.setValueAtTime(0.0001, time);
+    envelope.gain.exponentialRampToValueAtTime(gain, time + 0.01);
+    envelope.gain.exponentialRampToValueAtTime(0.0001, time + duration);
+    oscillator.connect(filter).connect(envelope).connect(destination);
+    oscillator.start(time);
+    oscillator.stop(time + duration + 0.02);
+  }
+
+  function scheduleAcid(context, destination, time, frequency, slideFrequency, gain = 0.22) {
+    const oscillator = context.createOscillator();
+    oscillator.type = "sawtooth";
+    oscillator.frequency.setValueAtTime(frequency, time);
+    if (slideFrequency) {
+      oscillator.frequency.linearRampToValueAtTime(slideFrequency, time + 0.09);
+    }
+    const filter = context.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.Q.value = 11;
+    filter.frequency.setValueAtTime(2100, time);
+    filter.frequency.exponentialRampToValueAtTime(240, time + 0.15);
+    const envelope = context.createGain();
+    envelope.gain.setValueAtTime(0.0001, time);
+    envelope.gain.exponentialRampToValueAtTime(gain, time + 0.005);
+    envelope.gain.exponentialRampToValueAtTime(0.0001, time + 0.17);
+    oscillator.connect(filter).connect(envelope).connect(destination);
+    oscillator.start(time);
+    oscillator.stop(time + 0.19);
+  }
+
+  function scheduleStab(context, destination, time, frequencies, gain = 0.14) {
+    for (let voiceIndex = 0; voiceIndex < frequencies.length; voiceIndex += 1) {
+      const oscillator = context.createOscillator();
+      oscillator.type = "sawtooth";
+      oscillator.frequency.value = frequencies[voiceIndex];
+      const filter = context.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(1900, time);
+      filter.frequency.exponentialRampToValueAtTime(620, time + 0.22);
+      const envelope = context.createGain();
+      envelope.gain.setValueAtTime(0.0001, time);
+      envelope.gain.exponentialRampToValueAtTime(gain, time + 0.008);
+      envelope.gain.exponentialRampToValueAtTime(0.0001, time + 0.28);
+      oscillator.connect(filter).connect(envelope).connect(destination);
+      oscillator.start(time);
+      oscillator.stop(time + 0.3);
+    }
+  }
+
+  function startOscillatorSource(context, destination, type) {
+    const dryGain = context.createGain();
+    dryGain.gain.value = 0.2;
+    const oscillator = context.createOscillator();
+    oscillator.frequency.value = 220;
+    oscillator.type = type;
+    oscillator.connect(dryGain).connect(destination);
+    oscillator.start();
+    return [oscillator, dryGain];
+  }
+
+  function startNoiseSource(context, destination, noiseBuffer) {
+    const dryGain = context.createGain();
+    dryGain.gain.value = 0.14;
+    const source = context.createBufferSource();
+    source.buffer = noiseBuffer;
+    source.loop = true;
+    const filter = context.createBiquadFilter();
+    filter.type = "highpass";
+    filter.frequency.value = 180;
+    source.connect(filter).connect(dryGain).connect(destination);
+    source.start();
+    return [source, filter, dryGain];
+  }
+
+  function startReeseSource(context, destination) {
     const mixGain = context.createGain();
-    mixGain.gain.value = 0.85;
+    mixGain.gain.value = 0.16;
     mixGain.connect(destination);
+    const nodes = [mixGain];
+    const voiceFrequencies = [55, 55.35, 110];
+    for (let voiceIndex = 0; voiceIndex < voiceFrequencies.length; voiceIndex += 1) {
+      const oscillator = context.createOscillator();
+      oscillator.type = "sawtooth";
+      oscillator.frequency.value = voiceFrequencies[voiceIndex];
+      const filter = context.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.value = 260;
+      filter.Q.value = 0.8;
+      oscillator.connect(filter).connect(mixGain);
+      oscillator.start();
+      nodes.push(oscillator, filter);
+    }
+    return nodes;
+  }
 
-    let currentBpm = bpm;
-    let nextBeatTime = context.currentTime + 0.05;
+  const LOOP_SOURCE_IDS = new Set(["house", "techno", "garage", "acid", "kick", "breakbeat", "stab"]);
+  const OSCILLATOR_SOURCE_IDS = new Set(["sawtooth", "square", "sine", "triangle"]);
+  const HOUSE_STAB = [220, 261.63, 329.63, 392];
+  const ACID_NOTES = {
+    0: [110, null],
+    1: [110, null],
+    3: [146.83, null],
+    4: [164.81, 196],
+    6: [130.81, null],
+    8: [110, null],
+    10: [220, null],
+    11: [164.81, null],
+    13: [146.83, null],
+    14: [130.81, null],
+  };
+
+  function scheduleLoopStep(context, destination, noiseBuffer, sourceId, stepIndex, time) {
+    const onBeat = stepIndex % 4 === 0;
+    const evenStep = stepIndex % 2 === 0;
+
+    if (sourceId === "kick" && onBeat) {
+      scheduleKickHit(context, destination, time);
+      return;
+    }
+
+    if (sourceId === "house") {
+      if (onBeat) {
+        scheduleKickHit(context, destination, time, 0.8);
+      }
+      if (stepIndex === 4 || stepIndex === 12) {
+        scheduleClap(context, destination, noiseBuffer, time);
+      }
+      if (evenStep) {
+        scheduleHat(context, destination, noiseBuffer, time, 0.05, stepIndex % 4 === 2 ? 0.22 : 0.1);
+      }
+      if (stepIndex === 0) {
+        scheduleBass(context, destination, time, 55, 0.22);
+      } else if (stepIndex === 4) {
+        scheduleBass(context, destination, time, 55, 0.12, 0.26);
+      } else if (stepIndex === 6) {
+        scheduleBass(context, destination, time, 65.41, 0.12, 0.26);
+      } else if (stepIndex === 10) {
+        scheduleBass(context, destination, time, 73.42, 0.12, 0.26);
+      } else if (stepIndex === 12) {
+        scheduleBass(context, destination, time, 55, 0.12, 0.26);
+      } else if (stepIndex === 14) {
+        scheduleBass(context, destination, time, 49, 0.12, 0.24);
+      }
+      return;
+    }
+
+    if (sourceId === "techno") {
+      if (onBeat) {
+        scheduleKickHit(context, destination, time, 0.88);
+      }
+      scheduleHat(context, destination, noiseBuffer, time, 0.035, onBeat ? 0.06 : 0.16);
+      if (stepIndex === 14) {
+        scheduleNoiseBurst(context, destination, noiseBuffer, time, 0.18, 0.2, 5000);
+      }
+      if (stepIndex === 0 || stepIndex === 8) {
+        scheduleBass(context, destination, time, 41.2, 0.42, 0.28);
+      }
+      return;
+    }
+
+    if (sourceId === "garage") {
+      if (stepIndex === 0 || stepIndex === 10) {
+        scheduleKickHit(context, destination, time, 0.78);
+      }
+      if (stepIndex === 4 || stepIndex === 12) {
+        scheduleSnare(context, destination, noiseBuffer, time, 0.5);
+      }
+      if (stepIndex !== 2 && stepIndex !== 5 && stepIndex !== 13) {
+        scheduleHat(context, destination, noiseBuffer, time, 0.04, evenStep ? 0.14 : 0.08);
+      }
+      if (stepIndex === 0) {
+        scheduleBass(context, destination, time, 55, 0.18);
+      } else if (stepIndex === 6) {
+        scheduleBass(context, destination, time, 41.2, 0.16, 0.28);
+      } else if (stepIndex === 10) {
+        scheduleBass(context, destination, time, 65.41, 0.16, 0.28);
+      }
+      return;
+    }
+
+    if (sourceId === "acid") {
+      if (onBeat) {
+        scheduleKickHit(context, destination, time, 0.72);
+      }
+      if (evenStep) {
+        scheduleHat(context, destination, noiseBuffer, time, 0.04, 0.12);
+      }
+      const acidNote = ACID_NOTES[stepIndex];
+      if (acidNote) {
+        scheduleAcid(context, destination, time, acidNote[0], acidNote[1]);
+      }
+      return;
+    }
+
+    if (sourceId === "breakbeat") {
+      if (stepIndex === 0 || stepIndex === 6 || stepIndex === 10) {
+        scheduleKickHit(context, destination, time, 0.76);
+      }
+      if (stepIndex === 4 || stepIndex === 12 || stepIndex === 14) {
+        scheduleSnare(context, destination, noiseBuffer, time, stepIndex === 14 ? 0.32 : 0.5);
+      }
+      if (evenStep) {
+        scheduleHat(context, destination, noiseBuffer, time, 0.04, 0.14);
+      }
+      if (stepIndex === 0 || stepIndex === 8) {
+        scheduleBass(context, destination, time, 49, 0.2, 0.24);
+      }
+      return;
+    }
+
+    if (sourceId === "stab") {
+      if (onBeat) {
+        scheduleKickHit(context, destination, time, 0.55);
+      }
+      if (stepIndex === 4 || stepIndex === 12) {
+        scheduleStab(context, destination, time, HOUSE_STAB);
+        scheduleClap(context, destination, noiseBuffer, time, 0.28);
+      } else if (stepIndex === 0) {
+        scheduleStab(context, destination, time, HOUSE_STAB, 0.08);
+      }
+    }
+  }
+
+  function createDrySourceEngine(context, destination) {
+    const mixGain = context.createGain();
+    mixGain.connect(destination);
+    const noiseBuffer = createNoiseBuffer(context, 1.5);
+
+    let currentBpm = 120;
+    let sourceId = initialDrySource;
+    let playing = false;
     let schedulerTimer = 0;
+    let nextStepTime = 0;
+    let stepIndex = 0;
+    let continuousNodes = [];
 
-    function tick() {
-      const beatInterval = 60 / currentBpm;
-      while (nextBeatTime < context.currentTime + 0.15) {
-        scheduleKickHit(context, mixGain, nextBeatTime);
-        nextBeatTime += beatInterval;
+    function clearContinuous() {
+      for (const node of continuousNodes) {
+        try {
+          if (typeof node.stop === "function") {
+            node.stop();
+          }
+          node.disconnect();
+        } catch {
+          // Ignore teardown errors.
+        }
+      }
+      continuousNodes = [];
+    }
+
+    function stopScheduler() {
+      if (schedulerTimer) {
+        window.clearInterval(schedulerTimer);
+        schedulerTimer = 0;
       }
     }
 
-    schedulerTimer = window.setInterval(tick, 25);
-    tick();
+    function startContinuous() {
+      if (OSCILLATOR_SOURCE_IDS.has(sourceId)) {
+        continuousNodes = startOscillatorSource(context, mixGain, sourceId);
+        return;
+      }
+      if (sourceId === "noise") {
+        continuousNodes = startNoiseSource(context, mixGain, noiseBuffer);
+        return;
+      }
+      if (sourceId === "reese") {
+        continuousNodes = startReeseSource(context, mixGain);
+      }
+    }
+
+    function tick() {
+      if (!playing || !LOOP_SOURCE_IDS.has(sourceId)) {
+        return;
+      }
+      const stepInterval = (60 / currentBpm) / 4;
+      while (nextStepTime < context.currentTime + 0.15) {
+        scheduleLoopStep(context, mixGain, noiseBuffer, sourceId, stepIndex, nextStepTime);
+        nextStepTime += stepInterval;
+        stepIndex = (stepIndex + 1) % 16;
+      }
+    }
+
+    function applyPlayback() {
+      clearContinuous();
+      stopScheduler();
+      if (!playing) {
+        return;
+      }
+      if (LOOP_SOURCE_IDS.has(sourceId)) {
+        nextStepTime = context.currentTime + 0.03;
+        stepIndex = 0;
+        schedulerTimer = window.setInterval(tick, 25);
+        tick();
+        return;
+      }
+      startContinuous();
+    }
 
     return {
       nodes: [mixGain],
+      setSource(nextSourceId) {
+        const normalized = LOOP_SOURCE_IDS.has(nextSourceId)
+          || OSCILLATOR_SOURCE_IDS.has(nextSourceId)
+          || nextSourceId === "noise"
+          || nextSourceId === "reese"
+          ? nextSourceId
+          : "house";
+        if (normalized === sourceId) {
+          return;
+        }
+        sourceId = normalized;
+        if (playing) {
+          applyPlayback();
+        }
+      },
+      setPlaying(nextPlaying) {
+        const shouldPlay = Boolean(nextPlaying);
+        if (shouldPlay === playing) {
+          return;
+        }
+        playing = shouldPlay;
+        applyPlayback();
+      },
       setBpm(nextBpm) {
         currentBpm = Math.min(Math.max(nextBpm, 30), 240);
       },
       stop() {
-        window.clearInterval(schedulerTimer);
+        playing = false;
+        clearContinuous();
+        stopScheduler();
         mixGain.disconnect();
       },
     };
@@ -132,21 +502,11 @@
   function connectProcessor(context, processor) {
     stopDryNodes();
 
-    if (usesKickDemo) {
-      kickDemoEngine = createFourOnFloorKick(context, processor, 120);
-      dryNodes.push(...kickDemoEngine.nodes);
-      return;
-    }
-
     if (usesDryInput) {
-      const dryGain = context.createGain();
-      dryGain.gain.value = 0.2;
-      const oscillator = context.createOscillator();
-      oscillator.frequency.value = 220;
-      oscillator.type = "sawtooth";
-      oscillator.connect(dryGain).connect(processor);
-      oscillator.start();
-      dryNodes.push(oscillator, dryGain);
+      drySourceEngine = createDrySourceEngine(context, processor);
+      drySourceEngine.setSource(initialDrySource);
+      drySourceEngine.setPlaying(initialDryPlaying);
+      dryNodes.push(...drySourceEngine.nodes);
       return;
     }
 
@@ -219,7 +579,7 @@
     masterVolumeNode = volume;
 
     if (layout === "keyboard") {
-      if (usesKickDemo) {
+      if (usesDryInput) {
         connectProcessor(context, processor);
         processor.connect(volume);
       } else {
@@ -361,7 +721,7 @@
     if (typeof moduleRef?.fx_set_bpm === "function") {
       moduleRef.fx_set_bpm(value);
     }
-    kickDemoEngine?.setBpm(value);
+    drySourceEngine?.setBpm(value);
   }
 
   function readScopeSnapshot() {
@@ -489,10 +849,19 @@
   }
 
   window.__previewHost = {
-    async configureAndLoad({ wasmHref, layoutName, dryInput, kickDemo, target, deferMain }) {
+    async configureAndLoad({
+      wasmHref,
+      layoutName,
+      dryInput,
+      drySource,
+      dryPlaying,
+      target,
+      deferMain,
+    }) {
       layout = layoutName;
       usesDryInput = Boolean(dryInput);
-      usesKickDemo = Boolean(kickDemo);
+      initialDrySource = drySource || "house";
+      initialDryPlaying = Boolean(dryPlaying);
       targetName = target || "";
       runtimeReady = false;
       mainStarted = false;
@@ -549,6 +918,12 @@
     setParam,
     setMasterVolume,
     setBpm,
+    setDrySource(sourceId) {
+      drySourceEngine?.setSource(sourceId);
+    },
+    setDryPlaying(playing) {
+      drySourceEngine?.setPlaying(playing);
+    },
     readScopeSnapshot,
     applyCurve(normalized, curve, unipolar) {
       return window.Module.applyCurveToParameter0to1(normalized, curve, unipolar);
