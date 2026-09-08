@@ -13,7 +13,7 @@ export function usesKickDemo(plugin) {
 
 export function usesDryInput(plugin, build) {
   if (usesKickDemo(plugin)) {
-    return false;
+    return true;
   }
   return build?.target === "nts-3_kaoss" && !SELF_CONTAINED_TYPES.has(plugin?.type);
 }
