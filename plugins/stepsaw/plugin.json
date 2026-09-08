@@ -1,0 +1,37 @@
+{
+  "id": "stepsaw",
+  "experimental": true,
+  "name": "StepSaw",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Step-grid probe. Passes AUDIO IN and overlays a decaying band-limited saw at each tempo step head so you can hear whether the clock/grid is locking. X = pitch, Y = decay. Prefers host 4ppqn; otherwise uses an internal BPM clock. Touch resets to step 0.",
+  "params": [
+    {
+      "name": "PITCH",
+      "role": "X",
+      "detail": "Saw pitch (MIDI ~C2\u2013C6)"
+    },
+    {
+      "name": "DEC",
+      "role": "Y",
+      "detail": "Envelope decay after each step head"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "How loud the step marker is mixed over dry"
+    },
+    {
+      "name": "STEPS",
+      "role": "Edit",
+      "detail": "Grid: 16, 8, 4, or 2 steps per bar"
+    },
+    {
+      "name": "LVL",
+      "role": "Edit",
+      "detail": "Marker level trim"
+    }
+  ]
+}
