@@ -1,0 +1,42 @@
+{
+  "id": "eucroll",
+  "experimental": true,
+  "name": "EucRoll",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Euclidean step roll. Always records AUDIO IN. Touch rolls the current tempo-synced step; Euclidean hits re-capture. X = hit density, Y = roll subdivision inside the step (coarse hold to tight stutter).",
+  "params": [
+    {
+      "name": "DENS",
+      "role": "X",
+      "detail": "Euclidean hits per bar that re-capture the step"
+    },
+    {
+      "name": "ROLL",
+      "role": "Y",
+      "detail": "Loop subdivision inside the step (1\u00d7 to 8\u00d7)"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Roll wet level"
+    },
+    {
+      "name": "STEPS",
+      "role": "Edit",
+      "detail": "Grid: 8, 12, or 16 steps"
+    },
+    {
+      "name": "ROT",
+      "role": "Edit",
+      "detail": "Rotate the Euclidean pattern"
+    },
+    {
+      "name": "GLUE",
+      "role": "Edit",
+      "detail": "Crossfade at loop boundaries"
+    }
+  ]
+}

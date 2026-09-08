@@ -142,6 +142,19 @@ export const dspExplainById = {
   In[Audio in] --> Gate[Level gate] --> Out[Out]
   Euclid --> Gate`,
   },
+  eucroll: {
+    en: "Euclidean step roll: always records. Touch loops the current tempo-synced step; Euclidean hits re-capture. X = hit density, Y = subdivision inside the step (1× hold to 8× stutter).",
+    ja: "ユークリッド・ステップロールです。常時録音し、タッチで現在のテンポ同期ステップをループ。ユークリッドヒットで再キャプチャ。Xは密度、Yはステップ内の細分化（1×ホールド〜8×スタッター）です。",
+    mermaid: `flowchart LR
+  In[Live in] --> Buf[Always-on buffer]
+  Clock[Tempo steps] --> Euclid[Euclid hits]
+  Touch[Touch] --> Cap[Capture step]
+  Euclid --> Cap
+  Buf --> Cap --> Loop[Subdivided loop]
+  Y[Y roll] --> Loop
+  Loop --> Mix[Dry or wet] --> Out[Out]
+  In --> Mix`,
+  },
   fbackosc: {
     en: "JP-8080-style feedback oscillator: a band-limited saw into a key-tracked resonant comb (delay + feedback + damping), with level compensation, soft-clip, and DC block so high feedback stays usable.",
     ja: "JP-8080系フィードバックOSCです。帯域制限ソーをキー追従の共振コーム（遅延＋FB＋減衰）へ通し、レベル補正・ソフトクリップ・DCカットで高フィードバックでも扱いやすくしています。",
