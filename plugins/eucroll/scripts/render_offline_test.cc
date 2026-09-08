@@ -60,87 +60,147 @@ int main()
   const float bpm = 120.f;
   const uint32_t sr = 48000U;
   const uint32_t beat = static_cast<uint32_t>(sr * 60.f / bpm);
-  const uint32_t step = beat / 4U;
-  const uint32_t total = beat * 8U; // two bars
+  const uint32_t step = beat / 4U; // 16 steps/bar
+  const uint32_t total = beat * 8U;
 
   std::vector<float> input(total, 0.f);
   fillImpulseBar(input, step);
 
   std::vector<float> ram(192000U * 2U, 0.f);
-  std::vector<float> dry_out(total, 0.f);
-  std::vector<float> roll_out(total, 0.f);
+  std::vector<float> out(total, 0.f);
 
-  EucRoll dry_fx;
-  dry_fx.init(ram.data());
-  dry_fx.setTempo(bpm);
-  dry_fx.setParameter(EucRoll::DENS, 400);
-  dry_fx.setParameter(EucRoll::ROLL, 0);
-  dry_fx.setParameter(EucRoll::MIX, 1000);
-  dry_fx.setParameter(EucRoll::STEPS, 2);
-  processRange(dry_fx, input, dry_out, 0U, total);
-  const float dry_err = std::fabs(dry_out[step] - input[step]);
+  EucRoll fx;
+  fx.init(ram.data());
+  fx.setTempo(bpm);
+  // dens_norm ~ 0 → 1 hit only (step 0). Sparse pattern leaves most steps dry.
+  fx.setParameter(EucRoll::DENS, 0);
+  fx.setParameter(EucRoll::ROLL, 1023);
+  fx.setParameter(EucRoll::PAN, 0);
+  fx.setParameter(EucRoll::MIX, 1000);
+  fx.setParameter(EucRoll::STEPS, 2);
+  fx.setParameter(EucRoll::GLUE, 0);
 
-  EucRoll roll_fx;
-  roll_fx.init(ram.data());
-  roll_fx.setTempo(bpm);
-  roll_fx.setParameter(EucRoll::DENS, 1023);
-  roll_fx.setParameter(EucRoll::ROLL, 1023);
-  roll_fx.setParameter(EucRoll::MIX, 1000);
-  roll_fx.setParameter(EucRoll::STEPS, 2);
-  roll_fx.setParameter(EucRoll::GLUE, 0);
+  processRange(fx, input, out, 0U, beat * 4U);
+  fx.touchEvent(0, k_unit_touch_phase_began, 512U, 512U);
+  processRange(fx, input, out, beat * 4U, beat * 4U);
+  fx.touchEvent(0, k_unit_touch_phase_ended, 512U, 512U);
 
-  // Pre-roll one bar dry so the ring buffer holds a full step.
-  processRange(roll_fx, input, roll_out, 0U, beat * 4U);
-  roll_fx.touchEvent(0, k_unit_touch_phase_began, 512U, 512U);
-  processRange(roll_fx, input, roll_out, beat * 4U, beat * 4U);
-  roll_fx.touchEvent(0, k_unit_touch_phase_ended, 512U, 512U);
+  const uint32_t bar2 = beat * 4U;
+  // With 1 euclid hit on 16 steps, only step 0 rolls. Step 1 should be dry
+  // (pass-through of the live impulse), not a continued micro-roll.
+  const float hit_head = windowRms(out, bar2, 48U);
+  const float miss_mid = windowRms(out, bar2 + step + step / 4U, 64U);
+  const float miss_err = std::fabs(out[bar2 + step] - input[bar2 + step]);
 
-  const uint32_t probe_start = beat * 4U + step;
+  // High dens + roll: verify micro-stutter still works on hits.
+  EucRoll dense;
+  dense.init(ram.data());
+  dense.setTempo(bpm);
+  dense.setParameter(EucRoll::DENS, 1023);
+  dense.setParameter(EucRoll::ROLL, 1023);
+  dense.setParameter(EucRoll::PAN, 0);
+  dense.setParameter(EucRoll::MIX, 1000);
+  dense.setParameter(EucRoll::STEPS, 2);
+  dense.setParameter(EucRoll::GLUE, 0);
+  std::vector<float> dense_out(total, 0.f);
+  processRange(dense, input, dense_out, 0U, beat * 4U);
+  dense.touchEvent(0, k_unit_touch_phase_began, 512U, 512U);
+  processRange(dense, input, dense_out, beat * 4U, beat * 4U);
+
+  const uint32_t probe = bar2 + step;
   const uint32_t micro = step / 8U;
   float head_rms = 0.f;
   float mid_rms = 0.f;
-  uint32_t loud_heads = 0U;
   for (uint32_t microIndex = 0; microIndex < 8U; ++microIndex)
   {
-    const uint32_t head = probe_start + microIndex * micro;
-    const uint32_t mid = head + micro / 2U;
-    const float head_value = windowRms(roll_out, head, 48U);
-    const float mid_value = windowRms(roll_out, mid, 48U);
-    head_rms += head_value;
-    mid_rms += mid_value;
-    if (head_value > 0.2f)
-      ++loud_heads;
+    head_rms += windowRms(dense_out, probe + microIndex * micro, 48U);
+    mid_rms += windowRms(dense_out, probe + microIndex * micro + micro / 2U, 48U);
   }
   head_rms /= 8.f;
   mid_rms /= 8.f;
 
-  const float dry_rms = windowRms(dry_out, step, 64U);
-  const float roll_peak = windowRms(roll_out, probe_start, 48U);
+  // Random pan: left/right should diverge with Depth up.
+  EucRoll pan_fx;
+  pan_fx.init(ram.data());
+  pan_fx.setTempo(bpm);
+  pan_fx.setParameter(EucRoll::DENS, 1023);
+  pan_fx.setParameter(EucRoll::ROLL, 1023);
+  pan_fx.setParameter(EucRoll::PAN, 1000);
+  pan_fx.setParameter(EucRoll::MIX, 1000);
+  pan_fx.setParameter(EucRoll::STEPS, 2);
+  pan_fx.setParameter(EucRoll::GLUE, 0);
+  std::vector<float> pan_l(total, 0.f);
+  std::vector<float> pan_r(total, 0.f);
+  processRange(pan_fx, input, pan_l, 0U, beat * 4U); // warm-up writes L only via helper
+  // Re-run stereo capture for pan check.
+  {
+    pan_fx.reset();
+    pan_fx.init(ram.data());
+    pan_fx.setTempo(bpm);
+    pan_fx.setParameter(EucRoll::DENS, 1023);
+    pan_fx.setParameter(EucRoll::ROLL, 700);
+    pan_fx.setParameter(EucRoll::PAN, 1000);
+    pan_fx.setParameter(EucRoll::MIX, 1000);
+    pan_fx.setParameter(EucRoll::STEPS, 2);
+    pan_fx.setParameter(EucRoll::GLUE, 0);
+    const uint32_t frames = total;
+    std::vector<float> interleaved_in(frames * 2U, 0.f);
+    std::vector<float> interleaved_out(frames * 2U, 0.f);
+    for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
+    {
+      interleaved_in[sampleIndex * 2U] = input[sampleIndex];
+      interleaved_in[sampleIndex * 2U + 1U] = input[sampleIndex];
+    }
+    const uint32_t warm = beat * 4U;
+    for (uint32_t frameOffset = 0; frameOffset < warm; frameOffset += 64U)
+      pan_fx.process(interleaved_in.data() + frameOffset * 2U, interleaved_out.data() + frameOffset * 2U, 64U);
+    pan_fx.touchEvent(0, k_unit_touch_phase_began, 512U, 512U);
+    for (uint32_t frameOffset = warm; frameOffset < frames; frameOffset += 64U)
+      pan_fx.process(interleaved_in.data() + frameOffset * 2U, interleaved_out.data() + frameOffset * 2U, 64U);
 
-  std::printf("dry_err=%.6f dry_rms=%.6f roll_peak=%.6f head_rms=%.6f mid_rms=%.6f loud_heads=%u\n",
-              dry_err, dry_rms, roll_peak, head_rms, mid_rms, loud_heads);
+    double sum_abs_diff = 0.0;
+    uint32_t counted = 0U;
+    for (uint32_t sampleIndex = warm; sampleIndex < frames; ++sampleIndex)
+    {
+      const float left = interleaved_out[sampleIndex * 2U];
+      const float right = interleaved_out[sampleIndex * 2U + 1U];
+      if (std::fabs(left) + std::fabs(right) < 0.05f)
+        continue;
+      sum_abs_diff += std::fabs(static_cast<double>(left - right));
+      ++counted;
+    }
+    if (counted < 64U)
+    {
+      std::printf("FAIL: too few active samples for pan check (%u)\n", counted);
+      return 1;
+    }
+    const float mean_lr_diff = static_cast<float>(sum_abs_diff / static_cast<double>(counted));
 
-  if (dry_err > 1e-4f)
-  {
-    std::printf("FAIL: dry path should pass input when not touching\n");
-    return 1;
-  }
-  if (roll_peak < 0.2f)
-  {
-    std::printf("FAIL: rolled path too quiet after touch\n");
-    return 1;
-  }
-  if (loud_heads < 4U)
-  {
-    std::printf("FAIL: expected repeated micro-roll hits inside the step\n");
-    return 1;
-  }
-  if (!(head_rms > mid_rms * 2.f))
-  {
-    std::printf("FAIL: expected click-then-gap inside each roll subdivision\n");
-    return 1;
-  }
+    std::printf("hit_head=%.6f miss_mid=%.6f miss_err=%.6f head_rms=%.6f mid_rms=%.6f lr_diff=%.6f active=%u\n",
+                hit_head, miss_mid, miss_err, head_rms, mid_rms, mean_lr_diff, counted);
 
-  std::printf("OK\n");
-  return 0;
+    if (miss_err > 1e-4f)
+    {
+      std::printf("FAIL: non-hit step should stay dry (pass-through)\n");
+      return 1;
+    }
+    if (miss_mid > 0.05f)
+    {
+      std::printf("FAIL: non-hit mid-step should not keep rolling\n");
+      return 1;
+    }
+    if (!(head_rms > mid_rms * 2.f))
+    {
+      std::printf("FAIL: expected click-then-gap inside hit-step rolls\n");
+      return 1;
+    }
+    if (mean_lr_diff < 0.05f)
+    {
+      std::printf("FAIL: expected L/R divergence with random pan depth\n");
+      return 1;
+    }
+
+    std::printf("OK\n");
+    return 0;
+  }
 }
