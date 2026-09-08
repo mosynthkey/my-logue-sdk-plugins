@@ -1,7 +1,6 @@
 <script setup>
 import { computed } from "vue";
 import PreviewPanel from "./PreviewPanel.vue";
-import TargetTabs from "./TargetTabs.vue";
 import { useI18n } from "../composables/useI18n.js";
 import {
   buildForTarget,
@@ -28,116 +27,110 @@ const { pluginDescription, t } = useI18n();
 const activeBuild = computed(() => buildForTarget(props.plugin, props.activeTarget));
 const downloads = computed(() => downloadableBuilds(props.plugin));
 const sends = computed(() => sendableBuilds(props.plugin));
+
+const targetItems = computed(() => {
+  const targets = new Set([
+    ...downloads.value.map((build) => build.target),
+    ...sends.value.map((build) => build.target),
+    ...(props.plugin.targets || []),
+  ]);
+  if (props.activeTarget) {
+    targets.add(props.activeTarget);
+  }
+  return [...targets].map((target) => ({
+    value: target,
+    title: targetName(target),
+  }));
+});
 </script>
 
 <template>
-  <main class="detail">
-    <header class="detail__head">
-      <h2 class="detail__name">{{ plugin.name }}</h2>
-      <p class="detail__desc">{{ pluginDescription(plugin) }}</p>
-      <button
-        type="button"
-        class="detail__dsp-button"
+  <div class="d-flex flex-column ga-6">
+    <div>
+      <h1 class="text-h4 font-weight-bold mb-2">{{ plugin.name }}</h1>
+      <p class="text-body-large text-medium-emphasis mb-4">
+        {{ pluginDescription(plugin) }}
+      </p>
+      <v-btn
+        variant="tonal"
+        prepend-icon="mdi-sitemap"
         @click="emit('explain-dsp', plugin)"
       >
-        <svg
-          class="detail__dsp-button-icon"
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-        >
-          <rect x="3" y="4" width="6" height="6" rx="0.5" />
-          <rect x="15" y="4" width="6" height="6" rx="0.5" />
-          <rect x="9" y="14" width="6" height="6" rx="0.5" />
-          <path d="M9 7h6M12 10v4" />
-        </svg>
-        <span>{{ t("dspHowItWorks") }}</span>
-      </button>
-    </header>
+        {{ t("dspHowItWorks") }}
+      </v-btn>
+    </div>
 
-    <section
-      v-if="downloads.length || sends.length"
-      class="detail__section detail__section--devices"
-    >
-      <div
+    <v-row v-if="downloads.length || sends.length">
+      <v-col
         v-if="downloads.length"
-        class="detail__device-group"
-        :aria-label="t('download')"
+        cols="12"
+        md="6"
       >
-        <h3 class="detail__section-title">{{ t("download") }}</h3>
-        <div class="detail__device-buttons">
-          <a
+        <h2 class="text-title-medium mb-3">{{ t("download") }}</h2>
+        <div class="d-flex flex-wrap ga-2">
+          <v-btn
             v-for="build in downloads"
             :key="`download-${build.target}`"
-            class="device-button"
             :href="build.file"
             :download="unitFileName(build)"
-            :aria-label="t('downloadFor', { target: targetName(build.target) })"
-            :title="t('downloadFor', { target: targetName(build.target) })"
+            variant="outlined"
+            prepend-icon="mdi-download"
           >
-            <svg
-              class="device-button__icon"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path d="M12 3v12" />
-              <path d="m7 11 5 5 5-5" />
-              <path d="M5 19h14" />
-            </svg>
-            <span>{{ targetName(build.target) }}</span>
-          </a>
+            {{ targetName(build.target) }}
+          </v-btn>
         </div>
-      </div>
+      </v-col>
 
-      <div
+      <v-col
         v-if="sends.length"
-        class="detail__device-group"
-        :aria-label="t('sendToDevice')"
+        cols="12"
+        md="6"
       >
-        <h3 class="detail__section-title">{{ t("sendToDevice") }}</h3>
-        <div class="detail__device-buttons">
-          <button
+        <h2 class="text-title-medium mb-3">{{ t("sendToDevice") }}</h2>
+        <div class="d-flex flex-wrap ga-2">
+          <v-btn
             v-for="build in sends"
             :key="`send-${build.target}`"
-            type="button"
-            class="device-button"
-            :aria-label="t('sendTo', { target: targetName(build.target) })"
-            :title="t('sendTo', { target: targetName(build.target) })"
+            variant="outlined"
+            prepend-icon="mdi-usb"
             @click="emit('send', plugin, build.target)"
           >
-            <svg
-              class="device-button__icon"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path d="M12 3v12" />
-              <path d="m8 11 4 4 4-4" />
-              <rect x="4" y="17" width="16" height="4" rx="1" />
-            </svg>
-            <span>{{ targetName(build.target) }}</span>
-          </button>
+            {{ targetName(build.target) }}
+          </v-btn>
         </div>
-      </div>
-    </section>
+      </v-col>
+    </v-row>
 
-    <section
-      class="detail__section detail__section--preview"
-      :aria-label="t('preview')"
+    <v-card
+      variant="flat"
+      class="pa-4"
     >
-      <div class="detail__section-head">
-        <h3 class="detail__section-title">{{ t("preview") }}</h3>
-        <div class="detail__actions">
-          <TargetTabs
-            :plugin="plugin"
-            :active-target="activeTarget"
-            @select-target="emit('select-target', $event)"
-          />
-        </div>
+      <div class="d-flex flex-wrap align-center justify-space-between ga-3 mb-4">
+        <h2 class="text-title-medium">{{ t("preview") }}</h2>
+        <v-btn-toggle
+          v-if="targetItems.length > 1"
+          :model-value="activeTarget"
+          mandatory
+          density="compact"
+          color="primary"
+          divided
+          @update:model-value="emit('select-target', $event)"
+        >
+          <v-btn
+            v-for="item in targetItems"
+            :key="item.value"
+            :value="item.value"
+            size="small"
+          >
+            {{ item.title }}
+          </v-btn>
+        </v-btn-toggle>
       </div>
 
       <PreviewPanel
         :build="activeBuild"
         :plugin="plugin"
       />
-    </section>
-  </main>
+    </v-card>
+  </div>
 </template>

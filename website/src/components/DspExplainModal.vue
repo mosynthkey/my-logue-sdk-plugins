@@ -32,65 +32,53 @@ const modalTitle = computed(() => props.plugin?.name || "Plugin");
 </script>
 
 <template>
-  <div
-    v-if="isOpen"
-    id="dsp-explain-modal"
-    class="modal"
+  <v-dialog
+    :model-value="isOpen"
+    max-width="760"
+    @update:model-value="(value) => !value && emit('close')"
   >
-    <div
-      class="modal__backdrop"
-      @click="emit('close')"
-    />
-    <div
-      class="modal__dialog modal__dialog--wide"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="dsp-explain-modal-title"
-    >
-      <header class="modal__header">
+    <v-card>
+      <v-card-title class="d-flex align-center justify-space-between">
         <div>
-          <p class="modal__kicker">{{ t("dspHowItWorks") }}</p>
-          <h2 id="dsp-explain-modal-title">{{ modalTitle }}</h2>
+          <div class="text-label-large text-medium-emphasis">{{ t("dspHowItWorks") }}</div>
+          <div class="text-title-large">{{ modalTitle }}</div>
         </div>
-        <button
-          type="button"
-          class="modal__close"
+        <v-btn
+          icon="mdi-close"
+          variant="text"
           :aria-label="t('close')"
           @click="emit('close')"
-        >
-          ×
-        </button>
-      </header>
-
-      <div
-        v-if="explain"
-        class="dsp-explain"
-      >
-        <p class="dsp-explain__body">{{ bodyText }}</p>
-        <h3 class="dsp-explain__diagram-title">{{ t("dspBlockDiagram") }}</h3>
-        <MermaidDiagram
-          :key="plugin?.id"
-          :diagram-id="plugin?.id || 'plugin'"
-          :chart="explain.mermaid"
         />
-      </div>
+      </v-card-title>
 
-      <div
-        v-else
-        class="modal__notice"
-      >
-        <p>{{ t("dspExplainMissing") }}</p>
-      </div>
+      <v-card-text>
+        <template v-if="explain">
+          <p class="text-body-large mb-6">{{ bodyText }}</p>
+          <h3 class="text-title-small mb-3">{{ t("dspBlockDiagram") }}</h3>
+          <MermaidDiagram
+            :key="plugin?.id"
+            :diagram-id="plugin?.id || 'plugin'"
+            :chart="explain.mermaid"
+          />
+        </template>
+        <v-alert
+          v-else
+          type="info"
+          variant="tonal"
+          :text="t('dspExplainMissing')"
+        />
+      </v-card-text>
 
-      <div class="modal__actions">
-        <button
-          type="button"
-          class="button button-secondary"
+      <v-card-actions>
+        <v-spacer />
+        <v-btn
+          color="primary"
+          variant="flat"
           @click="emit('close')"
         >
           {{ t("close") }}
-        </button>
-      </div>
-    </div>
-  </div>
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>

@@ -62,132 +62,131 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits([
-  "close",
-  "send",
-  "update:slot",
-]);
+const emit = defineEmits(["close", "send", "update:slot"]);
 const { t } = useI18n();
 
 const modalTitle = computed(() => props.plugin?.name || "Plugin");
-const modalKicker = computed(() => t("sendTo", { target: targetName(props.target) }));
-const midiHint = computed(() => t("connectUsbHint", { target: targetName(props.target) }));
+const statusColor = computed(() => {
+  if (props.deviceStatusKind === "ok") return "success";
+  if (props.deviceStatusKind === "error") return "error";
+  if (props.deviceStatusKind === "warn") return "warning";
+  if (props.deviceStatusKind === "busy") return "info";
+  return "secondary";
+});
 </script>
 
 <template>
-  <div
-    v-if="isOpen"
-    id="send-modal"
-    class="modal"
+  <v-dialog
+    :model-value="isOpen"
+    max-width="560"
+    @update:model-value="(value) => !value && emit('close')"
   >
-    <div class="modal__backdrop" @click="emit('close')" />
-    <div
-      class="modal__dialog"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="send-modal-title"
-    >
-      <header class="modal__header">
+    <v-card>
+      <v-card-title class="d-flex align-center justify-space-between">
         <div>
-          <p class="modal__kicker" id="send-modal-kicker">{{ modalKicker }}</p>
-          <h2 id="send-modal-title">{{ modalTitle }}</h2>
+          <div class="text-label-large text-medium-emphasis">
+            {{ t("sendTo", { target: targetName(target) }) }}
+          </div>
+          <div class="text-title-large">{{ modalTitle }}</div>
         </div>
-        <button
-          type="button"
-          class="modal__close"
+        <v-btn
+          icon="mdi-close"
+          variant="text"
           :aria-label="t('close')"
           @click="emit('close')"
+        />
+      </v-card-title>
+
+      <v-card-text>
+        <v-alert
+          v-if="!webMidiSupported"
+          type="warning"
+          variant="tonal"
+          class="mb-4"
+          :text="t('midiRequired')"
+        />
+
+        <template v-else>
+          <p class="text-body-medium text-medium-emphasis mb-4">
+            {{ t("connectUsbHint", { target: targetName(target) }) }}
+          </p>
+
+          <v-alert
+            :color="statusColor"
+            variant="tonal"
+            class="mb-4"
+            :text="deviceStatusText"
+          />
+
+          <v-row dense>
+            <v-col cols="6">
+              <div class="text-label-medium text-medium-emphasis">{{ t("output") }}</div>
+              <div>{{ selectedOutputLabel || t("noPorts") }}</div>
+            </v-col>
+            <v-col cols="6">
+              <div class="text-label-medium text-medium-emphasis">{{ t("input") }}</div>
+              <div>{{ selectedInputLabel || t("noPorts") }}</div>
+            </v-col>
+            <v-col cols="6">
+              <div class="text-label-medium text-medium-emphasis">{{ t("channel") }}</div>
+              <div>{{ channel }}</div>
+            </v-col>
+            <v-col cols="6">
+              <v-select
+                :model-value="slot"
+                :items="slotOptions"
+                item-title="label"
+                item-value="value"
+                :label="slotLabel"
+                density="compact"
+                hide-details
+                @update:model-value="emit('update:slot', $event)"
+              />
+            </v-col>
+          </v-row>
+        </template>
+
+        <v-divider class="my-4" />
+
+        <div class="text-title-small mb-2">{{ t("log") }}</div>
+        <v-sheet
+          border
+          rounded
+          class="pa-3"
+          max-height="180"
+          style="overflow: auto; font-family: monospace; font-size: 0.75rem;"
         >
-          ×
-        </button>
-      </header>
-
-      <div
-        v-if="!webMidiSupported"
-        id="midi-unsupported"
-        class="modal__notice"
-      >
-        <p>{{ t("midiRequired") }}</p>
-      </div>
-
-      <div v-else id="midi-panel">
-        <p class="hint" id="midi-hint">{{ midiHint }}</p>
-
-        <p
-          id="device-status"
-          class="status"
-          :data-kind="deviceStatusKind"
-        >
-          {{ deviceStatusText }}
-        </p>
-
-        <div class="field-row">
-          <div class="field">
-            <span>{{ t("output") }}</span>
-            <p class="field__value">{{ selectedOutputLabel || t("noPorts") }}</p>
-          </div>
-          <div class="field">
-            <span>{{ t("input") }}</span>
-            <p class="field__value">{{ selectedInputLabel || t("noPorts") }}</p>
-          </div>
-        </div>
-
-        <div class="field-row">
-          <div class="field">
-            <span>{{ t("channel") }}</span>
-            <p class="field__value">{{ channel }}</p>
-          </div>
-          <label class="field">
-            <span id="slot-label">{{ slotLabel }}</span>
-            <select
-              id="slot"
-              :value="slot"
-              @change="emit('update:slot', Number($event.target.value))"
-            >
-              <option
-                v-for="option in slotOptions"
-                :key="option.value"
-                :value="option.value"
-              >
-                {{ option.label }}
-              </option>
-            </select>
-          </label>
-        </div>
-
-        <div class="modal__actions">
-          <button
-            type="button"
-            class="button button-secondary"
-            @click="emit('close')"
-          >
-            {{ t("cancel") }}
-          </button>
-          <button
-            type="button"
-            class="button button-primary"
-            id="send"
-            :disabled="sendDisabled"
-            @click="emit('send')"
-          >
-            {{ t("sendToSlot") }}
-          </button>
-        </div>
-      </div>
-
-      <div class="log-wrap">
-        <h3>{{ t("log") }}</h3>
-        <div id="log" class="log" role="log" aria-live="polite">
-          <p
+          <div
             v-for="(line, lineIndex) in logLines"
             :key="lineIndex"
-            class="log-line"
-            :class="`log-${line.kind}`"
+            :class="{
+              'text-success': line.kind === 'ok',
+              'text-error': line.kind === 'error',
+              'text-warning': line.kind === 'warn',
+            }"
           >
             {{ line.message }}
-          </p>
-        </div>
-      </div>
-    </div>
-  </div>
+          </div>
+        </v-sheet>
+      </v-card-text>
+
+      <v-card-actions>
+        <v-spacer />
+        <v-btn
+          variant="text"
+          @click="emit('close')"
+        >
+          {{ t("cancel") }}
+        </v-btn>
+        <v-btn
+          color="primary"
+          variant="flat"
+          :disabled="sendDisabled || !webMidiSupported"
+          @click="emit('send')"
+        >
+          {{ t("sendToSlot") }}
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>

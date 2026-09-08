@@ -1,0 +1,4 @@
+@use "vuetify/settings" with (
+  $body-font-family: ("Inter", system-ui, sans-serif),
+  $heading-font-family: ("Unbounded", system-ui, sans-serif)
+);

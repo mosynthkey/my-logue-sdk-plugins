@@ -66,6 +66,7 @@ export function useMidiSend() {
   const slotStatuses = ref(new Map());
   const slotStatusVersion = ref(0);
   const unitCache = new Map();
+  const nts3Connected = ref(false);
 
   const slotOptions = computed(() => {
     slotStatusVersion.value;
@@ -124,10 +125,23 @@ export function useMidiSend() {
     return port ? portLabel(port) + portSuffix(port.name) : "";
   });
 
+  function updateNts3Connected() {
+    if (!midiAccess.value) {
+      nts3Connected.value = false;
+      return;
+    }
+    const ports = [
+      ...listMidiPorts(midiAccess.value.outputs),
+      ...listMidiPorts(midiAccess.value.inputs),
+    ];
+    nts3Connected.value = ports.some((port) => looksLikeDevicePort(port.name, NTS3_KAOSS));
+  }
+
   function refreshPortLists() {
     if (!midiAccess.value) {
       outputPorts.value = [];
       inputPorts.value = [];
+      updateNts3Connected();
       return;
     }
 
@@ -159,6 +173,8 @@ export function useMidiSend() {
     } else {
       selectedInputId.value = "";
     }
+
+    updateNts3Connected();
   }
 
   function resetSlotStatuses() {
@@ -197,10 +213,26 @@ export function useMidiSend() {
 
     midiAccess.value.onstatechange = () => {
       refreshPortLists();
-      inquireDevice();
+      if (isOpen.value) {
+        inquireDevice();
+      }
     };
     refreshPortLists();
     log("SysEx enabled.");
+    return true;
+  }
+
+  async function startPresenceWatch() {
+    if (!webMidiSupported.value) {
+      nts3Connected.value = false;
+      return false;
+    }
+    const connected = await connectMidi();
+    if (!connected) {
+      nts3Connected.value = false;
+      return false;
+    }
+    updateNts3Connected();
     return true;
   }
 
@@ -486,5 +518,7 @@ export function useMidiSend() {
     closeSendModal,
     sendPlugin,
     onMidiSettingChange,
+    nts3Connected,
+    startPresenceWatch,
   };
 }

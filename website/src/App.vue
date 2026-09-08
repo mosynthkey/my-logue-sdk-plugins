@@ -3,11 +3,13 @@ import { onMounted, onUnmounted, ref, watch } from "vue";
 import DspExplainModal from "./components/DspExplainModal.vue";
 import PluginDetail from "./components/PluginDetail.vue";
 import PluginSidebar from "./components/PluginSidebar.vue";
+import ProgramEditorModal from "./components/ProgramEditorModal.vue";
 import SendModal from "./components/SendModal.vue";
 import { useCatalog } from "./composables/useCatalog.js";
 import { provideI18n } from "./composables/useI18n.js";
 import { useMidiSend } from "./composables/useMidiSend.js";
 import { usePluginSelection } from "./composables/usePluginSelection.js";
+import { useProgramEditor } from "./composables/useProgramEditor.js";
 import { useSiteQuery } from "./composables/useSiteQuery.js";
 
 const { catalog, loadError, loading } = useCatalog();
@@ -43,29 +45,67 @@ const {
   openSendModal,
   closeSendModal,
   sendPlugin,
+  nts3Connected,
+  startPresenceWatch,
 } = useMidiSend();
+
+const {
+  isOpen: programEditorOpen,
+  program,
+  openEditor,
+  closeEditor,
+  selectSlot,
+  updateParam,
+  clearActiveSlot,
+  clampParamRange,
+} = useProgramEditor();
 
 const dspExplainOpen = ref(false);
 const dspExplainPlugin = ref(null);
+const drawer = ref(true);
 
 function openDspExplainModal(plugin) {
   dspExplainPlugin.value = plugin;
   dspExplainOpen.value = true;
-  document.body.classList.add("modal-open");
 }
 
 function closeDspExplainModal() {
   dspExplainOpen.value = false;
   dspExplainPlugin.value = null;
-  if (!isOpen.value) {
-    document.body.classList.remove("modal-open");
-  }
 }
 
-function handleCloseSendModal() {
-  closeSendModal();
-  if (dspExplainOpen.value) {
-    document.body.classList.add("modal-open");
+function openProgramEditor() {
+  if (!nts3Connected.value) {
+    return;
+  }
+  openEditor();
+}
+
+function closeProgramEditor() {
+  closeEditor();
+}
+
+function receiveProgram() {
+  // Placeholder: Current Program Data Dump Request will go here.
+}
+
+function updateActiveSlot(patch) {
+  const active = program.slots[program.activeSlot];
+  Object.assign(active, patch);
+  if ("releaseTime" in patch) {
+    active.releaseTime = clampParamRange(active.releaseTime);
+  }
+  if ("outGain" in patch) {
+    active.outGain = clampParamRange(active.outGain);
+  }
+  if ("depth" in patch) {
+    active.depth = clampParamRange(active.depth);
+  }
+  if ("x" in patch) {
+    active.x = clampParamRange(active.x);
+  }
+  if ("y" in patch) {
+    active.y = clampParamRange(active.y);
   }
 }
 
@@ -75,19 +115,30 @@ watch(catalog, (nextCatalog) => {
   }
 });
 
+watch(nts3Connected, (connected) => {
+  if (!connected && programEditorOpen.value) {
+    closeProgramEditor();
+  }
+});
+
 function onKeyDown(event) {
   if (event.key !== "Escape") return;
+  if (programEditorOpen.value) {
+    closeProgramEditor();
+    return;
+  }
   if (dspExplainOpen.value) {
     closeDspExplainModal();
     return;
   }
   if (isOpen.value) {
-    handleCloseSendModal();
+    closeSendModal();
   }
 }
 
 onMounted(() => {
   document.addEventListener("keydown", onKeyDown);
+  startPresenceWatch();
 });
 
 onUnmounted(() => {
@@ -96,9 +147,35 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="app">
+  <v-app>
+    <v-app-bar
+      flat
+      border
+      density="comfortable"
+    >
+      <v-app-bar-nav-icon
+        class="d-md-none"
+        @click="drawer = !drawer"
+      />
+      <v-app-bar-title class="text-uppercase font-weight-bold">
+        My Logue SDK Plugins
+      </v-app-bar-title>
+      <v-spacer />
+      <v-btn
+        v-if="nts3Connected"
+        color="primary"
+        variant="flat"
+        prepend-icon="mdi-tune-vertical"
+        :active="programEditorOpen"
+        @click="openProgramEditor"
+      >
+        NTS-3 Program Editor
+      </v-btn>
+    </v-app-bar>
+
     <PluginSidebar
       v-if="catalog"
+      v-model="drawer"
       :plugins="sidebarPlugins"
       :selected-plugin-id="selectedPluginId"
       :selected-category="selectedCategory"
@@ -106,28 +183,35 @@ onUnmounted(() => {
       @select-category="selectCategory"
     />
 
-    <PluginDetail
-      v-if="activePlugin"
-      :plugin="activePlugin"
-      :active-target="activeTarget"
-      @select-target="(target) => selectTarget(activePlugin.id, target)"
-      @send="openSendModal"
-      @explain-dsp="openDspExplainModal"
-    />
+    <v-main>
+      <v-container
+        fluid
+        class="pa-4 pa-md-6"
+      >
+        <PluginDetail
+          v-if="activePlugin"
+          :plugin="activePlugin"
+          :active-target="activeTarget"
+          @select-target="(target) => selectTarget(activePlugin.id, target)"
+          @send="openSendModal"
+          @explain-dsp="openDspExplainModal"
+        />
 
-    <div
-      v-else-if="loading"
-      class="detail detail--empty"
-    >
-      <p>{{ t("loading") }}</p>
-    </div>
+        <v-alert
+          v-else-if="loading"
+          type="info"
+          variant="tonal"
+          :text="t('loading')"
+        />
 
-    <div
-      v-else-if="loadError"
-      class="detail detail--empty"
-    >
-      <p class="empty">{{ loadError }}</p>
-    </div>
+        <v-alert
+          v-else-if="loadError"
+          type="error"
+          variant="tonal"
+          :text="loadError"
+        />
+      </v-container>
+    </v-main>
 
     <SendModal
       :is-open="isOpen"
@@ -144,7 +228,7 @@ onUnmounted(() => {
       :slot="slot"
       :slot-label="slotLabel"
       :slot-options="slotOptions"
-      @close="handleCloseSendModal"
+      @close="closeSendModal"
       @send="sendPlugin"
       @update:slot="slot = $event"
     />
@@ -154,5 +238,17 @@ onUnmounted(() => {
       :plugin="dspExplainPlugin"
       @close="closeDspExplainModal"
     />
-  </div>
+
+    <ProgramEditorModal
+      :is-open="programEditorOpen"
+      :program="program"
+      @close="closeProgramEditor"
+      @receive="receiveProgram"
+      @select-slot="selectSlot"
+      @update:routing="program.routing = $event"
+      @clear-slot="clearActiveSlot"
+      @update-slot="updateActiveSlot"
+      @update-param="updateParam"
+    />
+  </v-app>
 </template>
