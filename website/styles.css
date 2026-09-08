@@ -633,9 +633,10 @@ body.modal-open {
 
 .preview-dry-input {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px 8px;
   align-items: center;
+  min-width: 0;
 }
 
 .preview-dry-input__label {
@@ -652,8 +653,10 @@ body.modal-open {
 
 .preview-dry-input__select {
   min-height: var(--control-height);
-  min-width: 12.5rem;
+  min-width: 8.5rem;
+  width: 12.5rem;
   max-width: 100%;
+  flex: 1 1 8.5rem;
   padding: 0 32px 0 var(--control-pad-x);
   border: 1px solid var(--line-strong);
   border-radius: 0;
@@ -1590,8 +1593,17 @@ input[type="number"] {
     align-items: center;
   }
 
+  .preview-toolbar__controls {
+    width: 100%;
+  }
+
+  .preview-dry-input {
+    flex: 1 1 auto;
+  }
+
   .preview-dry-input__select {
-    min-width: 10.5rem;
+    width: auto;
+    min-width: 0;
   }
 
   .detail__actions .target-tabs {
