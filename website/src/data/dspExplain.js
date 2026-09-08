@@ -519,6 +519,19 @@ export const dspExplainById = {
   Smear --> IFFT[IFFT and OLA] --> Mix[Dry or wet] --> Out[Out]
   In --> Mix`,
   },
+  stepdice: {
+    en: "Tempo-synced step FX dice. A bar is split into 16/8/4/2/1 steps; each step is a seeded permutation of gate, filter, crush, ring, pan, drive, stutter, reverse, or echo. X scales intensity, Y re-seeds the pattern, touch re-rolls in RUN.",
+    ja: "テンポ同期のステップFXダイスです。1小節を16/8/4/2/1ステップに分け、ゲート／フィルタ／クラッシュ／リング／パン／ドライブ／スタッタ／リバース／エコーをステップごとに割り当てます。Xは強さ、Yはパターンの種、RUN中のタッチで再ロールです。",
+    mermaid: `flowchart LR
+  Tempo[BPM clock] --> Grid[16 8 4 2 1 steps]
+  Dice[Y seed and throw] --> Pattern[FX permutation]
+  Grid --> Pattern
+  In[Audio in] --> Buf[Stereo ring]
+  Buf --> FX[Per-step FX]
+  Pattern --> FX
+  FX --> Mix[Dry or wet] --> Out[Out]
+  In --> Mix`,
+  },
   talkform: {
     en: "Dual bandpass formant filter on mono input. F1/F2 (or pad) sweep; DIGI/touch snaps to the nearest of five vowels (a i u e o); soft-clip dry/wet.",
     ja: "入力モノの二重フォルマントBPです。F1/F2を掃引し、DIGI／タッチで5母音格子へ吸着します。ソフトクリップ後ドライ／ウェットします。",
