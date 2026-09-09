@@ -69,18 +69,18 @@ def write_header(path: pathlib.Path, codes: bytes, packed: bytes, rom_crc: int, 
     lines = [
         "#pragma once",
         "",
-        "// TR-909 HiHat 6-bit PCM packed 4:3 from HN61256P C43 / 27C256.",
+        "// Shared TR-909 Hi-Hat full ROM (6-bit packed). Used by HHat.",
         f"// Source ROM CRC32={rom_crc:08x} SHA1={rom_sha1}",
-        "// MAME: hn61256p__c43.ic69  MAME hn61256p__c43.ic69 / Colin Fraser r909hh.wav",
+        "// MAME: hn61256p__c43.ic69 / Colin Fraser r909hh.wav",
         "// Each sample is unsigned offset-binary in bits 7:2 of the original byte.",
         "",
         "#include <stdint.h>",
         "",
-        f"static const uint32_t kHHatPcmLength = {len(codes)}u;",
-        "static constexpr float kHHatRomClockHz = 30000.f;",
-        f"static const uint32_t kHHatPcmPackedSize = {len(packed)}u;",
+        f"static const uint32_t kTr909HhPcmLength = {len(codes)}u;",
+        "static constexpr float kTr909HhRomClockHz = 30000.f;",
+        f"static const uint32_t kTr909HhPcmPackedSize = {len(packed)}u;",
         "",
-        "static const uint8_t kHHatPcmPacked[] = {",
+        "static const uint8_t kTr909HhPcmPacked[] = {",
     ]
     bytes_per_line = 16
     for offset in range(0, len(packed), bytes_per_line):
@@ -95,7 +95,11 @@ def write_header(path: pathlib.Path, codes: bytes, packed: bytes, rom_crc: int, 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--rom", type=pathlib.Path, required=True)
-    parser.add_argument("--out", type=pathlib.Path, required=True)
+    parser.add_argument(
+        "--out",
+        type=pathlib.Path,
+        default=pathlib.Path("plugins/common/tr909_hh_pcm.h"),
+    )
     args = parser.parse_args()
 
     rom = load_rom(args.rom)

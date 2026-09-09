@@ -19,7 +19,8 @@
 #include "macros.h"
 #include "processor.h"
 #include "runtime.h"
-#include "trance_hh_pcm.h"
+#include "tr909_hh_crop_pcm.h"
+#include "tr909_pcm.h"
 #include "utils/float_math.h"
 #include <stdint.h>
 
@@ -29,9 +30,7 @@ public:
   static constexpr uint32_t kSteps = 16U;
   static constexpr uint32_t kHatVoices = 6U;
   static constexpr float kTwoPi = 6.283185307179586f;
-  static constexpr float kHhRomPhaseInc = kTranceHhRomClockHz / 48000.f;
-  static constexpr float kDacMid = 32.f;
-  static constexpr float kDacScale = 1.f / 32.f;
+  static constexpr float kHhRomPhaseInc = tr909::kRomPhaseInc;
 
   uint32_t getBufferSize() const override final { return 0; }
 
@@ -145,8 +144,8 @@ public:
       advancePendingSwing();
 
       const float wet = renderVoices();
-      out[0] = fx::mix(in[0], wet, mix_);
-      out[1] = fx::mix(in[1], wet, mix_);
+      out[0] = in[0] + wet * mix_;
+      out[1] = in[1] + wet * mix_;
       in += 2;
       out += 2;
     }
@@ -333,16 +332,6 @@ private:
     return band;
   }
 
-  static uint8_t readPacked6(const uint8_t *packed, uint32_t sample_index)
-  {
-    const uint32_t bit_index = sample_index * 6U;
-    const uint32_t byte_index = bit_index >> 3;
-    const uint32_t shift = bit_index & 7U;
-    const uint32_t pair = static_cast<uint32_t>(packed[byte_index]) |
-                          (static_cast<uint32_t>(packed[byte_index + 1U]) << 8);
-    return static_cast<uint8_t>((pair >> shift) & 0x3FU);
-  }
-
   void fireKick(float velocity)
   {
     kick_age_ = 0.f;
@@ -442,8 +431,8 @@ private:
     if (!voice.active)
       return 0.f;
 
-    const uint32_t length = voice.open ? kTranceHhOpenLength : kTranceHhClosedLength;
-    const uint8_t *packed = voice.open ? kTranceHhOpenPacked : kTranceHhClosedPacked;
+    const uint32_t length = voice.open ? kTr909HhCropOpenLength : kTr909HhCropClosedLength;
+    const uint8_t *packed = voice.open ? kTr909HhCropOpenPacked : kTr909HhCropClosedPacked;
     const uint32_t sample_index = static_cast<uint32_t>(voice.rom_phase);
     if (sample_index >= length)
     {
@@ -451,9 +440,8 @@ private:
       return 0.f;
     }
 
-    const float code = static_cast<float>(readPacked6(packed, sample_index));
-    const float raw = (code - kDacMid) * kDacScale;
-    voice.lpf += 0.55f * (raw - voice.lpf);
+    const float raw = tr909::dacFromPacked(packed, sample_index);
+    voice.lpf += tr909::kSimpleLpfCoeff * (raw - voice.lpf);
     const float sample = voice.lpf * voice.env * voice.accent * (voice.open ? 0.78f : 0.52f);
     voice.rom_phase += kHhRomPhaseInc;
     voice.env *= voice.env_coeff;

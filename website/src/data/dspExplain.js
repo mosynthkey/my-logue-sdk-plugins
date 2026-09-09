@@ -155,7 +155,7 @@ export const dspExplainById = {
   In --> Mix`,
   },
   gridsdrum: {
-    en: "Hold-to-run 16-step generative BD/SD/HH with Grids-like density maps. BD/SD are decaying tones (SD adds noise); HH is noise. Top-right touch fills; mix with dry input.",
+    en: "Hold-to-run 16-step generative BD/SD/HH with Grids-like density maps. BD/SD are decaying tones (SD adds noise); HH is noise. Top-right touch fills; Audio In stays full; MIX is drum level.",
     ja: "保持中に16ステップの生成BD/SD/HHを鳴らします。密度マップでトリガし、BD/SDは減衰トーン（SDはノイズ混在）、HHはノイズです。右上タッチでフィル。",
     mermaid: `flowchart TD
   Hold[Pad hold] --> Clock[16th and swing]
@@ -163,7 +163,7 @@ export const dspExplainById = {
   Map --> BD[Sine kick]
   Map --> SD[Tone and noise snare]
   Map --> HH[Noise hat]
-  BD --> Mix[Softclip and dry-wet]
+  BD --> Mix[Softclip then drum level over Audio In]
   SD --> Mix
   HH --> Mix`,
   },
@@ -179,7 +179,7 @@ export const dspExplainById = {
   Spine --> Voices[Kick snare ghost hats]
   Ghost --> Voices
   Fill --> Voices
-  Voices --> Mix[Softclip dry-wet] --> Out[Out]`,
+  Voices --> Mix[Softclip then drum level over Audio In] --> Out[Out]`,
   },
   boombap: {
     en: "Hold-to-gate boom-bap kit. Hits lock to host 4ppqn. Boom kick on 1 with late pushes; hard snares on 2 and 4. X grows dusty ghost snares/rims; Y thickens swung hats. Top-right flick = one-bar Fill. Default feel ~90 BPM.",
@@ -192,7 +192,7 @@ export const dspExplainById = {
   Spine --> Voices[Kick snare ghost hats]
   Ghost --> Voices
   Hats --> Voices
-  Voices --> Mix[Softclip dry-wet] --> Out[Out]`,
+  Voices --> Mix[Softclip then drum level over Audio In] --> Out[Out]`,
   },
   dembow: {
     en: "Hold-to-gate reggaeton dembow kit. Hits lock to host 4ppqn. Kick/cha spine carries the dembow feel; X grows rim answers; Y adds percussion toward Fill. Top-right flick = one-bar Fill. Default ~96 BPM.",
@@ -205,7 +205,7 @@ export const dspExplainById = {
   Spine --> Voices[Kick snare rim hats]
   Rim --> Voices
   Perc --> Voices
-  Voices --> Mix[Softclip dry-wet] --> Out[Out]`,
+  Voices --> Mix[Softclip then drum level over Audio In] --> Out[Out]`,
   },
   footwork: {
     en: "Hold-to-gate Chicago footwork / juke kit. Hits lock to host 4ppqn. Sparse kick spine plus X stutter kicks; Y grows snare rolls and frantic hats. Short bodies for ~160 BPM. Top-right flick = one-bar Fill.",
@@ -218,7 +218,7 @@ export const dspExplainById = {
   Spine --> Voices[Short kick snare hats]
   Stut --> Voices
   Roll --> Voices
-  Voices --> Mix[Softclip dry-wet] --> Out[Out]`,
+  Voices --> Mix[Softclip then drum level over Audio In] --> Out[Out]`,
   },
   breakbeat: {
     en: "Hold-to-gate Amen-inspired synthetic breakbeat (not a sample). Hits lock to host 4ppqn. Syncopated kick/snare map; X grows ghosts and secondary snares; Y pushes break energy toward Fill. Default ~174 BPM.",
@@ -231,7 +231,7 @@ export const dspExplainById = {
   Spine --> Voices[Kick snare ghost hats]
   Sync --> Voices
   Energy --> Voices
-  Voices --> Mix[Softclip dry-wet] --> Out[Out]`,
+  Voices --> Mix[Softclip then drum level over Audio In] --> Out[Out]`,
   },
   dnbass: {
     en: "Hold-to-gate drum & bass kit. Hits lock to host 4ppqn. Half-time snare on beat 3 with syncopated kicks; X rolls hats; Y pushes break energy toward Fill. Default ~174 BPM.",
@@ -244,7 +244,7 @@ export const dspExplainById = {
   Spine --> Voices[Kick snare hats]
   Hats --> Voices
   Break --> Voices
-  Voices --> Mix[Softclip dry-wet] --> Out[Out]`,
+  Voices --> Mix[Softclip then drum level over Audio In] --> Out[Out]`,
   },
   trance: {
     en: "Hold-to-gate trance kit. Hits lock to host 4ppqn. Hats are TR-909 ROM PCM (same dump as Trap808/HHat). Kick and clap are analog 909 circuit models — a real 909 has no BD/clap ROM to dump. X thickens 909 hats; Y builds clap rolls toward Fill. Default ~138 BPM.",
@@ -258,27 +258,41 @@ export const dspExplainById = {
   Spine --> Voices[Kick clap hats]
   Hats --> Voices
   Build --> Voices
-  Voices --> Mix[Softclip dry-wet] --> Out[Out]`,
+  Voices --> Mix[Softclip then drum level over Audio In] --> Out[Out]`,
+  },
+  drums: {
+    en: "Hold-to-gate multi-genre drum kit. Hits lock to host 4ppqn. GENRE selects Trance / DnB / Breakbeat / UK Garage / Boom-bap / Dembow / Footwork patterns and voice feel. X densifies; Y pushes fill energy. Trap808 stays separate.",
+    ja: "ホールドはゲートのみ。ホストの4ppqnに合わせてジャンル別ドラムを鳴らします。GENREで Trance / DnB / Break / UKG / Boom / Dembow / Footwork を切替。Xは密度、YはFill。Trap808は別ユニットです。",
+    mermaid: `flowchart TD
+  Host[Host 4ppqn] --> Gate{Pad held?}
+  Genre[GENRE] --> Pattern[Genre pattern]
+  Gate -->|yes| Pattern
+  Gate -->|yes| Dens[X densify]
+  Gate -->|yes| Fill[Y fill energy]
+  Pattern --> Voices[Kick snare hats]
+  Dens --> Voices
+  Fill --> Voices
+  Voices --> Mix[Softclip then drum level over Audio In] --> Out[Out]`,
   },
   hclap: {
-    en: "Tempo 16-step Euclidean clap. Analog noise and LFSR morph 808→909 dual-VCA style; burst and room bandpasses shape each voice. Density and flams follow pad-style params, then dry/wet mix.",
-    ja: "テンポ同期のユークリッド・クラップです。アナログノイズとLFSRを808→909的にモーフィングし、バースト／ルーム帯域で複数ボイスを重ねます。ドライ／ウェット混合します。",
+    en: "Tempo 16-step Euclidean clap. Analog noise and LFSR morph 808→909 dual-VCA style; burst and room bandpasses shape each voice. Density and flams follow pad-style params. Audio In stays full; MIX is drum level.",
+    ja: "テンポ同期のユークリッド・クラップです。アナログノイズとLFSRを808→909的にモーフィングし、バースト／ルーム帯域で複数ボイスを重ねます。Audio Inは常時通し、MIXはドラム音量です。",
     mermaid: `flowchart LR
   Clock[16th Euclid] --> Trig[Voice triggers]
   Noise[Analog and LFSR noise] --> BP[Crack and room BP]
   Trig --> BP
-  BP --> Sum[Morph 808 or 909] --> Mix[Dry or wet] --> Out[Out]
+  BP --> Sum[Morph 808 or 909] --> Mix[Drum level over Audio In] --> Out[Out]
   In[Audio in] --> Mix`,
   },
   hsnare: {
-    en: "Tempo 16-step Euclidean snare, sibling of HClap. Y morphs 808 bridged-T sines plus one HPF snappy into 909 triangle VCOs with a 20 ms pitch bend and split LPF/HPF noise, then dry/wet.",
-    ja: "HClapの兄弟ユニットで、テンポ同期のユークリッド・スネアです。Yで808のブリッジドT正弦＋HPFスナッピーから、909の三角VCO・20msピッチベンド・分割スナッピーへモーフィングし、ドライ／ウェットします。",
+    en: "Tempo 16-step Euclidean snare, sibling of HClap. Y morphs 808 bridged-T sines plus one HPF snappy into 909 triangle VCOs with a 20 ms pitch bend and split LPF/HPF noise. Audio In stays full; MIX is drum level.",
+    ja: "HClapの兄弟ユニットで、テンポ同期のユークリッド・スネアです。Yで808のブリッジドT正弦＋HPFスナッピーから、909の三角VCO・20msピッチベンド・分割スナッピーへモーフィングし、Audio Inは常時通し、MIXはドラム音量です。",
     mermaid: `flowchart LR
   Clock[16th Euclid] --> Trig[Voice triggers]
   Trig --> Shell[173/336 Hz shells or tri VCOs]
   Noise[Analog and LFSR] --> Snap[HPF or split snappy]
   Trig --> Snap
-  Shell --> Sum[Morph 808 or 909] --> Mix[Dry or wet] --> Out[Out]
+  Shell --> Sum[Morph 808 or 909] --> Mix[Drum level over Audio In] --> Out[Out]
   Snap --> Sum
   In[Audio in] --> Mix`,
   },
@@ -325,13 +339,13 @@ export const dspExplainById = {
   In[Audio in] --> Mix`,
   },
   perciter: {
-    en: "One-shot percussion on each touch: sine/FM body with wavefold, plus HP noise. Mode morphs skin/liquid/metal character; pitch decays; then dry/wet.",
-    ja: "タッチ毎のワンショット打楽器です。正弦／FMボディ＋ウェーブフォールドとHPノイズを重ね、スキン／リキッド／メタルへモーフします。ピッチ減衰後にドライ／ウェットします。",
+    en: "One-shot percussion on each touch: sine/FM body with wavefold, plus HP noise. Mode morphs skin/liquid/metal character; pitch decays. Audio In stays full; MIX is drum level.",
+    ja: "タッチ毎のワンショット打楽器です。正弦／FMボディ＋ウェーブフォールドとHPノイズを重ね、スキン／リキッド／メタルへモーフします。ピッチ減衰。Audio Inは常時通し、MIXはドラム音量です。",
     mermaid: `flowchart LR
   Touch[Trigger] --> Body[Sine or FM body]
   Body --> Fold[Wavefold]
   Touch --> Noise[HP noise]
-  Fold --> Sum[Softclip] --> Mix[Dry or wet]
+  Fold --> Sum[Softclip] --> Mix[Drum level over Audio In]
   Noise --> Sum
   In[Audio in] --> Mix --> Out[Out]`,
   },
@@ -365,7 +379,7 @@ export const dspExplainById = {
     mermaid: `flowchart LR
   Clock[16th ride or kick] --> Voices[ROM clock voices]
   ROM[6-bit Ride ROM] --> Voices
-  Voices --> LPF[Dual recon LPF] --> Pump[Kick pump] --> Mix[Dry or wet] --> Out[Out]
+  Voices --> LPF[Dual recon LPF] --> Pump[Kick pump] --> Mix[Drum level over Audio In] --> Out[Out]
   In[Audio in] --> Mix`,
   },
   ringexcit: {
@@ -449,7 +463,7 @@ export const dspExplainById = {
   SD --> Sum
   HH --> Sum
   Bass --> Sum
-  Sum --> Mix[Dry or wet] --> Out[Out]
+  Sum --> Mix[Drum level over Audio In] --> Out[Out]
   In[Audio in] --> Mix`,
   },
   tapeosc: {

@@ -15,7 +15,8 @@
 #include "macros.h"
 #include "processor.h"
 #include "runtime.h"
-#include "trap808_hh_pcm.h"
+#include "tr909_hh_crop_pcm.h"
+#include "tr909_pcm.h"
 #include "utils/float_math.h"
 #include <stdint.h>
 
@@ -25,10 +26,8 @@ public:
   static constexpr uint32_t kStepsPerBar = 16U;
   static constexpr uint32_t kHatVoices = 8U;
   static constexpr uint32_t kPercVoices = 4U;
-  static constexpr float kDcCoeff = 0.99608f;
-  static constexpr float kHhRomPhaseInc = kTrap808HhRomClockHz / 48000.f;
-  static constexpr float kDacMid = 32.f;
-  static constexpr float kDacScale = 1.f / 32.f;
+  static constexpr float kDcCoeff = tr909::kDcCoeff;
+  static constexpr float kHhRomPhaseInc = tr909::kRomPhaseInc;
 
   uint32_t getBufferSize() const override final { return 0; }
 
@@ -165,8 +164,8 @@ public:
       const float bright_noise = whiteNoise() - noise_lp_;
 
       const float wet = renderMix(bright_noise, inv_sr);
-      out[0] = fx::mix(in[0], wet, mix_);
-      out[1] = fx::mix(in[1], wet * 0.98f, mix_);
+      out[0] = in[0] + wet * mix_;
+      out[1] = in[1] + wet * 0.98f * mix_;
       in += 2;
       out += 2;
     }
@@ -233,16 +232,6 @@ private:
     if ((step_index % 2U) == 0U)
       return 0.72f;
     return 0.48f;
-  }
-
-  static uint8_t readPacked6(const uint8_t *packed, uint32_t sample_index)
-  {
-    const uint32_t bit_index = sample_index * 6U;
-    const uint32_t byte_index = bit_index >> 3;
-    const uint32_t shift = bit_index & 7U;
-    const uint32_t pair = static_cast<uint32_t>(packed[byte_index]) |
-                          (static_cast<uint32_t>(packed[byte_index + 1U]) << 8);
-    return static_cast<uint8_t>((pair >> shift) & 0x3FU);
   }
 
   bool shouldClosedHat(uint32_t step_index, bool fill)
@@ -515,8 +504,8 @@ private:
     if (!voice.active)
       return 0.f;
 
-    const uint32_t length = voice.open ? kTrap808HhOpenLength : kTrap808HhClosedLength;
-    const uint8_t *packed = voice.open ? kTrap808HhOpenPacked : kTrap808HhClosedPacked;
+    const uint32_t length = voice.open ? kTr909HhCropOpenLength : kTr909HhCropClosedLength;
+    const uint8_t *packed = voice.open ? kTr909HhCropOpenPacked : kTr909HhCropClosedPacked;
     const uint32_t sample_index = static_cast<uint32_t>(voice.rom_phase);
     if (sample_index >= length)
     {
@@ -524,10 +513,9 @@ private:
       return 0.f;
     }
 
-    const float code = static_cast<float>(readPacked6(packed, sample_index));
-    const float raw = (code - kDacMid) * kDacScale;
+    const float raw = tr909::dacFromPacked(packed, sample_index);
     // Fixed reconstruction LPF ~similar to 909 hat path (keep bright for rolls).
-    voice.lpf += 0.55f * (raw - voice.lpf);
+    voice.lpf += tr909::kSimpleLpfCoeff * (raw - voice.lpf);
     const float sample = voice.lpf * voice.env * voice.accent * (voice.open ? 0.72f : 0.55f);
     voice.rom_phase += kHhRomPhaseInc;
     voice.env *= voice.env_coeff;
@@ -570,9 +558,7 @@ private:
 
     sum += renderBass(inv_sr) * 0.95f;
 
-    const float blocked = sum - dc_prev_in_ + kDcCoeff * dc_prev_out_;
-    dc_prev_in_ = sum;
-    dc_prev_out_ = blocked;
+    const float blocked = tr909::dcBlock(sum, dc_prev_in_, dc_prev_out_);
     return fx::softclip(blocked * (0.32f + drive_norm_ * 0.08f));
   }
 

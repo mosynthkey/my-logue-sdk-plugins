@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pack TR-909 Hi-Hat ROM (909hh.hex) for Trap808.
+"""Pack TR-909 Hi-Hat ROM into the shared crop header for Trap808 / Trance.
 
 Closed = top quarter of the 32 KB ROM. Open = truncated start of the lower
 3/4 so the NTS-3 32 KB unit budget still fits kick/snare/808 DSP.
@@ -7,7 +7,7 @@ Closed = top quarter of the 32 KB ROM. Open = truncated start of the lower
 Usage:
   python3 plugins/trap808/scripts/embed_hh_rom.py \\
     --rom /path/to/909hh.hex \\
-    --out plugins/trap808/dsp/trap808_hh_pcm.h
+    --out plugins/common/tr909_hh_crop_pcm.h
 """
 
 from __future__ import annotations
@@ -53,7 +53,6 @@ def load_rom(path: pathlib.Path) -> bytes:
 
 
 def extract_pcm6(rom: bytes) -> bytes:
-    # 9090 dump may have stray low bits; keep bits 7:2 like the hardware DAC.
     return bytes((byte >> 2) & 0x3F for byte in rom)
 
 
@@ -82,7 +81,11 @@ def write_array(name: str, packed: bytes, lines: list[str]) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--rom", type=pathlib.Path, required=True)
-    parser.add_argument("--out", type=pathlib.Path, required=True)
+    parser.add_argument(
+        "--out",
+        type=pathlib.Path,
+        default=pathlib.Path("plugins/common/tr909_hh_crop_pcm.h"),
+    )
     parser.add_argument("--open-samples", type=int, default=8192)
     args = parser.parse_args()
 
@@ -102,7 +105,7 @@ def main() -> int:
     lines = [
         "#pragma once",
         "",
-        "// TR-909 Hi-Hat 6-bit PCM packed from HN61256P C43 / 27C256.",
+        "// Shared TR-909 Hi-Hat crop (6-bit packed) for Trap808 / Trance.",
         f"// Source ROM CRC32={crc:08x} SHA1={sha1}",
         "// MAME: hn61256p__c43.ic69  9090: 909hh.hex",
         "// Closed = top quarter; open = truncated start of lower 3/4 (unit size).",
@@ -110,13 +113,14 @@ def main() -> int:
         "",
         "#include <stdint.h>",
         "",
-        f"static const uint32_t kTrap808HhClosedLength = {len(closed)}u;",
-        f"static const uint32_t kTrap808HhOpenLength = {len(opened)}u;",
-        "static constexpr float kTrap808HhRomClockHz = 30000.f;",
+        f"static const uint32_t kTr909HhCropClosedLength = {len(closed)}u;",
+        f"static const uint32_t kTr909HhCropOpenLength = {len(opened)}u;",
+        "static constexpr float kTr909HhCropRomClockHz = 30000.f;",
         "",
     ]
-    write_array("Trap808HhClosed", closed_packed, lines)
-    write_array("Trap808HhOpen", open_packed, lines)
+    write_array("Tr909HhCropClosed", closed_packed, lines)
+    write_array("Tr909HhCropOpen", open_packed, lines)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text("\n".join(lines) + "\n")
     print(
         f"Wrote {args.out} CH={len(closed)} ({len(closed_packed)}B) "

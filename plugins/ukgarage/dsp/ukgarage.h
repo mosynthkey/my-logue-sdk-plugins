@@ -134,8 +134,8 @@ public:
       advancePendingSwing();
 
       const float wet = renderVoices();
-      out[0] = fx::mix(in[0], wet, mix_);
-      out[1] = fx::mix(in[1], wet, mix_);
+      out[0] = in[0] + wet * mix_;
+      out[1] = in[1] + wet * mix_;
       in += 2;
       out += 2;
     }

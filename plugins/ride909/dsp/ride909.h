@@ -19,6 +19,7 @@
 #include "macros.h"
 #include "ride909_pcm.h"
 #include "runtime.h"
+#include "tr909_pcm.h"
 #include <stdint.h>
 
 static const float kRide909EnvLut[64] = {
@@ -49,14 +50,10 @@ public:
   static constexpr float kMaxPumpDepth = 0.92f;
   static constexpr float kPumpHoldFraction = 0.22f;
   static constexpr float kPumpReleaseSixteenths = 2.25f;
-  static constexpr float kDacMid = 32.f;
-  static constexpr float kDacScale = 1.f / 32.f;
   static constexpr float kVoiceGain = 0.42f;
-  // Host rate is fixed at 48 kHz. Coeffs are 1-exp(-2π fc/fs) from 9090 RC poles.
-  static constexpr float kRomPhaseInc = 30000.f / 48000.f;
-  static constexpr float kLpfACoeff = 0.5378f;  // 5.9 kHz
-  static constexpr float kLpfBCoeff = 0.9549f;  // 23.7 kHz
-  static constexpr float kHpfCoeff = 0.99608f;  // 30 Hz DC block
+  static constexpr float kRomPhaseInc = tr909::kRomPhaseInc;
+  static constexpr float kLpfACoeff = tr909::kLpfACoeff;
+  static constexpr float kLpfBCoeff = tr909::kLpfBCoeff;
 
   uint32_t getBufferSize() const override final { return 0; }
 
@@ -162,8 +159,6 @@ public:
 
   void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final
   {
-    const float dry_gain = 1.f - mix_;
-
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
       if (!use_host_clock_)
@@ -171,10 +166,8 @@ public:
       advancePumpEnvelope();
       const float shaped_pump = pump_gain_ * (1.f - pump_amount_ * 0.35f + pump_amount_ * 0.35f * pump_gain_);
       const float wet = renderVoices() * mix_ * shaped_pump;
-      const float mixed_left = in[0] * dry_gain + wet;
-      const float mixed_right = in[1] * dry_gain + wet;
-      out[0] = mixed_left;
-      out[1] = mixed_right;
+      out[0] = in[0] + wet;
+      out[1] = in[1] + wet;
       in += 2;
       out += 2;
     }
@@ -225,12 +218,7 @@ private:
 
   static uint8_t readPcm6(uint32_t sample_index)
   {
-    const uint32_t bit_index = sample_index * 6U;
-    const uint32_t byte_index = bit_index >> 3;
-    const uint32_t shift = bit_index & 7U;
-    const uint32_t pair = static_cast<uint32_t>(kRide909PcmPacked[byte_index]) |
-                          (static_cast<uint32_t>(kRide909PcmPacked[byte_index + 1U]) << 8);
-    return static_cast<uint8_t>((pair >> shift) & 0x3FU);
+    return tr909::readPacked6(kRide909PcmPacked, sample_index);
   }
 
   void triggerPump()
@@ -281,15 +269,9 @@ private:
       pump_gain_ = 1.f;
   }
 
-  static float exp2Approx(float x)
-  {
-    const float u = x * 0.69314718f;
-    return 1.f + u * (1.f + u * (0.5f + u * (0.16666667f + u * 0.041666668f)));
-  }
-
   void updateClockRatio()
   {
-    clock_ratio_ = exp2Approx(pitch_norm_ * (kPitchRangeSemitones / 12.f));
+    clock_ratio_ = tr909::exp2Approx(pitch_norm_ * (kPitchRangeSemitones / 12.f));
   }
 
   void resetVoices()
@@ -350,8 +332,7 @@ private:
       return 0.f;
     }
 
-    const uint8_t pcm_code = readPcm6(sample_index);
-    const float dac = (static_cast<float>(pcm_code) - kDacMid) * kDacScale;
+    const float dac = tr909::dacFromCode(readPcm6(sample_index));
     const float env = kRide909EnvLut[sample_index >> 9];
     const float vca = dac * env * kVoiceGain;
 
@@ -378,10 +359,7 @@ private:
       sum += renderVoice(voice);
     }
 
-    const float blocked = sum - dc_prev_in_ + kHpfCoeff * dc_prev_out_;
-    dc_prev_in_ = sum;
-    dc_prev_out_ = blocked;
-    return blocked;
+    return tr909::dcBlock(sum, dc_prev_in_, dc_prev_out_);
   }
 
   Voice voices_[kVoiceCount];

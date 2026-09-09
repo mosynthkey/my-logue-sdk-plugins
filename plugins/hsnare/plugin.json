@@ -8,7 +8,7 @@
   "params": [
     { "name": "DENS", "role": "X", "detail": "Euclidean hits per bar, rotated onto beats 2 and 4 (1–16, then 32nd flams)" },
     { "name": "TYPE", "role": "Y", "detail": "808 (bottom: bridged-T shells, one HPF snappy) to 909 (top: triangle VCOs, pitch bend, split snappy)" },
-    { "name": "MIX", "role": "Depth", "detail": "Dry/wet" },
+    { "name": "MIX", "role": "Depth", "detail": "Drum level (Audio In always full)" },
     { "name": "TONE", "role": "Edit", "detail": "Low vs high shell mix" },
     { "name": "SNAP", "role": "Edit", "detail": "Snappy noise vs drum body" },
     { "name": "TUNE", "role": "Edit", "detail": "Shell pitch (909 Tune; also shifts the 808 T-networks)" }

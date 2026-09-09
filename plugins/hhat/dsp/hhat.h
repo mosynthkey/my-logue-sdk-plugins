@@ -19,6 +19,7 @@
 #include "macros.h"
 #include "processor.h"
 #include "runtime.h"
+#include "tr909_pcm.h"
 #include "utils/float_math.h"
 #include <stdint.h>
 
@@ -31,14 +32,11 @@ public:
   static constexpr uint32_t kClosedEnd = 0x8000U;
   static constexpr uint32_t kOpenStart = 0x0000U;
   static constexpr uint32_t kOpenEnd = 0x6000U;
-  static constexpr float kDacMid = 32.f;
-  static constexpr float kDacScale = 1.f / 32.f;
   static constexpr float kVoiceGain = 0.48f;
-  static constexpr float kRomPhaseInc = 30000.f / 48000.f;
-  // Same reconstruction poles as Ride909 / 9090 transistor LPFs.
-  static constexpr float kLpfACoeff = 0.5378f; // ~5.9 kHz
-  static constexpr float kLpfBCoeff = 0.9549f; // ~23.7 kHz
-  static constexpr float kDcCoeff = 0.99608f;
+  static constexpr float kRomPhaseInc = tr909::kRomPhaseInc;
+  static constexpr float kLpfACoeff = tr909::kLpfACoeff;
+  static constexpr float kLpfBCoeff = tr909::kLpfBCoeff;
+  static constexpr float kDcCoeff = tr909::kDcCoeff;
 
   uint32_t getBufferSize() const override final { return 0; }
 
@@ -146,7 +144,6 @@ public:
 
   void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final
   {
-    const float dry_gain = 1.f - mix_;
     const float inv_sr = 1.f / getSampleRate();
     // TONE tilts the first reconstruction pole (darker ↔ brighter).
     const float lpf_a_coeff = fx::clip(kLpfACoeff - 0.18f + tone_norm_ * 0.36f, 0.28f, 0.82f);
@@ -158,8 +155,8 @@ public:
       advancePendingRoll();
 
       const float wet = renderVoices(lpf_a_coeff, inv_sr) * mix_;
-      out[0] = in[0] * dry_gain + wet;
-      out[1] = in[1] * dry_gain + wet;
+      out[0] = in[0] + wet;
+      out[1] = in[1] + wet;
       in += 2;
       out += 2;
     }
@@ -223,38 +220,19 @@ private:
     return (closed_tau + open_norm * (open_tau - closed_tau)) * decay_scale;
   }
 
-  static uint8_t readPcm6(uint32_t sample_index)
-  {
-    const uint32_t bit_index = sample_index * 6U;
-    const uint32_t byte_index = bit_index >> 3;
-    const uint32_t shift = bit_index & 7U;
-    const uint32_t packed =
-        static_cast<uint32_t>(kHHatPcmPacked[byte_index]) |
-        (static_cast<uint32_t>(kHHatPcmPacked[byte_index + 1U]) << 8);
-    return static_cast<uint8_t>((packed >> shift) & 0x3FU);
-  }
-
   static float readWindow(float phase, uint32_t start, uint32_t end)
   {
     const uint32_t sample_index = start + static_cast<uint32_t>(phase);
-    if (sample_index >= end || sample_index >= kHHatPcmLength)
+    if (sample_index >= end || sample_index >= kTr909HhPcmLength)
       return 0.f;
-    const uint8_t pcm_code = readPcm6(sample_index);
-    return (static_cast<float>(pcm_code) - kDacMid) * kDacScale;
-  }
-
-  // 4th-order e^u with u = x*ln2 — same idea as Ride909 Tune (no libm).
-  static float exp2Approx(float x)
-  {
-    const float u = x * 0.69314718f;
-    return 1.f + u * (1.f + u * (0.5f + u * (0.16666667f + u * 0.041666668f)));
+    return tr909::dacFromPacked(kTr909HhPcmPacked, sample_index);
   }
 
   void updateClockRatio()
   {
     // TUNE ≈ ±7 st around the fixed 30 kHz hat clock (hardware has no Tune).
     const float semis = (tune_norm_ * 2.f - 1.f) * 7.f;
-    clock_ratio_ = exp2Approx(semis * (1.f / 12.f));
+    clock_ratio_ = tr909::exp2Approx(semis * (1.f / 12.f));
   }
 
   void resetVoices()
@@ -408,10 +386,7 @@ private:
       sum += renderVoice(voice, lpf_a_coeff, inv_sr);
     }
 
-    const float blocked = sum - dc_prev_in_ + kDcCoeff * dc_prev_out_;
-    dc_prev_in_ = sum;
-    dc_prev_out_ = blocked;
-    return blocked;
+    return tr909::dcBlock(sum, dc_prev_in_, dc_prev_out_);
   }
 
   Voice voices_[kVoiceCount];

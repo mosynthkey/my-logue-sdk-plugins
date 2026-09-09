@@ -21,7 +21,7 @@
     {
       "name": "MIX",
       "role": "Depth",
-      "detail": "Dry/wet"
+      "detail": "Drum level (Audio In always full)"
     },
     {
       "name": "TONE",

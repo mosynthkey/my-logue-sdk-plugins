@@ -8,7 +8,7 @@
   "params": [
     { "name": "DENS", "role": "X", "detail": "Euclidean hits per bar, rotated onto beats 2 and 4 (1–16, then 32nd flams)" },
     { "name": "TYPE", "role": "Y", "detail": "808 (bottom: analog noise, one VCA) to 909 (top: LFSR, dual VCA)" },
-    { "name": "MIX", "role": "Depth", "detail": "Dry/wet" },
+    { "name": "MIX", "role": "Depth", "detail": "Drum level (Audio In always full)" },
     { "name": "TONE", "role": "Edit", "detail": "Band-pass colour (R332-style)" },
     { "name": "DEC", "role": "Edit", "detail": "Fake-reverb tail length" },
     { "name": "SNAP", "role": "Edit", "detail": "Burst vs tail mix" }
