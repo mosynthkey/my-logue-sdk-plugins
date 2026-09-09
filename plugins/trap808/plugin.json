@@ -6,17 +6,17 @@
   "targets": [
     "nts-3_kaoss"
   ],
-  "description": "Trap drum machine with rolling hi-hats and a sliding 808 bass. Hold the pad to run. X = hat density/rolls (8ths → 16ths → 32nd/triplet bursts), Y = 808 root pitch. Top-right flick = one-bar hat fill.",
+  "description": "Trap drum machine with TR-909 ROM hi-hats and a sliding 808 bass. Hold the pad to gate — hits always lock to the incoming beat (tap timing ignored). X = hat density/rolls, Y = groove. ROOT sets the 808 key. Top-right flick arms a one-bar hat fill on the next downbeat.",
   "params": [
     {
       "name": "HATS",
       "role": "X",
-      "detail": "Hi-hat density: 8ths → 16ths with velocity → 32nd rolls and triplets"
+      "detail": "909 hat density: 8ths → 16ths with velocity → 32nd rolls and triplets"
     },
     {
-      "name": "TUNE",
+      "name": "GROOVE",
       "role": "Y",
-      "detail": "808 root pitch (low to high)"
+      "detail": "Kick/snare density (sparse half-time toward busier)"
     },
     {
       "name": "MIX",
@@ -24,14 +24,14 @@
       "detail": "Dry/wet"
     },
     {
-      "name": "GROOVE",
+      "name": "ROOT",
       "role": "Edit",
-      "detail": "Kick/snare density (sparse half-time toward busier)"
+      "detail": "808 root MIDI note"
     },
     {
       "name": "DECAY",
       "role": "Edit",
-      "detail": "808 body length"
+      "detail": "808 body length (also lengthens open hats slightly)"
     },
     {
       "name": "DRIVE",

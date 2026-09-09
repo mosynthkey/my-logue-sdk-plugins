@@ -55,9 +55,9 @@ const __unit_header genericfx_unit_header_t unit_header = {
         .num_params = 6,
         .params = {
             {0, 1023, 0, 560, k_unit_param_type_none, 0, 0, 0, {"HATS"}},
-            {0, 1023, 0, 360, k_unit_param_type_none, 0, 0, 0, {"TUNE"}},
-            {0, 1000, 0, 1000, k_unit_param_type_percent, 1, 1, 0, {"MIX"}},
             {0, 1023, 0, 410, k_unit_param_type_none, 0, 0, 0, {"GROOVE"}},
+            {0, 1000, 0, 1000, k_unit_param_type_percent, 1, 1, 0, {"MIX"}},
+            {24, 48, 0, 33, k_unit_param_type_midi_note, 0, 0, 0, {"ROOT"}},
             {0, 1023, 0, 560, k_unit_param_type_none, 0, 0, 0, {"DECAY"}},
             {0, 1023, 0, 460, k_unit_param_type_none, 0, 0, 0, {"DRIVE"}},
             {0, 0, 0, 0, k_unit_param_type_none, 0, 0, 0, {""}},
@@ -65,9 +65,9 @@ const __unit_header genericfx_unit_header_t unit_header = {
     },
     .default_mappings = {
         {k_genericfx_param_assign_x, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1023, 560},
-        {k_genericfx_param_assign_y, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1023, 360},
+        {k_genericfx_param_assign_y, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1023, 410},
         {k_genericfx_param_assign_depth, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1000, 1000},
-        {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1023, 410},
+        {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 24, 48, 33},
         {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1023, 560},
         {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1023, 460},
         {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 0, 0},

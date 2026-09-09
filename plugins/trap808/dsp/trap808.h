@@ -3,17 +3,19 @@
 /*
  * File: trap808.h
  *
- * Trap phrase pad for NTS-3: closed/open hats with rolls, half-time snare,
- * punchy kick, and a sliding sine 808. Hold to run; top-right flick fills.
+ * Trap phrase pad for NTS-3: 909 ROM hats with rolls, half-time snare,
+ * punchy kick, and a sliding sine 808. Hold the pad to gate; triggers
+ * always lock to the host (or internal) 4ppqn beat — tap phase is ignored.
  *
- * Envelopes are age-based (HClap-style). Avoid fasterexpf for near-1
- * per-sample multiply coeffs — that approximation is biased around 0.
+ * Hats use packed 6-bit PCM from the TR-909 Hi-Hat ROM (HN61256P C43).
+ * Envelopes for kick/snare/808 are age-based (avoid fasterexpf near-1 coeffs).
  */
 
 #include "fx_dsp.h"
 #include "macros.h"
 #include "processor.h"
 #include "runtime.h"
+#include "trap808_hh_pcm.h"
 #include "utils/float_math.h"
 #include <stdint.h>
 
@@ -24,15 +26,18 @@ public:
   static constexpr uint32_t kHatVoices = 8U;
   static constexpr uint32_t kPercVoices = 4U;
   static constexpr float kDcCoeff = 0.99608f;
+  static constexpr float kHhRomPhaseInc = kTrap808HhRomClockHz / 48000.f;
+  static constexpr float kDacMid = 32.f;
+  static constexpr float kDacScale = 1.f / 32.f;
 
   uint32_t getBufferSize() const override final { return 0; }
 
   enum
   {
     HATS = 0U,
-    TUNE,
-    MIX,
     GROOVE,
+    MIX,
+    ROOT,
     DECAY,
     DRIVE,
     NUM_PARAMS
@@ -45,14 +50,14 @@ public:
     case HATS:
       hats_norm_ = param_10bit_to_f32(value);
       break;
-    case TUNE:
-      tune_norm_ = param_10bit_to_f32(value);
+    case GROOVE:
+      groove_norm_ = param_10bit_to_f32(value);
       break;
     case MIX:
       mix_ = fx::clip01(value / 1000.f);
       break;
-    case GROOVE:
-      groove_norm_ = param_10bit_to_f32(value);
+    case ROOT:
+      root_midi_ = static_cast<float>(fx::clip(static_cast<float>(value), 24.f, 48.f));
       break;
     case DECAY:
       decay_norm_ = param_10bit_to_f32(value);
@@ -71,9 +76,11 @@ public:
   {
     bpm_ = 140.f;
     running_ = false;
+    use_host_clock_ = false;
+    fill_armed_ = false;
     fill_timer_ = 0U;
-    clock_acc_ = 0.f;
-    step_index_ = 0U;
+    tick_counter_ = 0U;
+    internal_tick_phase_ = 0.f;
     rng_ = 0xC0FFEEu;
     noise_state_ = 0xA5A5A5A5u;
     noise_lp_ = 0.f;
@@ -82,20 +89,23 @@ public:
     bass_phase_ = 0.f;
     bass_age_ = 10.f;
     bass_amp_ = 0.f;
-    bass_midi_ = 33.f;
-    bass_target_midi_ = 33.f;
+    bass_midi_ = root_midi_;
+    bass_target_midi_ = root_midi_;
     bass_active_ = false;
     hat_roll_remaining_ = 0;
     hat_roll_countdown_ = 0;
     hat_roll_interval_ = 0;
     hat_roll_velocity_ = 0.f;
     hat_roll_delta_ = 0.f;
+    hat_trigger_count_ = 0U;
+    kick_trigger_count_ = 0U;
     resetVoices();
   }
 
   void reset() override final
   {
     running_ = false;
+    fill_armed_ = false;
     fill_timer_ = 0U;
     hat_roll_remaining_ = 0;
     bass_active_ = false;
@@ -108,22 +118,28 @@ public:
       bpm_ = tempo;
   }
 
+  void tempo4ppqnTick(uint32_t counter) override final
+  {
+    use_host_clock_ = true;
+    handleTick(counter);
+  }
+
   void touchEvent(uint8_t, uint8_t phase, uint32_t x, uint32_t y) override final
   {
+    // Gate only — never start a step from the finger. Hits wait for the beat clock.
     if (phase == k_unit_touch_phase_ended || phase == k_unit_touch_phase_cancelled)
     {
       running_ = false;
+      fill_armed_ = false;
+      hat_roll_remaining_ = 0;
       return;
     }
-    if (phase == k_unit_touch_phase_began)
+    if (phase == k_unit_touch_phase_began || phase == k_unit_touch_phase_moved ||
+        phase == k_unit_touch_phase_stationary)
     {
-      running_ = true;
-      step_index_ = 0U;
-      clock_acc_ = 0.f;
       if (x > 760U && y > 760U)
-        fill_timer_ = kStepsPerBar;
-      triggerStep(0U);
-      step_index_ = 1U;
+        fill_armed_ = true;
+      running_ = true;
     }
   }
 
@@ -135,25 +151,15 @@ public:
   void process(const float *__restrict in, const float *__restrict raw, float *__restrict out, uint32_t frames)
   {
     (void)raw;
-    const float sixteenth = static_cast<float>(fx::samplesPerBeat(bpm_, getSampleRate())) * 0.25f;
     const float inv_sr = 1.f / getSampleRate();
     const float noise_coeff = fx::onePoleCoeff(9000.f, getSampleRate());
 
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
+      if (!use_host_clock_)
+        advanceInternalClockOneSample();
       if (running_)
-      {
-        clock_acc_ += 1.f;
-        if (clock_acc_ >= sixteenth)
-        {
-          clock_acc_ -= sixteenth;
-          triggerStep(step_index_);
-          step_index_ = (step_index_ + 1U) % kStepsPerBar;
-          if (fill_timer_ > 0U)
-            --fill_timer_;
-        }
         advanceHatRoll();
-      }
 
       noise_lp_ += noise_coeff * (whiteNoise() - noise_lp_);
       const float bright_noise = whiteNoise() - noise_lp_;
@@ -192,9 +198,12 @@ private:
   struct HatVoice
   {
     bool active = false;
-    float age = 0.f;
-    float accent = 1.f;
     bool open = false;
+    float accent = 1.f;
+    float rom_phase = 0.f;
+    float env = 0.f;
+    float env_coeff = 0.f;
+    float lpf = 0.f;
   };
 
   void resetVoices()
@@ -217,19 +226,23 @@ private:
     return (static_cast<float>(noise_state_) * (1.f / 2147483648.f)) - 1.f;
   }
 
-  float rootMidi() const
-  {
-    return 28.f + tune_norm_ * 24.f;
-  }
-
   static float velocityForHatStep(uint32_t step_index)
   {
-    // Downbeats loud, offbeat 16ths softer — classic trap hat groove.
     if ((step_index % 4U) == 0U)
       return 1.f;
     if ((step_index % 2U) == 0U)
       return 0.72f;
     return 0.48f;
+  }
+
+  static uint8_t readPacked6(const uint8_t *packed, uint32_t sample_index)
+  {
+    const uint32_t bit_index = sample_index * 6U;
+    const uint32_t byte_index = bit_index >> 3;
+    const uint32_t shift = bit_index & 7U;
+    const uint32_t pair = static_cast<uint32_t>(packed[byte_index]) |
+                          (static_cast<uint32_t>(packed[byte_index + 1U]) << 8);
+    return static_cast<uint8_t>((pair >> shift) & 0x3FU);
   }
 
   bool shouldClosedHat(uint32_t step_index, bool fill)
@@ -249,7 +262,6 @@ private:
       return (step_index % 4U) == 3U;
     if (hats_norm_ < 0.35f)
       return false;
-    // Offbeat open accents; sparse so rolls stay readable.
     if ((step_index % 8U) == 6U)
       return hats_norm_ > 0.45f;
     if ((step_index % 8U) == 2U)
@@ -276,7 +288,6 @@ private:
 
   bool shouldSnare(uint32_t step_index, bool fill)
   {
-    // Half-time trap: snare on beat 3 (step 8).
     if (step_index == 8U)
       return true;
     if (fill && (step_index == 12U || step_index == 14U))
@@ -290,7 +301,6 @@ private:
 
   float bassIntervalSemitones(uint32_t step_index) const
   {
-    // Minor-leaning trap 808 intervals relative to root.
     static const float kIntervals[8] = {0.f, -5.f, -7.f, -12.f, 3.f, -2.f, -10.f, 5.f};
     const uint32_t pick = (step_index + static_cast<uint32_t>(groove_norm_ * 5.f)) & 7U;
     return kIntervals[pick];
@@ -305,7 +315,7 @@ private:
     voice.accent = accent;
     voice.phase = 0.f;
     voice.start_hz = 160.f + groove_norm_ * 40.f;
-    voice.end_hz = 48.f + tune_norm_ * 12.f;
+    voice.end_hz = fx::noteToHz(root_midi_);
     ++kick_trigger_count_;
   }
 
@@ -325,7 +335,6 @@ private:
   {
     if (!open)
     {
-      // Closed hats choke any ringing open hat.
       for (uint32_t voiceIndex = 0; voiceIndex < kHatVoices; ++voiceIndex)
       {
         if (hats_[voiceIndex].active && hats_[voiceIndex].open)
@@ -335,9 +344,15 @@ private:
     HatVoice &voice = hats_[next_hat_];
     next_hat_ = (next_hat_ + 1U) % kHatVoices;
     voice.active = true;
-    voice.age = 0.f;
-    voice.accent = accent;
     voice.open = open;
+    voice.accent = accent;
+    voice.rom_phase = 0.f;
+    voice.env = 1.f;
+    voice.lpf = 0.f;
+    // Near-1 multiply coeff: linearize (do not use fasterexpf here).
+    const float tau = open ? (0.12f + decay_norm_ * 0.25f) : 0.035f;
+    const float x = -1.f / (tau * getSampleRate());
+    voice.env_coeff = 1.f + x;
     ++hat_trigger_count_;
   }
 
@@ -353,7 +368,7 @@ private:
 
   void scheduleHatRoll(uint32_t step_index, float base_velocity, bool fill)
   {
-    const float sixteenth = static_cast<float>(fx::samplesPerBeat(bpm_, getSampleRate())) * 0.25f;
+    const float sixteenth = getSampleRate() * 60.f / (bpm_ * 4.f);
     float subdiv = 1.f;
     uint32_t hits = 0U;
 
@@ -364,7 +379,6 @@ private:
     }
     else if (hats_norm_ > 0.88f && ((step_index % 4U) == 3U || step_index == 7U || step_index == 15U))
     {
-      // Triplet burst into the next beat.
       hits = 3U;
       subdiv = 3.f;
     }
@@ -382,14 +396,12 @@ private:
     if (hits < 2U)
       return;
 
-    // First hit already fired by the step; schedule the remaining roll hits.
     hat_roll_remaining_ = static_cast<int32_t>(hits - 1U);
     hat_roll_interval_ = static_cast<int32_t>(sixteenth / subdiv);
     if (hat_roll_interval_ < 24)
       hat_roll_interval_ = 24;
     hat_roll_countdown_ = hat_roll_interval_;
     hat_roll_velocity_ = base_velocity;
-    // Front-weighted decay across the roll (avoids machine-gun feel).
     hat_roll_delta_ = -base_velocity * (0.12f + hats_norm_ * 0.08f);
   }
 
@@ -406,6 +418,39 @@ private:
     hat_roll_countdown_ = hat_roll_interval_;
   }
 
+  void handleTick(uint32_t counter)
+  {
+    tick_counter_ = counter;
+    if (!running_)
+      return;
+
+    const uint32_t step_index = (counter - 1U) % kStepsPerBar;
+    if (fill_armed_ && step_index == 0U)
+    {
+      fill_timer_ = kStepsPerBar;
+      fill_armed_ = false;
+    }
+    triggerStep(step_index);
+    if (fill_timer_ > 0U)
+      --fill_timer_;
+  }
+
+  void advanceInternalClockOneSample()
+  {
+    if (bpm_ <= 0.f)
+      return;
+    const float samples_per_tick = getSampleRate() * 60.f / (bpm_ * 4.f);
+    if (samples_per_tick <= 0.f)
+      return;
+    internal_tick_phase_ += 1.f;
+    if (internal_tick_phase_ >= samples_per_tick)
+    {
+      internal_tick_phase_ -= samples_per_tick;
+      ++tick_counter_;
+      handleTick(tick_counter_);
+    }
+  }
+
   void triggerStep(uint32_t step_index)
   {
     const bool fill = fill_timer_ > 0U;
@@ -414,13 +459,12 @@ private:
     {
       const float accent = (step_index == 0U) ? 1.f : 0.82f;
       triggerKick(accent);
-      triggerBass(rootMidi() + bassIntervalSemitones(step_index));
+      triggerBass(root_midi_ + bassIntervalSemitones(step_index));
     }
     else if (groove_norm_ > 0.35f && (step_index == 4U || step_index == 12U) &&
              fx::randomFloat(rng_) < (0.25f + groove_norm_ * 0.4f))
     {
-      // Occasional 808 slide without a kick.
-      triggerBass(rootMidi() + bassIntervalSemitones(step_index + 3U));
+      triggerBass(root_midi_ + bassIntervalSemitones(step_index + 3U));
     }
 
     if (shouldSnare(step_index, fill))
@@ -466,16 +510,30 @@ private:
     return tone * tone_amp * 0.35f + noise * noise_amp * 0.75f;
   }
 
-  float renderHat(HatVoice &voice, float noise, float inv_sr)
+  float renderHat(HatVoice &voice)
   {
     if (!voice.active)
       return 0.f;
-    const float tau = voice.open ? 0.18f : 0.028f;
-    const float amp = fasterexpf(-voice.age / tau) * voice.accent;
-    voice.age += inv_sr;
-    if (voice.age > tau * 8.f || amp < 0.001f)
+
+    const uint32_t length = voice.open ? kTrap808HhOpenLength : kTrap808HhClosedLength;
+    const uint8_t *packed = voice.open ? kTrap808HhOpenPacked : kTrap808HhClosedPacked;
+    const uint32_t sample_index = static_cast<uint32_t>(voice.rom_phase);
+    if (sample_index >= length)
+    {
       voice.active = false;
-    return noise * amp * (voice.open ? 0.55f : 0.42f);
+      return 0.f;
+    }
+
+    const float code = static_cast<float>(readPacked6(packed, sample_index));
+    const float raw = (code - kDacMid) * kDacScale;
+    // Fixed reconstruction LPF ~similar to 909 hat path (keep bright for rolls).
+    voice.lpf += 0.55f * (raw - voice.lpf);
+    const float sample = voice.lpf * voice.env * voice.accent * (voice.open ? 0.72f : 0.55f);
+    voice.rom_phase += kHhRomPhaseInc;
+    voice.env *= voice.env_coeff;
+    if (voice.env < 0.001f || voice.rom_phase >= static_cast<float>(length))
+      voice.active = false;
+    return sample;
   }
 
   float renderBass(float inv_sr)
@@ -483,9 +541,7 @@ private:
     if (!bass_active_)
       return 0.f;
 
-    // Glide toward target (trap 808 slides).
     bass_midi_ += (bass_target_midi_ - bass_midi_) * (0.0009f + groove_norm_ * 0.0012f);
-
     const float tau = 0.22f + decay_norm_ * 1.35f;
     const float amp = fasterexpf(-bass_age_ / tau);
     const float pitch_drop = fasterexpf(-bass_age_ / 0.045f);
@@ -493,7 +549,6 @@ private:
     const float hz = fx::noteToHz(midi);
     bass_phase_ = fx::wrap01(bass_phase_ + hz * inv_sr);
     const float sine = fastersinfullf(bass_phase_ * 6.283185307179586f);
-    // Soft upper harmonic so the sub reads on small speakers.
     const float crunch = fastertanhf(sine * (1.4f + drive_norm_ * 2.2f));
     bass_age_ += inv_sr;
     bass_amp_ = amp;
@@ -511,14 +566,13 @@ private:
       sum += renderSnare(snares_[voiceIndex], noise, inv_sr) * 0.9f;
     }
     for (uint32_t voiceIndex = 0; voiceIndex < kHatVoices; ++voiceIndex)
-      sum += renderHat(hats_[voiceIndex], noise, inv_sr);
+      sum += renderHat(hats_[voiceIndex]);
 
     sum += renderBass(inv_sr) * 0.95f;
 
     const float blocked = sum - dc_prev_in_ + kDcCoeff * dc_prev_out_;
     dc_prev_in_ = sum;
     dc_prev_out_ = blocked;
-    // Pre-scale before softclip — fastertanhf is inaccurate for |x| >> 1.
     return fx::softclip(blocked * (0.32f + drive_norm_ * 0.08f));
   }
 
@@ -528,7 +582,7 @@ private:
   uint32_t next_kick_ = 0U;
   uint32_t next_snare_ = 0U;
   uint32_t next_hat_ = 0U;
-  uint32_t step_index_ = 0U;
+  uint32_t tick_counter_ = 0U;
   uint32_t fill_timer_ = 0U;
   uint32_t hat_trigger_count_ = 0U;
   uint32_t kick_trigger_count_ = 0U;
@@ -539,13 +593,13 @@ private:
   int32_t hat_roll_interval_ = 0;
   float hat_roll_velocity_ = 0.f;
   float hat_roll_delta_ = 0.f;
-  float clock_acc_ = 0.f;
+  float internal_tick_phase_ = 0.f;
   float bpm_ = 140.f;
   float hats_norm_ = 0.55f;
-  float tune_norm_ = 0.35f;
   float groove_norm_ = 0.4f;
   float decay_norm_ = 0.55f;
   float drive_norm_ = 0.45f;
+  float root_midi_ = 33.f;
   float mix_ = 1.f;
   float noise_lp_ = 0.f;
   float dc_prev_in_ = 0.f;
@@ -557,4 +611,6 @@ private:
   float bass_target_midi_ = 33.f;
   bool bass_active_ = false;
   bool running_ = false;
+  bool use_host_clock_ = false;
+  bool fill_armed_ = false;
 };
