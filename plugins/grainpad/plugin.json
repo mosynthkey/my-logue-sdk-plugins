@@ -4,9 +4,9 @@
   "name": "GrainPad",
   "type": "fx",
   "targets": ["nts-3_kaoss"],
-  "description": "Live-capture granular pad for NTS-3. Touch freezes up to 3 s of AUDIO IN into a grain cloud. X/FEEL: sparse ↔ dense. Y = octave mix. ENV = grain attack/release. SYNC / SPRD / HPF / REVS. MIX = dry/wet.",
+  "description": "Live-capture granular pad for NTS-3. Touch freezes up to 3 s of AUDIO IN into a slow grain cloud (100–320 ms grains). X/FEEL: sparse ↔ dense. Y = octave mix. ENV = grain attack/release. SYNC / SPRD / HPF / REVS. MIX = dry/wet.",
   "params": [
-    { "name": "FEEL", "role": "X", "detail": "Left: sparser stitches. Right: dense overlapping cloud" },
+    { "name": "FEEL", "role": "X", "detail": "Left: long sparse stitches. Right: dense overlapping wash" },
     { "name": "OCT", "role": "Y", "detail": "Mixture of -1 / unison / +1 octave grains" },
     { "name": "MIX", "role": "Edit", "detail": "0 = dry only, max = granular only" },
     { "name": "ENV", "role": "Edit", "detail": "Grain attack/release length (short/snappy ↔ long/soft)" },

@@ -126,8 +126,8 @@ export const dspExplainById = {
   In --> Mix`,
   },
   grainpad: {
-    en: "Live-capture granular pad. Touch freezes up to 3 s of AUDIO IN. X/FEEL: sparse ↔ dense cloud. Y: octave mix. ENV = grain attack/release; SPRD / HPF / REVS as edits.",
-    ja: "AUDIO INを最大3秒フリーズしてグレイン雲にします。Xは疎↔密、Yはoct混率。ENVで粒のアタック／リリース、SPRD／HPF／REVSあり。",
+    en: "Live-capture granular pad. Touch freezes up to 3 s of AUDIO IN into long, slow grains (100–320 ms). X/FEEL: sparse stitches ↔ dense wash. Y: octave mix. ENV = grain attack/release; SPRD / HPF / REVS as edits.",
+    ja: "AUDIO INを最大3秒フリーズし、長めのグレイン（100–320 ms）をゆっくり重ねます。Xは疎↔密、Yはoct混率。ENVで粒のアタック／リリース、SPRD／HPF／REVSあり。",
     mermaid: `flowchart LR
   In[Audio in] --> Ring[SDRAM max 3s]
   Touch[Touch freeze] --> Cloud[Grain cloud]
