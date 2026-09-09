@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from "vue";
+import { computed, reactive, watch } from "vue";
 import PreviewPanel from "./PreviewPanel.vue";
 import { useI18n } from "../composables/useI18n.js";
 import {
@@ -52,6 +52,7 @@ const { pluginDescription, t } = useI18n();
 const activeBuild = computed(() => buildForTarget(props.plugin, props.activeTarget));
 const downloads = computed(() => downloadableBuilds(props.plugin));
 const sends = computed(() => sendableBuilds(props.plugin));
+const selectedSlotByTarget = reactive({});
 
 const targetItems = computed(() => {
   const targets = new Set([
@@ -76,6 +77,22 @@ const inlineStatusColor = computed(() => {
   return "secondary";
 });
 
+watch(
+  () => props.inlineSlotsByTarget,
+  (slotsByTarget) => {
+    for (const [target, options] of Object.entries(slotsByTarget || {})) {
+      const values = options.map((option) => option.value);
+      if (!values.length) {
+        continue;
+      }
+      if (!values.includes(selectedSlotByTarget[target])) {
+        selectedSlotByTarget[target] = values.includes(1) ? 1 : values[0];
+      }
+    }
+  },
+  { deep: true, immediate: true },
+);
+
 function isTargetConnected(target) {
   return Boolean(props.connectedTargets[target]);
 }
@@ -93,16 +110,16 @@ function showInlineSlots(target) {
     && (isSlotsLoading(target) || slotsFor(target).length > 0);
 }
 
-function slotButtonLabel(option) {
-  if (option.empty) {
-    return String(option.value);
-  }
-  const name = option.name || "occupied";
-  return `${option.value} · ${name}`;
-}
-
 function moduleLabel(target) {
   return moduleFor(props.plugin, target);
+}
+
+function sendSelectedSlot(target) {
+  const slotIndex = selectedSlotByTarget[target];
+  if (slotIndex == null || Number.isNaN(slotIndex)) {
+    return;
+  }
+  emit("send-slot", props.plugin, target, slotIndex);
 }
 </script>
 
@@ -177,17 +194,25 @@ function moduleLabel(target) {
                   width="2"
                 />
               </div>
-              <div class="slot-grid">
+              <div class="d-flex align-center flex-wrap ga-2">
+                <v-select
+                  v-model="selectedSlotByTarget[build.target]"
+                  :items="slotsFor(build.target)"
+                  item-title="label"
+                  item-value="value"
+                  :label="t('slot')"
+                  density="compact"
+                  hide-details
+                  :disabled="sending || isSlotsLoading(build.target)"
+                  style="min-width: 14rem; max-width: 22rem;"
+                />
                 <v-btn
-                  v-for="option in slotsFor(build.target)"
-                  :key="`slot-${build.target}-${option.value}`"
-                  size="small"
-                  :variant="option.empty ? 'outlined' : 'tonal'"
-                  :disabled="sending"
-                  :title="option.label"
-                  @click="emit('send-slot', plugin, build.target, option.value)"
+                  color="primary"
+                  variant="flat"
+                  :disabled="sending || selectedSlotByTarget[build.target] == null"
+                  @click="sendSelectedSlot(build.target)"
                 >
-                  {{ slotButtonLabel(option) }}
+                  {{ t("sendToSlot") }}
                 </v-btn>
               </div>
             </template>
@@ -237,13 +262,3 @@ function moduleLabel(target) {
     </v-card>
   </div>
 </template>
-
-<style scoped>
-.slot-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  max-height: 12rem;
-  overflow: auto;
-}
-</style>
