@@ -212,10 +212,15 @@ private:
     return 3.f - folded;
   }
 
-  static float envCoeff(float seconds)
+  // Per-sample multiply coeffs sit near 1 (e.g. exp(-1/(0.085*48000)) ≈ 0.99975).
+  // fasterexpf is biased around 0 (fasterexpf(0) ≈ 0.971), so using it here collapses
+  // an ~85 ms body to ~5 ms — attack click only on device. Linearize for tiny |x|.
+  static float envCoeff(float seconds, float sample_rate)
   {
     const float clamped = fx::clip(seconds, 0.008f, 0.8f);
-    return fasterexpf(-1.f / (clamped * 48000.f));
+    const float rate = (sample_rate > 1.f) ? sample_rate : 48000.f;
+    const float x = -1.f / (clamped * rate);
+    return fx::clip(1.f + x, 0.f, 1.f);
   }
 
   float analogNoise()
@@ -354,10 +359,11 @@ private:
     const float low_hz = (k808LowHz + type_norm * (k909LowHz - k808LowHz)) * tune;
     const float high_hz = (k808HighHz + type_norm * (k909HighHz - k808HighHz)) * tune;
 
-    const float low_decay = envCoeff(0.085f + type_norm * 0.07f);
-    const float high_decay = envCoeff(0.070f + type_norm * 0.045f);
-    const float snap_decay = envCoeff(0.075f - type_norm * 0.02f);
-    const float snap_lp_decay = envCoeff(0.16f + type_norm * 0.04f);
+    const float sample_rate = getSampleRate();
+    const float low_decay = envCoeff(0.085f + type_norm * 0.07f, sample_rate);
+    const float high_decay = envCoeff(0.070f + type_norm * 0.045f, sample_rate);
+    const float snap_decay = envCoeff(0.075f - type_norm * 0.02f, sample_rate);
+    const float snap_lp_decay = envCoeff(0.16f + type_norm * 0.04f, sample_rate);
     const float hp_coeff = fx::onePoleCoeff(1600.f + tone * 900.f + type_norm * 400.f, getSampleRate());
     const float lp_coeff = fx::onePoleCoeff(2800.f - type_norm * 400.f, getSampleRate());
 
