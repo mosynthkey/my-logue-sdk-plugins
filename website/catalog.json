@@ -289,6 +289,58 @@
           "wasm": "./sim/shaker/nts-3_kaoss/shaker.html"
         }
       ]
+    },
+    {
+      "id": "ukgarage",
+      "experimental": true,
+      "name": "UKGarage",
+      "type": "drum",
+      "targets": [
+        "nts-3_kaoss"
+      ],
+      "description": "Tempo-synced 2-step UK Garage kit. Hold to run. X grows ghost notes (soft snares/rims between the backbone); Y thickens hats and pushes toward Fill. Flick top-right for a one-bar Fill. Ghost notes are the groove.",
+      "params": [
+        {
+          "name": "GHOST",
+          "role": "X",
+          "detail": "Ghost-note / hand density (soft snares and rims between main hits)"
+        },
+        {
+          "name": "FILL",
+          "role": "Y",
+          "detail": "Hat density and fill energy (rolls, extra kicks)"
+        },
+        {
+          "name": "MIX",
+          "role": "Depth",
+          "detail": "Dry/wet"
+        },
+        {
+          "name": "SWING",
+          "role": "Edit",
+          "detail": "16th swing (UKG shuffle)"
+        },
+        {
+          "name": "TONE",
+          "role": "Edit",
+          "detail": "Kick / snare pitch colour"
+        },
+        {
+          "name": "DEC",
+          "role": "Edit",
+          "detail": "Shared body / hat decay"
+        }
+      ],
+      "builds": [
+        {
+          "target": "nts-3_kaoss",
+          "module": "genericfx",
+          "file": "./units/ukgarage-nts-3_kaoss.nts3unit",
+          "size": 9020,
+          "wasm": "./sim/ukgarage/nts-3_kaoss/ukgarage.html"
+        }
+      ]
     }
-  ]
+  ],
+  "generated_at": "2026-09-09T12:48:44Z"
 }
