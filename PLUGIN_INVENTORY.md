@@ -8,21 +8,9 @@
   - 対応: nts-1_mkii, nts-3_kaoss, microkorg2
   - エアホーンを鳴らす。調整中。正式リリース予定。
 
-- **Autrance** (`autrance`) — synth（実験的）
-  - 対応: nts-3_kaoss
-  - NTS-3 向けトランスプラック自動フレーズ。ROOT でベースキー、TYPE でメジャー/マイナー。タッチごとにコードと 16 ステップのベース＋コードフレーズを生成。
-
 - **BeatRepeat** (`beatrepeat`) — fx（実験的）
   - 対応: nts-3_kaoss
   - テンポ同期の Beat Repeat。AUDIO IN を常時キャプチャし、グリッド上でスライスをスタッター。X=ループ長、Y=発火確率、タッチで強制フリーズ。
-
-- **ChordRes** (`chordres`) — synth（実験的）
-  - 対応: nts-3_kaoss
-  - パッドでコードを弾き、離すとテンポ同期の残響アルペジオが下降。X=進行軸、Y=ボイシングの開き。
-
-- **ColorNse** (`colornse`) — synth（実験的）
-  - 対応: nts-3_kaoss
-  - DJM Color FX 風ノイズ。タッチで白/ピンク/ブラウンノイズをゲート。X=HPF↔LPF、Y=ノイズ色とドライブ。
 
 - **DataBend** (`databend`) — fx（実験的）
   - 対応: nts-3_kaoss
@@ -31,22 +19,6 @@
 - **DredBass** (`dredbass`) — synth（実験的）
   - 対応: nts-3_kaoss
   - UKG / ジャングル風サクションベース。LPF エンベロープが逆向きに開き、反転したような低音。X=ピッチ、Y=サクション深さ。
-
-- **DubDesk** (`dubdesk`) — fx（実験的）
-  - 対応: nts-3_kaoss
-  - ダブ・ディレイ机。動くバンドパス付きフィードバックと L/R オフセット。X=セルフオシ近くまでフィードバック、Y=リターンのカットオフ。タッチでワンショット投げ。
-
-- **DubSiren** (`dubsiren`) — synth（実験的）
-  - 対応: nts-3_kaoss
-  - サウンドシステム風ダブサイレン。X=ピッチ、Y=LFO レート/深さ。タッチでゲート、X を弾くとワンショットスイープ。
-
-- **EchoFreeze** (`echofreeze`) — fx（実験的）
-  - 対応: nts-3_kaoss
-  - Octatrack 風エコーフリーズ。テンポ同期ディレイが AUDIO IN を書き続け、タッチで Lock。X=バッファ長（拍）、Y=再生レート/ピッチ。
-
-- **EchoOut** (`echoout`) — fx（実験的）
-  - 対応: nts-3_kaoss
-  - DJ Echo Out。タッチでドライを即ミュートしテンポ同期エコーを残す。離すとウェットが減衰して消える。X=ディレイ音価、Y=リリース後の減衰速度。
 
 - **EucGate** (`eucgate`) — fx（実験的）
   - 対応: nts-3_kaoss
@@ -76,14 +48,6 @@
   - 対応: nts-3_kaoss
   - Mutable Grids 風の BD/SD/HH 生成フレーズ。X=キック/スネアマップ、Y=ハット密度。右上フリックで 1 小節 Fill。
 
-- **HalfDbl** (`halfdbl`) — fx（実験的）
-  - 対応: nts-3_kaoss
-  - ハーフ/ダブルタイム・ブリッジ。常時録音し、タッチで 0.5x/1x/2x 再生。Y=0 でチップマンク/スローピッチ、Y=1 でピッチ維持。
-
-- **HatChoke** (`hatchoke`) — synth（実験的）
-  - 対応: nts-3_kaoss
-  - TR-909 オープン/クローズドハットのチョーク。タッチ=オープン。X=オープン減衰、Y=16分グリッド上のクローズド密度。
-
 - **HClap** (`hclap`) — drum（実験的）
   - 対応: nts-3_kaoss
   - 808/909 風アナログハンドクラップのフレーズパッド。X=ヒット密度、Y=808↔909。調整中。
@@ -95,10 +59,6 @@
 - **HyperSaw** (`hypersaw`) — osc（実験的）
   - 対応: nts-1_mkii, microkorg2
   - Virus TI 風 9 ボイス・デチューンソー。Density / Spread / HyperSub / ステレオ幅。
-
-- **JungStr** (`jungstr`) — fx（実験的）
-  - 対応: nts-3_kaoss
-  - Akai S 系ジャングル・ボーカルストレッチ。AUDIO IN の極端なタイムストレッチと金属的グレイン。X=ストレッチ比、Y=グレイン/アーティファクトサイズ。
 
 - **Kaocid** (`kaocid`) — synth
   - 対応: nts-3_kaoss
