@@ -38,8 +38,13 @@ Plugins:
 - **UKGarage** — NTS-3 tempo-synced 2-step UK Garage kit. Hold to run. X grows ghost notes (soft snares/rims); Y thickens hats and fill energy; top-right flick = one-bar Fill. Experimental; open with `?experimental`.
 - **AmenTime** — NTS-3 tempo-synced amen-style break slicer. A synthesized 1-bar break (not the Winstons recording) is stored as 12 kHz PCM and chopped to the host clock. Hold the pad; X = start 16th, Y = slice grid. Experimental; open with `?experimental`.
 - **WavSlice** — Generic NTS-3 1-bar WAV slicer (same pad/chop as AmenTime). Ships an original CC0 drum loop; drop your own file at `assets/loop.wav` or `make -C plugins/wavslice embed WAV=...`. Experimental; open with `?experimental`.
+<<<<<<< HEAD
 - **Trap808** — NTS-3 trap drum + sliding 808 bass phrase pad. Hold to run; X = hi-hat density/rolls (8ths → 16ths → 32nd/triplet bursts), Y = 808 root pitch. Top-right flick = one-bar hat fill. Experimental; open with `?experimental`.
 - **NTS-3 idea pack (experimental)** — performance FX/OSC units that do not overlap stock NTS-3, Kaocid, airFM, GlitchPad, TechnoRumble, or AirHorn. Remaining batch: BeatRepeat, RingExcit, WarpsMorph, EucGate, DataBend, ReesePhr, PercIter, GridsDrum, RevRoll, DredBass. Extra: EucRoll (Euclidean step roll), StepFenv (step filter envelope), StepRndFlt (step S&H filter), StepDice, Trap808, UKGarage. Skipped as overlapping: Kick Rumble (#26 → TechnoRumble), Airhorn (#29 → AirHorn). Open the site with `?experimental` to preview them.
+=======
+- **Trap808** — NTS-3 trap drums with TR-909 ROM hi-hats and a sliding 808. Hold gates the phrase; hits lock to the beat. X = hat rolls, Y = groove, ROOT = 808 key. Experimental; open with `?experimental`.
+- **NTS-3 idea pack (experimental)** — performance FX/OSC units that do not overlap stock NTS-3, Kaocid, airFM, GlitchPad, TechnoRumble, or AirHorn. Remaining batch: BeatRepeat, RingExcit, WarpsMorph, EucGate, DataBend, ReesePhr, PercIter, GridsDrum, RevRoll, DredBass. Extra: EucRoll (Euclidean step roll), StepFenv (step filter envelope), StepRndFlt (step S&H filter), StepDice, Trap808. Skipped as overlapping: Kick Rumble (#26 → TechnoRumble), Airhorn (#29 → AirHorn). Open the site with `?experimental` to preview them.
+>>>>>>> 3426e8c (Beat-lock Trap808, add ROOT, and embed TR-909 hi-hat ROM.)
 
 ## Targets
 
