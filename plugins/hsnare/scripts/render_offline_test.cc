@@ -47,6 +47,20 @@ static float peakAbs(const std::vector<float> &mono)
   return peak;
 }
 
+static float energyAfter(const std::vector<float> &mono, uint32_t start, uint32_t length)
+{
+  double sum_squares = 0.0;
+  uint32_t count = 0U;
+  for (uint32_t sampleIndex = start; sampleIndex < mono.size() && count < length; ++sampleIndex, ++count)
+  {
+    const double sample = static_cast<double>(mono[sampleIndex]);
+    sum_squares += sample * sample;
+  }
+  if (count == 0U)
+    return 0.f;
+  return static_cast<float>(std::sqrt(sum_squares / static_cast<double>(count)));
+}
+
 static float bandEnergy(const std::vector<float> &mono, float hz_lo, float hz_hi)
 {
   const uint32_t n = 4096U;
@@ -107,49 +121,63 @@ int main()
     return 3;
   }
 
+  // SNAP=0 isolates the shell; body must still be alive past ~20 ms (not an
+  // attack-only click from a broken near-1 fasterexpf envelope coeff).
   setup(snare, 70, 0);
+  snare.setParameter(HSnare::SNAP, 0);
   snare.debugTrigger(1.f);
   std::vector<float> voice_808;
   render(snare, voice_808, 8192U);
   const float peak_808 = peakAbs(voice_808);
+  const float body_808 = energyAfter(voice_808, 960U, 960U); // ~20–40 ms
   const float shell_808 = bandEnergy(voice_808, 140.f, 220.f);
   const float harm_808 = bandEnergy(voice_808, 280.f, 400.f);
   const float hiss_808 = bandEnergy(voice_808, 4000.f, 10000.f);
-  std::printf("808 peak=%.4f shell=%.3f harm=%.3f hiss=%.3f\n", peak_808, shell_808, harm_808, hiss_808);
+  std::printf("808 peak=%.4f body_rms=%.5f shell=%.3f harm=%.3f hiss=%.3f\n", peak_808, body_808,
+              shell_808, harm_808, hiss_808);
   if (peak_808 < 0.04f || peak_808 > 0.99f)
     return 4;
-  if (shell_808 < 1.0f && harm_808 < 1.0f)
+  if (body_808 < 0.008f)
     return 5;
+  if (shell_808 < 1.0f && harm_808 < 1.0f)
+    return 6;
 
   setup(snare, 70, 1023);
   snare.debugTrigger(1.f);
   std::vector<float> voice_909;
   render(snare, voice_909, 8192U);
   const float peak_909 = peakAbs(voice_909);
+  const float body_909 = energyAfter(voice_909, 960U, 960U);
   const float hiss_909 = bandEnergy(voice_909, 4000.f, 10000.f);
-  std::printf("909 peak=%.4f hiss=%.3f\n", peak_909, hiss_909);
+  std::printf("909 peak=%.4f body_rms=%.5f hiss=%.3f\n", peak_909, body_909, hiss_909);
   if (peak_909 < 0.04f)
-    return 6;
-  if (hiss_909 + 1.0f < hiss_808 * 0.35f)
     return 7;
+  if (body_909 < 0.008f)
+    return 8;
+  if (hiss_909 + 1.0f < hiss_808 * 0.35f)
+    return 9;
 
   setup(snare, 70, 0);
   snare.touchEvent(0, k_unit_touch_phase_began, 70, 0);
   std::vector<float> bar_low;
   render(snare, bar_low, 48000U * 2U);
-  const uint32_t attacks_low = countAttacks(bar_low, 0.03f);
-  std::printf("low_dens_attacks=%u\n", attacks_low);
-  if (attacks_low < 2U || attacks_low > 6U)
-    return 8;
+  const uint32_t triggers_low = snare.debugTriggerCount();
+  const uint32_t attacks_low = countAttacks(bar_low, 0.05f);
+  std::printf("low_dens_triggers=%u attacks=%u\n", triggers_low, attacks_low);
+  // One bar at 120 BPM with dens→2 hits on 2 and 4.
+  if (triggers_low != 2U)
+    return 10;
+  if (attacks_low < 1U)
+    return 11;
 
   setup(snare, 1023, 0);
   snare.touchEvent(0, k_unit_touch_phase_began, 1023, 0);
   std::vector<float> bar_busy;
   render(snare, bar_busy, 48000U * 2U);
-  const uint32_t attacks_high = countAttacks(bar_busy, 0.025f);
-  std::printf("high_dens_attacks=%u\n", attacks_high);
-  if (attacks_high <= attacks_low + 4U)
-    return 9;
+  const uint32_t triggers_high = snare.debugTriggerCount();
+  std::printf("high_dens_triggers=%u\n", triggers_high);
+  if (triggers_high <= triggers_low + 4U)
+    return 12;
 
   std::printf("ok\n");
   return 0;

@@ -88,6 +88,25 @@ Same pad idea as HClap, different voice:
 - **TONE / SNAP / TUNE** — the knobs the machines actually had
   (Tune is 909-only on hardware)
 
+## Envelope pitfall (device click-only)
+
+Shell/snappy envelopes use per-sample multiply coeffs near 1.
+Do **not** build those with `fasterexpf` — Mineiro’s approx is biased
+around 0 (`fasterexpf(0) ≈ 0.971`), so an ~85 ms body dies in ~5 ms and
+the unit sounds like an attack pulse only. Prefer `1.f + x` for tiny
+`x = -1/(seconds*sr)`, or age-based `fasterexpf(-age/tau)` (HClap-style).
+This is not a libm / Resolve Symbol failure (`ULIBS` stays empty).
+
+## Regenerating / listening
+
+```bash
+g++ -O2 -std=c++11 -I plugins/hsnare/dsp -I plugins/common \
+  -I third_party/logue-sdk/platform/nts-3_kaoss/common \
+  -I third_party/logue-sdk/platform/nts-3_kaoss \
+  plugins/hsnare/scripts/render_offline_test.cc -o /tmp/hsnare_test
+/tmp/hsnare_test
+```
+
 ## Sources
 
 - Roland TR-808 Service Notes, SD (bridged-T, Tone VR8, Snappy VR9)
