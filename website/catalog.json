@@ -217,7 +217,7 @@
           "target": "nts-3_kaoss",
           "module": "genericfx",
           "file": "./units/passort-nts-3_kaoss.nts3unit",
-          "size": 10108,
+          "size": 10704,
           "wasm": "./sim/passort/nts-3_kaoss/passort.html"
         }
       ]

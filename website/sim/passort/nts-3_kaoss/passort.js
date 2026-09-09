@@ -629,7 +629,7 @@ var tempI64;
 // === Body ===
 
 var ASM_CONSTS = {
-  20152: ($0, $1) => { var ready = (typeof Module !== "undefined" && Module.onAudioReady) ? Module.onAudioReady : setupWebAudioAndUI; ready(emscriptenGetAudioObject($0), emscriptenGetAudioObject($1)); }
+  20144: ($0, $1) => { var ready = (typeof Module !== "undefined" && Module.onAudioReady) ? Module.onAudioReady : setupWebAudioAndUI; ready(emscriptenGetAudioObject($0), emscriptenGetAudioObject($1)); }
 };
 
 // end include: preamble.js
@@ -3268,29 +3268,29 @@ var __emscripten_stack_restore = (a0) => (__emscripten_stack_restore = wasmExpor
 var __emscripten_stack_alloc = (a0) => (__emscripten_stack_alloc = wasmExports['_emscripten_stack_alloc'])(a0);
 var _emscripten_stack_get_current = () => (_emscripten_stack_get_current = wasmExports['emscripten_stack_get_current'])();
 var __emscripten_wasm_worker_initialize = (a0, a1) => (__emscripten_wasm_worker_initialize = wasmExports['_emscripten_wasm_worker_initialize'])(a0, a1);
-var _unit_header = Module['_unit_header'] = 20334;
-var _bitres_lut_f = Module['_bitres_lut_f'] = 20712;
-var _log_lut_f = Module['_log_lut_f'] = 21228;
-var _midi_to_hz_lut_f = Module['_midi_to_hz_lut_f'] = 5644;
-var _pow2_lut_f = Module['_pow2_lut_f'] = 22256;
-var _cubicsat_lut_f = Module['_cubicsat_lut_f'] = 23284;
-var _schetzen_lut_f = Module['_schetzen_lut_f'] = 23800;
-var _sqrtm2log_lut_f = Module['_sqrtm2log_lut_f'] = 24316;
-var _tanh_lut_f = Module['_tanh_lut_f'] = 6252;
-var _tanpi_lut_f = Module['_tanpi_lut_f'] = 10352;
-var _wavesA = Module['_wavesA'] = 34116;
-var _wavesB = Module['_wavesB'] = 42436;
-var _wavesC = Module['_wavesC'] = 49724;
-var _wavesD = Module['_wavesD'] = 56488;
-var _wavesE = Module['_wavesE'] = 64280;
-var _wavesF = Module['_wavesF'] = 72596;
-var _wt_sine_lut_f = Module['_wt_sine_lut_f'] = 72660;
-var _wt_saw_notes = Module['_wt_saw_notes'] = 73176;
-var _wt_saw_lut_f = Module['_wt_saw_lut_f'] = 73184;
-var _wt_sqr_notes = Module['_wt_sqr_notes'] = 76796;
-var _wt_sqr_lut_f = Module['_wt_sqr_lut_f'] = 76804;
-var _wt_par_notes = Module['_wt_par_notes'] = 80416;
-var _wt_par_lut_f = Module['_wt_par_lut_f'] = 80424;
+var _unit_header = Module['_unit_header'] = 20326;
+var _bitres_lut_f = Module['_bitres_lut_f'] = 20704;
+var _log_lut_f = Module['_log_lut_f'] = 21220;
+var _midi_to_hz_lut_f = Module['_midi_to_hz_lut_f'] = 5636;
+var _pow2_lut_f = Module['_pow2_lut_f'] = 22248;
+var _cubicsat_lut_f = Module['_cubicsat_lut_f'] = 23276;
+var _schetzen_lut_f = Module['_schetzen_lut_f'] = 23792;
+var _sqrtm2log_lut_f = Module['_sqrtm2log_lut_f'] = 24308;
+var _tanh_lut_f = Module['_tanh_lut_f'] = 6244;
+var _tanpi_lut_f = Module['_tanpi_lut_f'] = 10344;
+var _wavesA = Module['_wavesA'] = 34108;
+var _wavesB = Module['_wavesB'] = 42428;
+var _wavesC = Module['_wavesC'] = 49716;
+var _wavesD = Module['_wavesD'] = 56480;
+var _wavesE = Module['_wavesE'] = 64272;
+var _wavesF = Module['_wavesF'] = 72588;
+var _wt_sine_lut_f = Module['_wt_sine_lut_f'] = 72652;
+var _wt_saw_notes = Module['_wt_saw_notes'] = 73168;
+var _wt_saw_lut_f = Module['_wt_saw_lut_f'] = 73176;
+var _wt_sqr_notes = Module['_wt_sqr_notes'] = 76788;
+var _wt_sqr_lut_f = Module['_wt_sqr_lut_f'] = 76796;
+var _wt_par_notes = Module['_wt_par_notes'] = 80408;
+var _wt_par_lut_f = Module['_wt_par_lut_f'] = 80416;
 
 // include: postamble.js
 // === Auto-generated postamble setup entry stuff ===

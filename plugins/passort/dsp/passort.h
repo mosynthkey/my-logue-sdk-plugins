@@ -125,6 +125,7 @@ public:
     pad_held_ = false;
     active_ = false;
     arming_ = false;
+    rolling_ = false;
     mode_ = MODE_NONE;
     wet_ = 0.f;
     wet_target_ = 0.f;
@@ -134,8 +135,14 @@ public:
     res_smooth_ = 0.2f;
     depth_smooth_ = 0.f;
     fb_hpf_smooth_ = 0.3f;
-    roll_speed_smooth_ = 0.4f;
-    roll_len_smooth_ = 0.4f;
+    roll_speed_smooth_ = 0.25f;
+    roll_len_smooth_ = 0.25f;
+    cutoff_target_ = 0.5f;
+    res_target_ = 0.2f;
+    depth_target_ = 0.f;
+    fb_hpf_target_ = 0.3f;
+    roll_speed_target_ = 0.25f;
+    roll_len_target_ = 0.25f;
     play_pos_ = 0.f;
     tape_progress_ = 0.f;
     tape_rate_ = 1.f;
@@ -144,7 +151,8 @@ public:
     loop_length_ = 2048U;
     frozen_origin_ = 0U;
     frozen_length_ = 0U;
-    roll_retarget_counter_ = 0U;
+    clock_acc_ = 0.f;
+    use_host_clock_ = false;
     delay_hpf_left_.z = 0.f;
     delay_hpf_right_.z = 0.f;
     resetSvf();
@@ -157,6 +165,12 @@ public:
       bpm_ = tempo;
       updateLoopGeometry();
     }
+  }
+
+  void tempo4ppqnTick(uint32_t) override final
+  {
+    use_host_clock_ = true;
+    onSixteenth();
   }
 
   void touchEvent(uint8_t id, uint8_t phase, uint32_t x, uint32_t y) override final
@@ -195,6 +209,10 @@ public:
   void process(const float *__restrict in, const float *__restrict raw, float *__restrict out, uint32_t frames)
   {
     updateTargetsFromTouch();
+    smoothParams();
+
+    const float beat_samples = static_cast<float>(fx::samplesPerBeat(bpm_, getSampleRate()));
+    const float sixteenth = beat_samples * 0.25f;
 
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
@@ -202,24 +220,35 @@ public:
       float live_right = 0.f;
       fx::pickLive(in, raw, live_left, live_right);
 
+      // Tape freezes playback audio; roll keeps recording like BeatRepeat so
+      // slices always come from recent live input.
       const bool freeze_playback =
-          (mode_ == MODE_TAPE || mode_ == MODE_ROLL) && !arming_ && (active_ || wet_ > 0.f);
+          mode_ == MODE_TAPE && !arming_ && (active_ || wet_ > 0.f);
       if (!freeze_playback)
         recordSample(live_left, live_right);
 
-      if (arming_)
+      if (!use_host_clock_ && sixteenth > 1.f)
+      {
+        clock_acc_ += 1.f;
+        if (clock_acc_ >= sixteenth)
+        {
+          clock_acc_ -= sixteenth;
+          onSixteenth();
+        }
+      }
+
+      if (arming_ && mode_ == MODE_TAPE)
       {
         if (captured_samples_ >= neededCaptureSamples() && captured_peak_ >= kMinCapturePeak)
         {
           arming_ = false;
           freezeWindow(neededCaptureSamples());
-          startVoice();
+          startTapeVoice();
           wet_target_ = 1.f;
         }
       }
 
       advanceWet();
-      smoothParams();
 
       if (wet_ <= 0.001f || mode_ == MODE_NONE)
       {
@@ -282,28 +311,37 @@ private:
     wet_target_ = 0.f;
     arming_ = false;
     active_ = false;
+    rolling_ = false;
   }
 
   void engageMode()
   {
     active_ = true;
     arming_ = false;
+    rolling_ = false;
     resetSvf();
     delay_hpf_left_.z = 0.f;
     delay_hpf_right_.z = 0.f;
 
     if (mode_ == MODE_HPF || mode_ == MODE_LPF || mode_ == MODE_DELAY)
     {
-      startVoice();
       wet_target_ = 1.f;
       return;
     }
 
+    if (mode_ == MODE_ROLL)
+    {
+      // Gate only — arm on the next 16th (BeatRepeat-style), not the tap sample.
+      wet_target_ = 1.f;
+      return;
+    }
+
+    // MODE_TAPE
     const uint32_t needed = neededCaptureSamples();
     if (captured_samples_ >= needed && captured_peak_ >= kMinCapturePeak)
     {
       freezeWindow(needed);
-      startVoice();
+      startTapeVoice();
       wet_target_ = 1.f;
       return;
     }
@@ -313,39 +351,75 @@ private:
     wet_target_ = 0.f;
   }
 
-  void startVoice()
+  void startTapeVoice()
   {
     play_pos_ = 0.f;
     tape_progress_ = 0.f;
     tape_rate_ = 1.f;
+  }
+
+  void onSixteenth()
+  {
+    if (mode_ != MODE_ROLL || !pad_held_ || !active_)
+    {
+      if (!pad_held_)
+        rolling_ = false;
+      return;
+    }
+
+    if (!rolling_)
+    {
+      armRoll();
+      return;
+    }
+
+    // On-grid length/speed updates without forcing a playhead restart every time.
+    const uint32_t want = computeRollLoopSamples();
+    if (want != loop_length_ && want >= kMinSliceSamples &&
+        captured_samples_ >= want + 64U)
+    {
+      loop_length_ = want;
+      loop_start_ = (write_pos_ + record_length_ - loop_length_) % record_length_;
+      if (loop_pos_ >= static_cast<float>(loop_length_))
+        loop_pos_ = 0.f;
+    }
+  }
+
+  void armRoll()
+  {
+    loop_length_ = computeRollLoopSamples();
+    if (loop_length_ < kMinSliceSamples)
+      loop_length_ = kMinSliceSamples;
+
+    if (captured_samples_ < loop_length_ + 64U)
+    {
+      // Not enough history yet — keep the gate open and try again next 16th.
+      rolling_ = captured_samples_ > kMinSliceSamples;
+      if (rolling_)
+      {
+        loop_length_ = captured_samples_ > kMinSliceSamples ? captured_samples_ / 2U : kMinSliceSamples;
+        if (loop_length_ < kMinSliceSamples)
+          loop_length_ = kMinSliceSamples;
+        loop_start_ = (write_pos_ + record_length_ - loop_length_) % record_length_;
+        loop_pos_ = 0.f;
+      }
+      return;
+    }
+
+    loop_start_ = (write_pos_ + record_length_ - loop_length_) % record_length_;
     loop_pos_ = 0.f;
-    if (mode_ == MODE_ROLL)
-      captureRoll();
+    rolling_ = true;
   }
 
   uint32_t neededCaptureSamples() const
   {
-    if (mode_ == MODE_TAPE)
-    {
-      const float stop_beats = 0.35f + tape_norm_ * 3.65f;
-      uint32_t samples = static_cast<uint32_t>(stop_beats * 60.f / bpm_ * getSampleRate());
-      if (samples < kMinCaptureSamples)
-        samples = kMinCaptureSamples;
-      if (samples > record_length_)
-        samples = record_length_;
-      return samples;
-    }
-    if (mode_ == MODE_ROLL)
-    {
-      const float beat = static_cast<float>(fx::samplesPerBeat(bpm_, getSampleRate()));
-      uint32_t samples = static_cast<uint32_t>(beat * 2.f);
-      if (samples < kMinCaptureSamples)
-        samples = kMinCaptureSamples;
-      if (samples > record_length_)
-        samples = record_length_;
-      return samples;
-    }
-    return kMinCaptureSamples;
+    const float stop_beats = 0.35f + tape_norm_ * 3.65f;
+    uint32_t samples = static_cast<uint32_t>(stop_beats * 60.f / bpm_ * getSampleRate());
+    if (samples < kMinCaptureSamples)
+      samples = kMinCaptureSamples;
+    if (samples > record_length_)
+      samples = record_length_;
+    return samples;
   }
 
   void updateLoopGeometry()
@@ -361,7 +435,7 @@ private:
 
   void recordSample(float left, float right)
   {
-    if (buf_left_ == nullptr)
+    if (buf_left_ == nullptr || record_length_ == 0U)
       return;
     buf_left_[write_pos_] = left;
     buf_right_[write_pos_] = right;
@@ -408,6 +482,7 @@ private:
     if (wet_ <= 0.f && !pad_held_)
     {
       mode_ = MODE_NONE;
+      rolling_ = false;
       resetSvf();
     }
   }
@@ -420,9 +495,6 @@ private:
     const float from_right = 1.f - x_norm;
 
     cutoff_target_ = x_norm;
-    // LPF: moving left closes the filter (lower cutoff).
-    if (mode_ == MODE_LPF)
-      cutoff_target_ = x_norm;
     res_target_ = from_top;
     depth_target_ = y_norm;
     fb_hpf_target_ = x_norm;
@@ -540,7 +612,6 @@ private:
       return;
     }
 
-    // Fixed dotted 8th: 0.75 beat.
     float delay_samples = 0.75f * 60.f / bpm_ * getSampleRate();
     if (delay_samples < 64.f)
       delay_samples = 64.f;
@@ -555,7 +626,6 @@ private:
     const float delayed_left = delay_left_[read_a];
     const float delayed_right = delay_right_[read_a];
 
-    // Feedback HPF: right = higher cutoff on the feedback path.
     const float hpf_hz = 80.f + fb_hpf_smooth_ * fb_hpf_smooth_ * 6000.f;
     const float hpf_coeff = fx::onePoleCoeff(hpf_hz, getSampleRate());
     const float fb_left = delay_hpf_left_.processHp(delayed_left, hpf_coeff);
@@ -568,24 +638,13 @@ private:
     if (delay_pos_ >= kMaxDelaySamples)
       delay_pos_ = 0U;
 
-    // Up = depth (wet of delay against dry live).
     left = fx::mix(live_left, delayed_left, depth_smooth_);
     right = fx::mix(live_right, delayed_right, depth_smooth_);
   }
 
-  static uint32_t rollDivisions(float speed_norm)
+  // Left = longer source window (1/16 .. 1 beat).
+  static float rollBufferBeats(float len_norm)
   {
-    static const uint32_t kDivs[6] = {2U, 4U, 8U, 16U, 24U, 32U};
-    const float select = fx::clip01(speed_norm) * 5.0001f;
-    uint32_t step = static_cast<uint32_t>(select);
-    if (step > 5U)
-      step = 5U;
-    return kDivs[step];
-  }
-
-  static float bufferBeats(float len_norm)
-  {
-    // Step-aligned lengths: 1/16 .. 1 beat.
     static const float kBeats[5] = {0.0625f, 0.125f, 0.25f, 0.5f, 1.f};
     const float select = fx::clip01(len_norm) * 4.0001f;
     uint32_t step = static_cast<uint32_t>(select);
@@ -594,49 +653,33 @@ private:
     return kBeats[step];
   }
 
-  void captureRoll()
+  // Up = faster subdivision of that window (1, 2, 4, 8, 16).
+  static uint32_t rollSpeedDiv(float speed_norm)
+  {
+    static const uint32_t kDivs[5] = {1U, 2U, 4U, 8U, 16U};
+    const float select = fx::clip01(speed_norm) * 4.0001f;
+    uint32_t step = static_cast<uint32_t>(select);
+    if (step > 4U)
+      step = 4U;
+    return kDivs[step];
+  }
+
+  uint32_t computeRollLoopSamples() const
   {
     const float beat = static_cast<float>(fx::samplesPerBeat(bpm_, getSampleRate()));
-    const float buf_beats = bufferBeats(roll_len_smooth_);
-    uint32_t length = static_cast<uint32_t>(buf_beats * beat);
-    if (length < kMinSliceSamples)
-      length = kMinSliceSamples;
-    if (length > frozen_length_ && frozen_length_ >= kMinSliceSamples)
-      length = frozen_length_;
-    if (length > captured_samples_ && captured_samples_ >= kMinSliceSamples)
-      length = captured_samples_;
-
-    const uint32_t divisions = rollDivisions(roll_speed_smooth_);
-    uint32_t slice = length / divisions;
-    if (slice < kMinSliceSamples)
-      slice = kMinSliceSamples;
-    if (slice > length)
-      slice = length;
-
-    loop_length_ = slice;
-    if (frozen_length_ >= slice)
-    {
-      loop_start_ = (frozen_origin_ + frozen_length_ - slice) % record_length_;
-    }
-    else
-    {
-      const uint32_t newest = write_pos_ == 0U ? record_length_ - 1U : write_pos_ - 1U;
-      int32_t origin = static_cast<int32_t>(newest) - static_cast<int32_t>(slice) + 1;
-      if (origin < 0)
-        origin += static_cast<int32_t>(record_length_);
-      loop_start_ = static_cast<uint32_t>(origin);
-    }
-    loop_pos_ = 0.f;
+    const float buf_beats = rollBufferBeats(roll_len_smooth_);
+    const uint32_t div = rollSpeedDiv(roll_speed_smooth_);
+    uint32_t samples = static_cast<uint32_t>(buf_beats * beat / static_cast<float>(div) + 0.5f);
+    if (samples < kMinSliceSamples)
+      samples = kMinSliceSamples;
+    if (samples > record_length_ / 2U)
+      samples = record_length_ / 2U;
+    return samples;
   }
 
   void renderRoll(float &left, float &right)
   {
-    // Retarget slice length while held so speed / buffer gestures respond.
-    ++roll_retarget_counter_;
-    if ((roll_retarget_counter_ & 63U) == 0U)
-      captureRoll();
-
-    if (loop_length_ < 8U || buf_left_ == nullptr)
+    if (!rolling_ || loop_length_ < 8U || buf_left_ == nullptr)
     {
       left = 0.f;
       right = 0.f;
@@ -649,18 +692,26 @@ private:
     left = buf_left_[index_a] + (buf_left_[index_b] - buf_left_[index_a]) * frac;
     right = buf_right_[index_a] + (buf_right_[index_b] - buf_right_[index_a]) * frac;
 
-    const float xfade = 8.f + glue_norm_ * 96.f;
-    if (loop_pos_ < xfade)
+    // Soft crossfade at the loop point (GLUE), never gate to silence.
+    float xfade = 8.f + glue_norm_ * 48.f;
+    const float quarter = static_cast<float>(loop_length_) * 0.25f;
+    if (xfade > quarter)
+      xfade = quarter;
+    if (xfade >= 2.f && loop_pos_ < xfade)
     {
-      const float fade = loop_pos_ / xfade;
-      left *= fade;
-      right *= fade;
-    }
-    else if (loop_pos_ > static_cast<float>(loop_length_) - xfade)
-    {
-      const float fade = (static_cast<float>(loop_length_) - loop_pos_) / xfade;
-      left *= fade < 0.f ? 0.f : fade;
-      right *= fade < 0.f ? 0.f : fade;
+      const float fade_in = loop_pos_ / xfade;
+      const float fade_out = 1.f - fade_in;
+      const float tail_pos = static_cast<float>(loop_length_) - xfade + loop_pos_;
+      const uint32_t tail_a =
+          (loop_start_ + static_cast<uint32_t>(tail_pos)) % record_length_;
+      const uint32_t tail_b = (tail_a + 1U) % record_length_;
+      const float tail_frac = tail_pos - static_cast<float>(static_cast<uint32_t>(tail_pos));
+      const float tail_left =
+          buf_left_[tail_a] + (buf_left_[tail_b] - buf_left_[tail_a]) * tail_frac;
+      const float tail_right =
+          buf_right_[tail_a] + (buf_right_[tail_b] - buf_right_[tail_a]) * tail_frac;
+      left = tail_left * fade_out + left * fade_in;
+      right = tail_right * fade_out + right * fade_in;
     }
 
     loop_pos_ += 1.f;
@@ -685,7 +736,14 @@ private:
       renderDelay(live_left, live_right, left, right);
       break;
     case MODE_ROLL:
-      renderRoll(left, right);
+      if (rolling_)
+        renderRoll(left, right);
+      else
+      {
+        // Waiting for the next 16th — pass dry so the grid join is clean.
+        left = live_left;
+        right = live_right;
+      }
       break;
     default:
       left = live_left;
@@ -716,14 +774,15 @@ private:
   float depth_smooth_ = 0.f;
   float fb_hpf_target_ = 0.3f;
   float fb_hpf_smooth_ = 0.3f;
-  float roll_speed_target_ = 0.4f;
-  float roll_speed_smooth_ = 0.4f;
-  float roll_len_target_ = 0.4f;
-  float roll_len_smooth_ = 0.4f;
+  float roll_speed_target_ = 0.25f;
+  float roll_speed_smooth_ = 0.25f;
+  float roll_len_target_ = 0.25f;
+  float roll_len_smooth_ = 0.25f;
   float play_pos_ = 0.f;
   float tape_progress_ = 0.f;
   float tape_rate_ = 1.f;
   float loop_pos_ = 0.f;
+  float clock_acc_ = 0.f;
   float captured_peak_ = 0.f;
 
   uint32_t write_pos_ = 0U;
@@ -734,12 +793,13 @@ private:
   uint32_t frozen_length_ = 0U;
   uint32_t loop_start_ = 0U;
   uint32_t loop_length_ = 2048U;
-  uint32_t roll_retarget_counter_ = 0U;
 
   uint8_t mode_ = MODE_NONE;
   bool pad_held_ = false;
   bool active_ = false;
   bool arming_ = false;
+  bool rolling_ = false;
+  bool use_host_clock_ = false;
 
   SvfState svf_left_;
   SvfState svf_right_;
