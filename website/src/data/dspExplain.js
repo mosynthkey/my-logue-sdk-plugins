@@ -314,6 +314,22 @@ export const dspExplainById = {
   LPF --> Mix[Dry or wet] --> Out[Out]
   In --> Mix`,
   },
+  steprndflt: {
+    en: "Tempo-synced sample-and-hold LFO into a multimode resonant filter on AUDIO IN. Each step redraws a random bipolar offset around CUT; X (DEPTH) scales that swing in octaves, Y is resonance. TYPE selects LP12 / LP24 / BPF / HP12 / HP24. Hold the pad to engage.",
+    ja: "AUDIO INへのテンポ同期S&H LFO→マルチモード共振フィルタです。各ステップでCUT周りのバイポーラ乱数を引き直し、X（DEPTH）がその振れ幅（オクターブ）、Yがレゾナンス。TYPEはLP12/LP24/BPF/HP12/HP24。パッド押下中のみ効きます。",
+    mermaid: `flowchart LR
+  Tempo[BPM clock] --> Grid[Step period]
+  Grid --> SH[Sample and hold]
+  SH --> CutMod[Cutoff offset]
+  Depth[X depth] --> CutMod
+  Cut[CUT center] --> CutMod
+  In[Audio in] --> Flt[LP12 LP24 BPF HP12 HP24]
+  CutMod --> Flt
+  Res[Y resonance] --> Flt
+  Type[TYPE] --> Flt
+  Flt --> Mix[Dry or wet] --> Out[Out]
+  In --> Mix`,
+  },
   tapeosc: {
     en: "Tape-style oscillator: a band-limited source is written into a circular buffer while a varispeed read head ramps start/stop. Grit blends ZOH vs linear; wear LPF and wow/flutter modulate rate.",
     ja: "テープ風OSCです。帯域制限波形を円形バッファへ書き、読みヘッドが起動／停止で変速します。グリットでZOH／線形、摩耗LPFとワウ／フラッタで速度を変調します。",

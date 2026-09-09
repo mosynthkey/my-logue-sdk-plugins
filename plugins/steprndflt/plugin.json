@@ -1,0 +1,47 @@
+{
+  "id": "steprndflt",
+  "experimental": true,
+  "name": "StepRndFlt",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Tempo-synced sample-and-hold LFO into a multimode resonant filter on AUDIO IN. Each step redraws a random cutoff offset around CUT. X = LFO depth, Y = resonance. TYPE selects LP12 / LP24 / BPF / HP12 / HP24. Hold the pad to engage; release returns to dry.",
+  "params": [
+    {
+      "name": "DEPTH",
+      "role": "X",
+      "detail": "How far each S&H step moves cutoff around CUT (± octaves)"
+    },
+    {
+      "name": "RES",
+      "role": "Y",
+      "detail": "Filter resonance"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet while the pad is held"
+    },
+    {
+      "name": "CUT",
+      "role": "Edit",
+      "detail": "Center cutoff the S&H LFO modulates around"
+    },
+    {
+      "name": "STEPS",
+      "role": "Edit",
+      "detail": "S&H period: 4Bar, 2Bar, 16St, 8St, 4St, 2St, 1St, 1/2"
+    },
+    {
+      "name": "TYPE",
+      "role": "Edit",
+      "detail": "Filter mode: LP12, LP24, BPF, HP12, HP24"
+    },
+    {
+      "name": "SLEW",
+      "role": "Edit",
+      "detail": "How quickly cutoff glides to each new random value"
+    }
+  ]
+}
