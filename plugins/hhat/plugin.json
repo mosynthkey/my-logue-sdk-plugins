@@ -1,0 +1,16 @@
+{
+  "id": "hhat",
+  "experimental": true,
+  "name": "HHat",
+  "type": "drum",
+  "targets": ["nts-3_kaoss"],
+  "description": "Modeled 808-style hi-hat on a phrase pad. Hold to run. X = Euclidean step density, Y = Close → Open continuum (half-open lives in between).\nStill being fine-tuned; the official release is coming soon.",
+  "params": [
+    { "name": "DENS", "role": "X", "detail": "Euclidean hits per 16-step bar (1–16), then 32nd rolls" },
+    { "name": "OPEN", "role": "Y", "detail": "Close (bottom) → Open (top). Continuous decay / brightness; closing chokes ringing open" },
+    { "name": "MIX", "role": "Depth", "detail": "Dry/wet" },
+    { "name": "TONE", "role": "Edit", "detail": "Band-pass centre / metallic brightness" },
+    { "name": "TUNE", "role": "Edit", "detail": "Transpose the six metal square oscillators" },
+    { "name": "DEC", "role": "Edit", "detail": "Master decay scale for the Close–Open range" }
+  ]
+}
