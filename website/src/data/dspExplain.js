@@ -21,12 +21,13 @@ export const dspExplainById = {
   Herm --> Mix[Sum voices] --> Out[Wet or dry-wet]`,
   },
   amentime: {
-    en: "Pad-gated 1-bar PCM slicer. An internal sample clock (not 4ppqn) walks equal 16th/32nd slices of a synthesized amen-style break. Playback rate is PCM length over host bar length so pitch tracks BPM; TUNE is an extra octave. Two voices crossfade; slices wrap the bar.",
-    ja: "パッド・ゲートの1小節PCMスライサーです。内部サンプル時計（4ppqnではない）で合成amen風ブレイクを等分スライスします。再生速度はPCM長／ホスト1小節なのでピッチがBPMに追従し、TUNEで±1octします。2ボイスでクロスフェードし、小節端はラップします。",
+    en: "Pad-gated 1-bar PCM slicer. An internal sample clock (not 4ppqn) walks equal 16th/32nd slices of a synthesized amen-style break from a fixed origin — tap XY does not pick the start 16th (REVS is X; STRT is Edit). Playback rate is PCM length over host bar length so pitch tracks BPM; TUNE is an extra octave. Two voices crossfade; slices wrap the bar.",
+    ja: "パッド・ゲートの1小節PCMスライサーです。内部サンプル時計（4ppqnではない）で合成amen風ブレイクを等分スライスします。タップ位置は開始16分を決めず（XはREVS、STRTはEdit）、常にステップ同期で歩きます。再生速度はPCM長／ホスト1小節なのでピッチがBPMに追従し、TUNEで±1octします。",
     mermaid: `flowchart LR
   Pad[Pad gate] --> Clock[Internal slice clock]
   BPM[Host BPM] --> Rate[PCM length over bar]
-  Clock --> Slice[Start 16th and SIZE grid]
+  Edit[STRT Edit] --> Slice[SIZE grid walk]
+  Clock --> Slice
   PCM[Synth 12 kHz PCM] --> Read[Linear wrap read]
   Slice --> Read
   Rate --> Read
@@ -34,13 +35,14 @@ export const dspExplainById = {
   In[Audio in] --> Mix`,
   },
   wavslice: {
-    en: "Same pad slicer as AmenTime, for any 1-bar WAV. Build embeds assets/loop.wav when present, otherwise the shipped CC0 default-loop.wav backbeat.",
-    ja: "AmenTimeと同じパッド・スライサーで、任意の1小節WAVを再生します。assets/loop.wav があればそれを埋め、無ければ同梱のCC0ドラムループを使います。",
+    en: "Same pad slicer as AmenTime, for any 1-bar WAV. Tap position does not pick the start 16th. Build embeds assets/loop.wav when present, otherwise the shipped CC0 default-loop.wav backbeat.",
+    ja: "AmenTimeと同じパッド・スライサーで、任意の1小節WAVを再生します。タップ位置は開始16分を決めません。assets/loop.wav があればそれを埋め、無ければ同梱のCC0ドラムループを使います。",
     mermaid: `flowchart LR
   Wav[loop.wav or default-loop.wav] --> PCM[12 kHz 8-bit PCM]
   Pad[Pad gate] --> Clock[Internal slice clock]
   BPM[Host BPM] --> Rate[PCM length over bar]
-  Clock --> Slice[Start 16th and SIZE grid]
+  Edit[STRT Edit] --> Slice[SIZE grid walk]
+  Clock --> Slice
   PCM --> Read[Linear wrap read]
   Slice --> Read
   Rate --> Read
@@ -48,11 +50,13 @@ export const dspExplainById = {
   In[Audio in] --> Mix`,
   },
   beatrepeat: {
-    en: "Stereo ring buffer of live input. On each 16th note (or forced by touch) it may capture a slice and loop it with feedback, then crossfade dry/wet by Mix.",
-    ja: "入力をステレオリングバッファに常時録音します。16分音符ごと（またはタッチ強制）にスライスを掴んでループ＋フィードバックし、Mixでドライ／ウェットします。",
+    en: "Stereo ring buffer of live input. Pad gates only; slices arm on the host 16th grid (internal 16th fallback), with PROB re-arm while held, then crossfade dry/wet by Mix.",
+    ja: "入力をステレオリングバッファに常時録音します。パッドはゲートのみで、ホスト16分（なければ内部16分）でスライスを掴み、ホールド中はPROBで再アーム。Mixでドライ／ウェットします。",
     mermaid: `flowchart LR
   In[Live in] --> Buf[Stereo ring buffer]
-  Clock[16th clock or Touch] --> Arm[Arm slice loop]
+  Pad[Pad gate] --> Hold[Hold]
+  Clock[Host 16th or internal] --> Arm[Arm slice loop]
+  Hold --> Arm
   Buf --> Loop[Loop and feedback]
   Arm --> Loop
   In --> Mix[Dry or wet] --> Out[Out]
@@ -290,8 +294,8 @@ export const dspExplainById = {
   Pan --> Mix[Sub mix and norm] --> Out[Out]`,
   },
   kaocid: {
-    en: "TB-303-style mono acid: pad regenerates a 16-step phrase; X/Y map to cutoff/resonance. VCO (saw/square) → gsynth-style VCF with accent sweep → VCA, then dry/wet.",
-    ja: "TB-303風モノアシッドです。パッドで16ステップを再生成し、XYがカットオフ／レゾナンスです。ソー／矩形→VCF（アクセント掃引）→VCAの順でドライ／ウェットします。",
+    en: "TB-303-style mono acid: each tap advances a 16-step phrase seed (pad XY is cutoff/resonance only, not the seed). VCO (saw/square) → gsynth-style VCF with accent sweep → VCA, then dry/wet.",
+    ja: "TB-303風モノアシッドです。タップするたびに16ステップフレーズの種が進み（パッド位置はカットオフ／レゾナンスのみ）、ソー／矩形→VCF（アクセント掃引）→VCAの順でドライ／ウェットします。",
     mermaid: `flowchart LR
   Touch[Touch phrase] --> Seq[16-step and slide]
   Seq --> VCO[Saw or Square]
@@ -331,12 +335,14 @@ export const dspExplainById = {
   In[Audio in] --> Mix --> Out[Out]`,
   },
   revroll: {
-    en: "DJM Rev Roll: touch captures a tempo slice and plays it backwards with a speed curve. Release returns to live.",
-    ja: "DJM Rev Rollです。タッチでテンポ切片を掴み、速度カーブ付きで逆再生します。離すとライブに戻ります。",
+    en: "DJM Rev Roll: pad gates only; captures a tempo slice on the host 16th grid (internal fallback) and plays it backwards with a speed curve. Release returns to live.",
+    ja: "DJM Rev Rollです。パッドはゲートのみで、ホスト16分（なければ内部16分）でテンポ切片を掴み、速度カーブ付きで逆再生します。離すとライブに戻ります。",
     mermaid: `flowchart LR
   In[Live in] --> Buf[Always-on buffer]
-  Touch[Touch capture] --> Loop[Reverse loop]
-  Buf --> Loop --> Mix[Dry or wet] --> Out[Out]
+  Pad[Pad gate] --> Hold[Hold]
+  Clock[Host 16th or internal] --> Cap[Capture slice]
+  Hold --> Cap
+  Buf --> Cap --> Loop[Reverse loop] --> Mix[Dry or wet] --> Out[Out]
   In --> Mix`,
   },
   reesephr: {

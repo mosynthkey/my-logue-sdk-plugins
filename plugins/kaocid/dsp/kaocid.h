@@ -5,9 +5,9 @@
  *
  * TB-303 style monophonic acid bass with automatic 16-step phrase generator
  * for NTS-3 kaoss pad. Hold the pad to run the sequencer; each new touch
- * regenerates a random acid pattern (rhythm, scale, accent, and slide style
- * vary per touch). X = cutoff, Y = resonance, Depth = mix. ROOT sets the
- * phrase key.
+ * advances a phrase seed and regenerates a random acid pattern (rhythm, scale,
+ * accent, and slide style). Pad XY is cutoff/resonance only — tap position does
+ * not choose the phrase. Depth = mix. ROOT sets the phrase key.
  *
  * Panel knobs follow the TB-303: waveform, cutoff, resonance, env mod, decay,
  * accent. Accented steps use a fixed ~200 ms MEG decay, louder VCA, and a
@@ -196,6 +196,8 @@ public:
   void touchEvent(uint8_t id, uint8_t phase, uint32_t x, uint32_t y) override final
   {
     (void)id;
+    (void)x;
+    (void)y;
 
     if (phase == k_unit_touch_phase_ended || phase == k_unit_touch_phase_cancelled)
     {
@@ -212,7 +214,8 @@ public:
     if (running_)
       return;
 
-    phrase_seed_ = mixSeed(phrase_seed_, x, y);
+    // Advance phrase seed without pad XY — tap position is filter params only.
+    phrase_seed_ = advanceSeed(phrase_seed_);
     generatePhrase(phrase_seed_);
     step_index_ = 0U;
     samples_until_tick_ = samples_per_tick_;
@@ -274,9 +277,9 @@ private:
     bool slide = false;
   };
 
-  static uint32_t mixSeed(uint32_t counter, uint32_t x, uint32_t y)
+  static uint32_t advanceSeed(uint32_t counter)
   {
-    return counter * 2654435761U + x * 2246822519U + y * 3266489917U + 1U;
+    return counter * 2654435761U + 1U;
   }
 
   static uint32_t nextRandom(uint32_t &state)

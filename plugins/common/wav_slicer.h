@@ -263,6 +263,7 @@ private:
   {
     const uint32_t slices = slicesPerBar();
     const uint32_t chunks_per_slice = kChunks / slices;
+    // STRT is an Edit offset; pad X must not drive this (UKGarage-style step walk).
     const uint32_t start_16th = static_cast<uint32_t>(start_norm_ * 15.999f);
     const uint32_t start_chunk = start_16th * (kChunks / 16U);
     uint32_t source_chunk = start_chunk;

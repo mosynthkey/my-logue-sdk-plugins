@@ -46,6 +46,16 @@ static void setup(Kaocid &synth)
   synth.setTempo(120.f);
 }
 
+static void tapPhrase(Kaocid &synth)
+{
+  synth.touchEvent(0, k_unit_touch_phase_began, 512, 512);
+}
+
+static void releasePad(Kaocid &synth)
+{
+  synth.touchEvent(0, k_unit_touch_phase_ended, 512, 512);
+}
+
 static uint64_t phraseFingerprint(const Kaocid &synth)
 {
   uint64_t fingerprint = 0U;
@@ -70,16 +80,14 @@ int main()
   uint32_t max_notes = 0U;
   uint32_t glide_phrases = 0U;
   uint32_t rest_on_first = 0U;
-  uint32_t slide_seed_x = 0U;
-  uint32_t slide_seed_y = 0U;
+  uint32_t slide_tap_index = 0U;
   bool found_slide = false;
 
+  // Phrase variety comes from successive taps, not pad XY.
+  setup(synth);
   for (uint32_t seedIndex = 0; seedIndex < 48U; ++seedIndex)
   {
-    setup(synth);
-    const uint32_t touch_x = 40U + seedIndex * 73U;
-    const uint32_t touch_y = 90U + seedIndex * 41U;
-    synth.touchEvent(0, k_unit_touch_phase_began, touch_x, touch_y);
+    tapPhrase(synth);
 
     const uint32_t note_count = synth.debugNoteCount();
     if (note_count == 0U)
@@ -118,12 +126,13 @@ int main()
             synth.debugDegree(next_index) >= 0)
         {
           found_slide = true;
-          slide_seed_x = touch_x;
-          slide_seed_y = touch_y;
+          slide_tap_index = seedIndex;
           break;
         }
       }
     }
+
+    releasePad(synth);
   }
 
   std::printf("unique=%u notes=%u..%u glides=%u rest0=%u\n", unique_count, min_notes, max_notes,
@@ -141,7 +150,12 @@ int main()
     return 11;
 
   setup(synth);
-  synth.touchEvent(0, k_unit_touch_phase_began, slide_seed_x, slide_seed_y);
+  for (uint32_t tapIndex = 0; tapIndex <= slide_tap_index; ++tapIndex)
+  {
+    tapPhrase(synth);
+    if (tapIndex < slide_tap_index)
+      releasePad(synth);
+  }
 
   const uint32_t glide_count = synth.debugGlideCount();
   std::printf("glide_count=%u phrase=", glide_count);

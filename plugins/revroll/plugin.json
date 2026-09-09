@@ -6,7 +6,7 @@
   "targets": [
     "nts-3_kaoss"
   ],
-  "description": "DJM Rev Roll. Captures a tempo-synced slice on touch and repeats it backwards. X = slice length, Y = reverse playback curve. Release returns forward.",
+  "description": "DJM Rev Roll. Pad gates only — captures a tempo-synced slice on the host 16th grid (not the tap moment) and repeats it backwards. X = slice length, Y = reverse playback curve. Release returns forward.",
   "params": [
     {
       "name": "LEN",

@@ -3,8 +3,9 @@
 /*
  * File: revroll.h
  *
- * DJM Rev Roll. Always records. Touch captures a tempo-synced slice and
- * loops it backwards. Release is dry at the live timeline.
+ * DJM Rev Roll. Always records. Pad gates only — captures a tempo-synced
+ * slice on the host 16th grid (4ppqn), with an internal 16th clock fallback,
+ * then loops it backwards. Release is dry at the live timeline.
  */
 
 #include "fx_dsp.h"
@@ -64,7 +65,10 @@ public:
     loop_len_ = 2048U;
     loop_pos_ = 0.f;
     last_len_ = 0U;
+    clock_acc_ = 0.f;
     rolling_ = false;
+    pad_held_ = false;
+    use_host_clock_ = false;
     bpm_ = 120.f;
   }
 
@@ -79,7 +83,9 @@ public:
     write_pos_ = 0U;
     captured_ = 0U;
     rolling_ = false;
+    pad_held_ = false;
     loop_pos_ = 0.f;
+    clock_acc_ = 0.f;
   }
 
   void setTempo(float tempo) override final
@@ -88,21 +94,26 @@ public:
       bpm_ = tempo;
   }
 
+  void tempo4ppqnTick(uint32_t) override final
+  {
+    use_host_clock_ = true;
+    onSixteenth();
+  }
+
+  // Gate only — do not capture from the tap moment; wait for the next 16th.
   void touchEvent(uint8_t, uint8_t phase, uint32_t, uint32_t) override final
   {
-    if (phase == k_unit_touch_phase_began)
+    if (phase == k_unit_touch_phase_began || phase == k_unit_touch_phase_moved ||
+        phase == k_unit_touch_phase_stationary)
     {
-      captureNow();
-      rolling_ = true;
-      return;
-    }
-    if (phase == k_unit_touch_phase_moved || phase == k_unit_touch_phase_stationary)
-    {
-      rolling_ = true;
+      pad_held_ = true;
       return;
     }
     if (phase == k_unit_touch_phase_ended || phase == k_unit_touch_phase_cancelled)
+    {
+      pad_held_ = false;
       rolling_ = false;
+    }
   }
 
   void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final
@@ -112,10 +123,8 @@ public:
 
   void process(const float *__restrict in, const float *__restrict raw, float *__restrict out, uint32_t frames)
   {
-    const uint32_t want = lengthSamples();
-    if (rolling_ && want != last_len_)
-      captureNow();
-
+    const float beat_samples = static_cast<float>(fx::samplesPerBeat(bpm_, getSampleRate()));
+    const float sixteenth = beat_samples * 0.25f;
     const float increment = 0.35f + curv_norm_ * 0.85f;
     const float xfade = 16.f + glue_norm_ * 240.f;
 
@@ -129,6 +138,17 @@ public:
       write_pos_ = (write_pos_ + 1U) % kMaxBuf;
       if (captured_ < kMaxBuf)
         ++captured_;
+
+      // Free-run even while the pad is up so the next hold joins the same grid.
+      if (!use_host_clock_ && sixteenth > 1.f)
+      {
+        clock_acc_ += 1.f;
+        if (clock_acc_ >= sixteenth)
+        {
+          clock_acc_ -= sixteenth;
+          onSixteenth();
+        }
+      }
 
       float wet_left = live_left;
       float wet_right = live_right;
@@ -173,8 +193,24 @@ private:
   {
     loop_len_ = lengthSamples();
     last_len_ = loop_len_;
+    if (captured_ < loop_len_)
+      return;
     loop_start_ = (write_pos_ + kMaxBuf - loop_len_) % kMaxBuf;
     loop_pos_ = static_cast<float>(loop_len_) - 1.f;
+    rolling_ = true;
+  }
+
+  void onSixteenth()
+  {
+    if (!pad_held_)
+    {
+      rolling_ = false;
+      return;
+    }
+
+    const uint32_t want = lengthSamples();
+    if (!rolling_ || want != last_len_)
+      captureNow();
   }
 
   void readLoop(float pos, float &left, float &right) const
@@ -194,10 +230,13 @@ private:
   uint32_t loop_len_ = 2048U;
   uint32_t last_len_ = 0U;
   float loop_pos_ = 0.f;
+  float clock_acc_ = 0.f;
   float bpm_ = 120.f;
   float len_norm_ = 0.34f;
   float curv_norm_ = 0.5f;
   float glue_norm_ = 0.16f;
   float mix_ = 1.f;
   bool rolling_ = false;
+  bool pad_held_ = false;
+  bool use_host_clock_ = false;
 };

@@ -4,16 +4,18 @@ NTS-3 `genericfx` that plays **one bar of WAV**, tempo-locked to the host, and
 chops it on the pad. Any 1-bar drum loop, vocal chop, or stab will do. This is
 not an amen plugin; AmenTime is the synthesized amen-style slicer.
 
-Hold the pad to run. X = start 16th. Y = slice grid (1/4, 1/8, 1/16, 1/32).
+Hold the pad to run on a tempo step grid. Tap position does not pick the start
+16th (UKGarage-style). X = reverse chance. Y = slice grid. STRT (Edit) offsets
+the walk origin.
 
 | Param | Role | What it does |
 | --- | --- | --- |
-| STRT | X | Which 16th of the bar to start from |
+| STRT | Edit | Which 16th of the bar the walk starts from (not pad X) |
 | SIZE | Y | Slice length: 1/4, 1/8, 1/16, 1/32 of a bar |
 | MIX | Depth | Dry/wet |
 | TUNE | Edit | Extra pitch around tempo-locked playback (±1 octave) |
 | RPT | Edit | RUN walks through slices. LOCK retriggers the start slice |
-| REVS | Edit | Chance each slice plays backwards |
+| REVS | X | Chance each slice plays backwards |
 | HOLD | Edit | GATE = hold to play. LATC keeps running after release |
 
 Experimental: open the site with `?experimental`.
