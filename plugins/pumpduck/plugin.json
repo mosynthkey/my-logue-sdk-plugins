@@ -6,7 +6,7 @@
   "targets": [
     "nts-3_kaoss"
   ],
-  "description": "Envelope-follower sidechain. Follows AUDIO IN (raw input when available) and ducks amplitude, a resonant filter, or an internal plate. X = attack/release feel, Y = depth. Touch cycles the duck destination.",
+  "description": "Envelope-follower sidechain. Follows AUDIO IN (raw input when available) and ducks amplitude, a resonant filter, or an internal plate while the pad is held. X = attack/release feel, Y = depth. DEST selects the duck destination.",
   "params": [
     {
       "name": "TIME",

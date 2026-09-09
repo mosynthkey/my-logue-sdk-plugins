@@ -92,6 +92,8 @@ public:
     ola_read_pos_ = 0U;
     analysis_write_pos_ = 0U;
     reroll_all_ = true;
+    pad_held_ = false;
+    wet_ = 0.f;
     rng_ = seed_;
     for (uint32_t bandIndex = 0; bandIndex < kMaxBands; ++bandIndex)
     {
@@ -123,12 +125,21 @@ public:
     }
     fifo_count_ = 0U;
     reroll_all_ = true;
+    wet_ = 0.f;
   }
 
   void touchEvent(uint8_t, uint8_t phase, uint32_t, uint32_t) override final
   {
-    if (phase == k_unit_touch_phase_began)
-      reroll_all_ = true;
+    if (phase == k_unit_touch_phase_began || phase == k_unit_touch_phase_moved ||
+        phase == k_unit_touch_phase_stationary)
+    {
+      if (!pad_held_)
+        reroll_all_ = true;
+      pad_held_ = true;
+      return;
+    }
+    if (phase == k_unit_touch_phase_ended || phase == k_unit_touch_phase_cancelled)
+      pad_held_ = false;
   }
 
   void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final
@@ -138,12 +149,16 @@ public:
 
   void process(const float *__restrict in, const float *__restrict raw, float *__restrict out, uint32_t frames)
   {
+    const float wet_coeff = 1.f - fasterexpf(-1.f / 192.f);
+
     for (uint32_t frameIndex = 0; frameIndex < frames; ++frameIndex)
     {
       float live_left = 0.f;
       float live_right = 0.f;
       fx::pickLive(in + frameIndex * 2U, raw == nullptr ? nullptr : raw + frameIndex * 2U, live_left, live_right);
       const float mono_in = 0.5f * (live_left + live_right);
+
+      wet_ += ((pad_held_ ? 1.f : 0.f) - wet_) * wet_coeff;
 
       analysis_[analysis_write_pos_] = mono_in;
       analysis_write_pos_ = (analysis_write_pos_ + 1U) & (kFftSize - 1U);
@@ -158,8 +173,9 @@ public:
       ola_[ola_read_pos_] = 0.f;
       ola_read_pos_ = (ola_read_pos_ + 1U) & (kFftSize - 1U);
 
-      out[frameIndex * 2U] = fx::mix(live_left, wet, mix_);
-      out[frameIndex * 2U + 1U] = fx::mix(live_right, wet, mix_);
+      const float amount = wet_ * mix_;
+      out[frameIndex * 2U] = fx::mix(live_left, wet, amount);
+      out[frameIndex * 2U + 1U] = fx::mix(live_right, wet, amount);
     }
   }
 
@@ -264,5 +280,7 @@ private:
   float flux_norm_ = 0.37f;
   float smooth_norm_ = 0.5f;
   float mix_ = 1.f;
+  float wet_ = 0.f;
   bool reroll_all_ = true;
+  bool pad_held_ = false;
 };

@@ -6,7 +6,7 @@
   "targets": [
     "nts-3_kaoss"
   ],
-  "description": "Step-grid probe. Passes AUDIO IN and overlays a decaying band-limited saw at each tempo step head so you can hear whether the clock/grid is locking. X = pitch, Y = decay. Prefers host 4ppqn; otherwise uses an internal BPM clock. Touch resets to step 0.",
+  "description": "Step-grid probe. Passes AUDIO IN and, while the pad is held, overlays a decaying band-limited saw at each tempo step head so you can hear whether the clock/grid is locking. X = pitch, Y = decay. Prefers host 4ppqn; otherwise uses an internal BPM clock.",
   "params": [
     {
       "name": "PITCH",

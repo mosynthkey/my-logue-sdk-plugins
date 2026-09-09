@@ -6,7 +6,7 @@
   "targets": [
     "nts-3_kaoss"
   ],
-  "description": "Tempo-synced step FX dice for NTS-3. A bar is split into 16, 8, 4, 2, or 1 steps and each step draws a different effect (gate, filter, crush, ring, pan, drive, stutter, reverse, echo). X = intensity, Y = pattern seed. Touch re-rolls in RUN, or holds the grid in HOLD.",
+  "description": "Tempo-synced step FX dice for NTS-3. A bar is split into 16, 8, 4, 2, or 1 steps and each step draws a different effect (gate, filter, crush, ring, pan, drive, stutter, reverse, echo). X = intensity, Y = pattern seed. Default HOLD engages only while touching; RUN stays always on and tap re-rolls.",
   "params": [
     {
       "name": "AMT",
@@ -41,7 +41,7 @@
     {
       "name": "HOLD",
       "role": "Edit",
-      "detail": "RUN = always on, tap to re-roll. HOLD = engage only while touching"
+      "detail": "HOLD = engage only while touching (default). RUN = always on, tap to re-roll"
     }
   ]
 }

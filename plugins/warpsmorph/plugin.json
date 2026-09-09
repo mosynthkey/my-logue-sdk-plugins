@@ -6,7 +6,7 @@
   "targets": [
     "nts-3_kaoss"
   ],
-  "description": "Cross-mod morph in the spirit of Mutable Warps. One axis walks diode ring, XOR, comparator, mini-vocoder, and wavefolder. Y sets the internal carrier and harshness. Touch blends in the internal oscillator.",
+  "description": "Cross-mod morph in the spirit of Mutable Warps. Pad-held wet. One axis walks diode ring, XOR, comparator, mini-vocoder, and wavefolder. Y sets the internal carrier and harshness.",
   "params": [
     {
       "name": "ALGO",

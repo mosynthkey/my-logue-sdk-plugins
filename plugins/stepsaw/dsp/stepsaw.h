@@ -3,10 +3,10 @@
 /*
  * File: stepsaw.h
  *
- * Step-grid probe. Passes AUDIO IN and overlays a decaying band-limited saw
- * at each tempo step head so you can hear whether the clock/grid is correct.
- * Prefers host 4ppqn when present; otherwise runs an internal sample clock.
- * Touch resets to step 0 (bar sync).
+ * Step-grid probe. Passes AUDIO IN and, while the pad is held, overlays a
+ * decaying band-limited saw at each tempo step head so you can hear whether
+ * the clock/grid is correct. Prefers host 4ppqn when present; otherwise runs
+ * an internal sample clock. Touch also resets to step 0 (bar sync).
  */
 
 #include "fx_dsp.h"
@@ -84,8 +84,8 @@ public:
     step_index_ = 0U;
     last_host_counter_ = 0U;
     use_host_clock_ = false;
-    // Fire immediately so bar start is audible without waiting one step.
-    triggerStep();
+    pad_held_ = false;
+    env_active_ = false;
   }
 
   void setTempo(float tempo) override final
@@ -98,6 +98,8 @@ public:
   {
     use_host_clock_ = true;
     last_host_counter_ = counter;
+    if (!pad_held_)
+      return;
     const uint32_t steps = stepsPerBar();
     const uint32_t ticks_per_step = kTicksPerBar / steps;
     if (ticks_per_step == 0U)
@@ -110,12 +112,24 @@ public:
 
   void touchEvent(uint8_t, uint8_t phase, uint32_t, uint32_t) override final
   {
-    if (phase != k_unit_touch_phase_began)
+    if (phase == k_unit_touch_phase_began || phase == k_unit_touch_phase_moved ||
+        phase == k_unit_touch_phase_stationary)
+    {
+      if (!pad_held_)
+      {
+        clock_acc_ = 0.f;
+        tick_counter_ = 0U;
+        step_index_ = 0U;
+        triggerStep();
+      }
+      pad_held_ = true;
       return;
-    clock_acc_ = 0.f;
-    tick_counter_ = 0U;
-    step_index_ = 0U;
-    triggerStep();
+    }
+    if (phase == k_unit_touch_phase_ended || phase == k_unit_touch_phase_cancelled)
+    {
+      pad_held_ = false;
+      env_active_ = false;
+    }
   }
 
   void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final
@@ -139,11 +153,11 @@ public:
       float live_right = 0.f;
       fx::pickLive(in, raw, live_left, live_right);
 
-      if (!use_host_clock_)
+      if (pad_held_ && !use_host_clock_)
         advanceInternalClockOneSample(step_samples);
 
       float marker = 0.f;
-      if (env_active_)
+      if (pad_held_ && env_active_)
       {
         const float env = fasterexpf(-age_ / tau);
         marker = fx::blepSaw(phase_, increment) * env * marker_gain;
@@ -217,4 +231,5 @@ private:
   uint8_t steps_sel_ = 0;
   bool env_active_ = false;
   bool use_host_clock_ = false;
+  bool pad_held_ = false;
 };

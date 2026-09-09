@@ -6,7 +6,7 @@
   "targets": [
     "nts-3_kaoss"
   ],
-  "description": "Mid/Side width and center kill. X = Mid gain, Y = Side gain. Touch snaps to a Center Kill preset (mute Mid, keep Side) for vocal-away DJ edits.",
+  "description": "Mid/Side width and center kill. Pad-held wet. X = Mid gain, Y = Side gain. Touch also snaps toward a Center Kill preset (mute Mid, keep Side) for vocal-away DJ edits.",
   "params": [
     {
       "name": "MID",

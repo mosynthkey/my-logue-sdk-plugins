@@ -6,7 +6,7 @@
   "targets": [
     "nts-3_kaoss"
   ],
-  "description": "FFT spectral band clouds. Input is split into logarithmic bands whose gains are randomly re-rolled. X = band count, Y = re-roll probability / smoothing. Touch instantly redraws the cloud.",
+  "description": "FFT spectral band clouds. Pad-held wet. Input is split into logarithmic bands whose gains are randomly re-rolled. X = band count, Y = re-roll probability / smoothing. Touch also redraws the cloud.",
   "params": [
     {
       "name": "BANDS",

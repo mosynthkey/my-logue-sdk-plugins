@@ -4,8 +4,8 @@
  * File: pumpduck.h
  *
  * Envelope-follower sidechain. The detector prefers raw AUDIO IN so a dry
- * kick can duck a wet pad even when unit_render is muted. Touch cycles AMP /
- * filter / internal plate destinations.
+ * kick can duck a wet pad even when unit_render is muted. Pad-held wet;
+ * DEST selects AMP / filter / internal plate.
  */
 
 #include "fx_dsp.h"
@@ -89,7 +89,8 @@ public:
     lp_ = fx::OnePole();
     follower_ = fx::EnvelopeFollower();
     duck_ = 1.f;
-    pad_was_down_ = false;
+    wet_ = 0.f;
+    pad_held_ = false;
   }
 
   void teardown() override final
@@ -112,17 +113,19 @@ public:
     lp_ = fx::OnePole();
     follower_ = fx::EnvelopeFollower();
     duck_ = 1.f;
+    wet_ = 0.f;
   }
 
   void touchEvent(uint8_t, uint8_t phase, uint32_t, uint32_t) override final
   {
-    if (phase == k_unit_touch_phase_began && !pad_was_down_)
+    if (phase == k_unit_touch_phase_began || phase == k_unit_touch_phase_moved ||
+        phase == k_unit_touch_phase_stationary)
     {
-      dest_ = static_cast<uint8_t>((dest_ + 1U) % 3U);
-      pad_was_down_ = true;
+      pad_held_ = true;
+      return;
     }
     if (phase == k_unit_touch_phase_ended || phase == k_unit_touch_phase_cancelled)
-      pad_was_down_ = false;
+      pad_held_ = false;
   }
 
   void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final
@@ -138,6 +141,7 @@ public:
     const float rel = fx::onePoleCoeff(rel_hz, getSampleRate());
     const float det_hp = fx::onePoleCoeff(40.f + hpf_norm_ * 240.f, getSampleRate());
     const float depth = depth_norm_;
+    const float wet_coeff = 1.f - fasterexpf(-1.f / 128.f);
 
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
@@ -147,6 +151,8 @@ public:
       float detect_right = live_right;
       if (raw != nullptr)
         fx::pickLive(in, raw, detect_left, detect_right);
+
+      wet_ += ((pad_held_ ? 1.f : 0.f) - wet_) * wet_coeff;
 
       const float detect_mono = 0.5f * (detect_left + detect_right);
       const float hp = detect_hp_.processHp(detect_mono, det_hp);
@@ -176,8 +182,9 @@ public:
         wet_right = fx::mix(live_right, plate, 0.85f);
       }
 
-      out[0] = fx::mix(live_left, wet_left, mix_);
-      out[1] = fx::mix(live_right, wet_right, mix_);
+      const float amount = wet_ * mix_;
+      out[0] = fx::mix(live_left, wet_left, amount);
+      out[1] = fx::mix(live_right, wet_right, amount);
       in += 2;
       if (raw != nullptr)
         raw += 2;
@@ -217,10 +224,11 @@ private:
   fx::OnePole lp_;
   fx::EnvelopeFollower follower_;
   float duck_ = 1.f;
+  float wet_ = 0.f;
   float time_norm_ = 0.41f;
   float depth_norm_ = 0.76f;
   float hpf_norm_ = 0.18f;
   float mix_ = 1.f;
   uint8_t dest_ = DEST_AMP;
-  bool pad_was_down_ = false;
+  bool pad_held_ = false;
 };

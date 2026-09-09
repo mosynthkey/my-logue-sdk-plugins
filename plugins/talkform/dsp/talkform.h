@@ -3,8 +3,8 @@
 /*
  * File: talkform.h
  *
- * Dual-formant talk filter. X/Y sweep F1/F2; touch or DIGI snaps to a
- * five-vowel grid (a i u e o).
+ * Dual-formant talk filter. Pad-held wet. X/Y sweep F1/F2; touch or DIGI
+ * snaps to a five-vowel grid (a i u e o).
  */
 
 #include "fx_dsp.h"
@@ -63,9 +63,14 @@ public:
   {
     resetFilters();
     pad_held_ = false;
+    wet_ = 0.f;
   }
 
-  void reset() override final { resetFilters(); }
+  void reset() override final
+  {
+    resetFilters();
+    wet_ = 0.f;
+  }
 
   void touchEvent(uint8_t, uint8_t phase, uint32_t, uint32_t) override final
   {
@@ -88,6 +93,7 @@ public:
     const float q = 2.5f + q_norm_ * 10.f;
     setBandpass(bp1_, f1_hz, q);
     setBandpass(bp2_, f2_hz, q * 0.85f);
+    const float wet_coeff = 1.f - fasterexpf(-1.f / 128.f);
 
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
@@ -97,8 +103,10 @@ public:
       const float mono = 0.5f * (live_left + live_right);
       const float vowel = processBandpass(bp1_, mono) + processBandpass(bp2_, mono);
       const float wet = fx::softclip(vowel * 1.6f);
-      out[0] = fx::mix(live_left, wet, mix_);
-      out[1] = fx::mix(live_right, wet, mix_);
+      wet_ += ((pad_held_ ? 1.f : 0.f) - wet_) * wet_coeff;
+      const float amount = wet_ * mix_;
+      out[0] = fx::mix(live_left, wet, amount);
+      out[1] = fx::mix(live_right, wet, amount);
       in += 2;
       if (raw != nullptr)
         raw += 2;
@@ -173,6 +181,7 @@ private:
   float f2_norm_ = 0.6f;
   float q_norm_ = 0.63f;
   float mix_ = 1.f;
+  float wet_ = 0.f;
   bool digi_ = false;
   bool pad_held_ = false;
 };

@@ -3,7 +3,8 @@
 /*
  * File: mswidth.h
  *
- * Mid/Side width. Touch snaps to Center Kill (mute Mid, keep Side).
+ * Mid/Side width. Pad-held wet; touch also snaps toward Center Kill
+ * (mute Mid, keep Side).
  */
 
 #include "fx_dsp.h"
@@ -53,6 +54,7 @@ public:
   {
     side_hp_z_ = 0.f;
     kill_ = 0.f;
+    wet_ = 0.f;
     pad_held_ = false;
   }
 
@@ -60,6 +62,7 @@ public:
   {
     side_hp_z_ = 0.f;
     kill_ = 0.f;
+    wet_ = 0.f;
   }
 
   void touchEvent(uint8_t, uint8_t phase, uint32_t, uint32_t) override final
@@ -80,12 +83,14 @@ public:
     const float side_gain = side_norm_ * 2.f;
     const float hp_c = fx::onePoleCoeff(40.f + hp_norm_ * 360.f, getSampleRate());
     const float kill_coeff = 1.f - fasterexpf(-1.f / 96.f);
+    const float wet_coeff = 1.f - fasterexpf(-1.f / 128.f);
 
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
       const float live_left = in[0];
       const float live_right = in[1];
       kill_ += ((pad_held_ ? 1.f : 0.f) - kill_) * kill_coeff;
+      wet_ += ((pad_held_ ? 1.f : 0.f) - wet_) * wet_coeff;
 
       const float mid = 0.5f * (live_left + live_right);
       float side = 0.5f * (live_left - live_right);
@@ -97,8 +102,9 @@ public:
       const float wet_left = used_mid + used_side;
       const float wet_right = used_mid - used_side;
 
-      out[0] = fx::mix(live_left, wet_left, mix_);
-      out[1] = fx::mix(live_right, wet_right, mix_);
+      const float amount = wet_ * mix_;
+      out[0] = fx::mix(live_left, wet_left, amount);
+      out[1] = fx::mix(live_right, wet_right, amount);
       in += 2;
       out += 2;
     }
@@ -107,6 +113,7 @@ public:
 private:
   float side_hp_z_ = 0.f;
   float kill_ = 0.f;
+  float wet_ = 0.f;
   float mid_norm_ = 0.5f;
   float side_norm_ = 0.63f;
   float hp_norm_ = 0.18f;

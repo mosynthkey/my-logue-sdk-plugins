@@ -60,7 +60,7 @@ const __unit_header genericfx_unit_header_t unit_header = {
             {0, 4, 0, 0, k_unit_param_type_strings, 0, 0, 0, {"STEPS"}},
             {0, 3, 0, 0, k_unit_param_type_strings, 0, 0, 0, {"BANK"}},
             {0, 1023, 0, 870, k_unit_param_type_none, 0, 0, 0, {"DENS"}},
-            {0, 1, 0, 0, k_unit_param_type_strings, 0, 0, 0, {"HOLD"}},
+            {0, 1, 0, 1, k_unit_param_type_strings, 0, 0, 0, {"HOLD"}},
             {0, 0, 0, 0, k_unit_param_type_none, 0, 0, 0, {""}}},
     },
     .default_mappings = {
@@ -70,7 +70,7 @@ const __unit_header genericfx_unit_header_t unit_header = {
         {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 4, 0},
         {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 3, 0},
         {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1023, 870},
-        {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1, 0},
+        {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1, 1},
         {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 0, 0},
     },
 };

@@ -4,8 +4,8 @@
  * File: beatrepeat.h
  *
  * Clock-synced Beat Repeat. A stereo ring buffer keeps AUDIO IN (prefer
- * get_raw_input). On each 16th the engine may grab a slice and loop it.
- * Touch forces the freeze regardless of probability.
+ * get_raw_input). Pad-held wet grabs a slice and loops it. While held,
+ * PROB can re-arm on each 16th.
  */
 
 #include "fx_dsp.h"
@@ -123,7 +123,10 @@ public:
       return;
     }
     if (phase == k_unit_touch_phase_ended || phase == k_unit_touch_phase_cancelled)
+    {
       force_hold_ = false;
+      repeating_ = false;
+    }
   }
 
   void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final
@@ -234,23 +237,21 @@ private:
   void onSixteenth(float beat_samples)
   {
     (void)beat_samples;
-    if (force_hold_)
+    if (!force_hold_)
     {
-      if (!repeating_)
-        armRepeat(true);
+      repeating_ = false;
+      return;
+    }
+
+    if (!repeating_)
+    {
+      armRepeat(true);
       return;
     }
 
     const float roll = fx::randomFloat(rng_);
     if (roll < prob_norm_ * prob_norm_)
-    {
-      armRepeat(false);
-      return;
-    }
-
-    // High probability stays latched; low probability releases after a miss.
-    if (prob_norm_ < 0.85f)
-      repeating_ = false;
+      armRepeat(true);
   }
 
   float *left_ = nullptr;

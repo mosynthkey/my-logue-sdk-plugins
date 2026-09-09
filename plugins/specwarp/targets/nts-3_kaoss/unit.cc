@@ -72,6 +72,7 @@ __unit_callback int8_t unit_init(const unit_runtime_desc_t *desc)
   if (!allocated_buffer)
     return k_unit_err_memory;
 
+  s_specwarp_instance.setTouchGated(true);
   s_specwarp_instance.init(allocated_buffer);
 
   for (uint8_t paramIndex = 0; paramIndex < UNIT_GENERICFX_MAX_PARAM_COUNT; ++paramIndex)
@@ -124,6 +125,11 @@ __unit_callback const char *unit_get_param_str_value(uint8_t id, int32_t value)
 {
   value = clipminmaxi32(unit_header.common.params[id].min, value, unit_header.common.params[id].max);
   return s_specwarp_instance.getParameterStrValue(id, value);
+}
+
+__unit_callback void unit_touch_event(uint8_t id, uint8_t phase, uint32_t x, uint32_t y)
+{
+  s_specwarp_instance.touchEvent(id, phase, x, y);
 }
 
 __unit_callback void unit_set_tempo(uint32_t tempo)

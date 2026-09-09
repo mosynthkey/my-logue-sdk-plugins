@@ -4,11 +4,13 @@
  * File: technorumble.h
  *
  * Techno rumble kick processor: Schroeder reverb tail, sub LPF, soft-clip
- * drive, and input-transient sidechain duck. Stereo in/out insert FX.
+ * drive, and input-transient sidechain duck. Pad-held wet insert FX.
  */
 
 #include "macros.h"
 #include "processor.h"
+#include "runtime.h"
+#include "utils/float_math.h"
 #include <math.h>
 #include <stdint.h>
 
@@ -30,6 +32,8 @@ public:
   {
     return kCombLineCount * kCombSize + kAllpassLineCount * kAllpassSize;
   }
+
+  void setTouchGated(bool enabled) { touch_gated_ = enabled; }
 
   enum
   {
@@ -99,6 +103,8 @@ public:
     env_average_ = 0.f;
     duck_gain_ = 1.f;
     duck_hold_samples_ = 0U;
+    pad_held_ = false;
+    wet_ = 0.f;
     updateDerivedParams();
   }
 
@@ -128,18 +134,42 @@ public:
     env_average_ = 0.f;
     duck_gain_ = 1.f;
     duck_hold_samples_ = 0U;
+    wet_ = 0.f;
+  }
+
+  void touchEvent(uint8_t, uint8_t phase, uint32_t, uint32_t) override final
+  {
+    if (phase == k_unit_touch_phase_began || phase == k_unit_touch_phase_moved ||
+        phase == k_unit_touch_phase_stationary)
+    {
+      pad_held_ = true;
+      return;
+    }
+    if (phase == k_unit_touch_phase_ended || phase == k_unit_touch_phase_cancelled)
+      pad_held_ = false;
   }
 
   void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final
   {
-    const float dry_gain = 1.f - mix_;
-    const float wet_gain = mix_ * kOutputGain;
+    const float wet_coeff = 1.f - fasterexpf(-1.f / 192.f);
 
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
       const float dry_left = in[0];
       const float dry_right = in[1];
       const float mono_in = (dry_left + dry_right) * 0.5f;
+
+      wet_ += ((pad_held_ ? 1.f : 0.f) - wet_) * wet_coeff;
+      const float amount = (touch_gated_ ? wet_ : 1.f) * mix_;
+      if (amount <= 0.0001f)
+      {
+        out[0] = dry_left;
+        out[1] = dry_right;
+        ++write_index_;
+        in += 2;
+        out += 2;
+        continue;
+      }
 
       updateSidechain(mono_in);
 
@@ -148,9 +178,9 @@ public:
       wet = applyDrive(wet);
       wet *= duck_gain_;
 
-      const float wet_sample = wet * wet_gain;
-      out[0] = dry_left * dry_gain + wet_sample;
-      out[1] = dry_right * dry_gain + wet_sample;
+      const float wet_sample = wet * amount * kOutputGain;
+      out[0] = dry_left * (1.f - amount) + wet_sample;
+      out[1] = dry_right * (1.f - amount) + wet_sample;
 
       ++write_index_;
       in += 2;
@@ -182,7 +212,10 @@ private:
   float lpf_state_ = 0.f;
   float env_average_ = 0.f;
   float duck_gain_ = 1.f;
+  float wet_ = 0.f;
   uint32_t duck_hold_samples_ = 0U;
+  bool pad_held_ = false;
+  bool touch_gated_ = false;
 
   void updateDerivedParams()
   {

@@ -6,7 +6,7 @@
   "targets": [
     "nts-3_kaoss"
   ],
-  "description": "Talk / Digi Talk formant filter for input. X and Y set the first and second formants (vowel mouth shape). Touch snaps to a quantized Japanese-vowel grid so the pad reads as \u3042\u3044\u3046\u3048\u304a instead of a free sweep.",
+  "description": "Talk / Digi Talk formant filter for input. Pad-held wet. X and Y set the first and second formants (vowel mouth shape). Touch snaps to a quantized Japanese-vowel grid so the pad reads as \u3042\u3044\u3046\u3048\u304a instead of a free sweep.",
   "params": [
     {
       "name": "F1",

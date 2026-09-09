@@ -6,7 +6,7 @@
   "targets": [
     "nts-3_kaoss"
   ],
-  "description": "Input-excited resonator. Kick or noise plucks a Karplus-Strong string plus three modal partials. X = frequency / structure, Y = brightness and decay. Touch fires an internal noise pluck so it also works as a one-shot.",
+  "description": "Input-excited resonator. Pad-held wet. Kick or noise plucks a Karplus-Strong string plus three modal partials. X = frequency / structure, Y = brightness and decay. Touch also fires an internal noise pluck.",
   "params": [
     {
       "name": "FREQ",

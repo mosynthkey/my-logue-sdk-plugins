@@ -148,7 +148,7 @@ public:
     dens_norm_ = 0.85f;
     steps_sel_ = 0;
     bank_ = BANK_ALL;
-    hold_ = HOLD_RUN;
+    hold_ = HOLD_PAD;
     bpm_ = 120.f;
     throw_ = 1U;
     pattern_dirty_ = true;
@@ -171,7 +171,7 @@ public:
     step_index_ = 0U;
     xfade_ = 1.f;
     pad_held_ = false;
-    engaged_ = true;
+    engaged_ = false;
     ring_phase_ = 0.f;
     crush_hold_left_ = 0.f;
     crush_hold_right_ = 0.f;
@@ -560,7 +560,7 @@ private:
   float mix_ = 1.f;
   float dens_norm_ = 0.85f;
   float xfade_ = 1.f;
-  float engaged_ = 1.f;
+  float engaged_ = 0.f;
   float ring_phase_ = 0.f;
   float crush_hold_left_ = 0.f;
   float crush_hold_right_ = 0.f;
@@ -575,7 +575,7 @@ private:
   float pattern_mod_[kMaxSteps] = {};
   uint8_t steps_sel_ = 0;
   uint8_t bank_ = BANK_ALL;
-  uint8_t hold_ = HOLD_RUN;
+  uint8_t hold_ = HOLD_PAD;
   bool pad_held_ = false;
   bool pattern_dirty_ = true;
 };

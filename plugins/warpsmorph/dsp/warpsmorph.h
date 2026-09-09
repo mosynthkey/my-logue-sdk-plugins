@@ -4,7 +4,7 @@
  * File: warpsmorph.h
  *
  * Cross-mod morph: diode ring, digital XOR, comparator, mini-vocoder, folder.
- * An internal sine carrier is mixed in harder while the pad is held.
+ * Pad-held wet; an internal sine carrier is mixed in harder while held.
  */
 
 #include "fx_dsp.h"
@@ -124,8 +124,8 @@ public:
         wet = fx::mix(voc, fold, morph - 3.f);
 
       wet = fx::softclip(wet * drive);
-      out[0] = fx::mix(live_left, wet, mix_);
-      out[1] = fx::mix(live_right, wet, mix_);
+      out[0] = fx::mix(live_left, wet, touch_mix_ * mix_);
+      out[1] = fx::mix(live_right, wet, touch_mix_ * mix_);
       in += 2;
       if (raw != nullptr)
         raw += 2;

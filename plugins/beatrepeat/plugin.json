@@ -6,7 +6,7 @@
   "targets": [
     "nts-3_kaoss"
   ],
-  "description": "Clock-synced Beat Repeat for NTS-3. Continuously captures AUDIO IN (get_raw_input on firmware 1.4+) and stutters slices on the grid. X = loop length (1/32\u20132 beats), Y = fire probability, touch = force freeze. SLICE picks which fragment of the last beat to chew on.",
+  "description": "Clock-synced Beat Repeat for NTS-3. Continuously captures AUDIO IN (get_raw_input on firmware 1.4+) and stutters slices while the pad is held. X = loop length (1/32\u20132 beats), Y = re-arm probability while held. SLICE picks which fragment of the last beat to chew on.",
   "params": [
     {
       "name": "LEN",

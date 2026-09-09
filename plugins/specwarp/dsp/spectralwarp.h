@@ -6,11 +6,14 @@
  * Spectral Stretch / Smear FX for NTS-1 mkII and NTS-3.
  * Input -> FFT -> spectral warp -> IFFT with overlap-add.
  * X = Stretch (frequency-axis warp), Y = Smear (magnitude blur + phase diffusion).
+ * Pad-held wet; dry passthrough when the pad is up.
  */
 
 #include "macros.h"
 #include "processor.h"
+#include "runtime.h"
 #include "spectralfft.h"
+#include "utils/float_math.h"
 #include <stdint.h>
 
 class SpectralWarp : public Processor
@@ -26,6 +29,8 @@ public:
   {
     return kFftSize * 4U + kNumBins * 3U;
   }
+
+  void setTouchGated(bool enabled) { touch_gated_ = enabled; }
 
   enum
   {
@@ -91,6 +96,8 @@ public:
     stretch_ = 0.f;
     smear_ = 0.f;
     mix_ = 1.f;
+    wet_ = 0.f;
+    pad_held_ = false;
     fifo_count_ = 0U;
     ola_read_pos_ = 0U;
     analysis_write_pos_ = 0U;
@@ -109,20 +116,39 @@ public:
     mag_warp_ = nullptr;
   }
 
-  void reset() override final { clearBuffers(); }
+  void reset() override final
+  {
+    wet_ = 0.f;
+    clearBuffers();
+  }
+
+  void touchEvent(uint8_t, uint8_t phase, uint32_t, uint32_t) override final
+  {
+    if (phase == k_unit_touch_phase_began || phase == k_unit_touch_phase_moved ||
+        phase == k_unit_touch_phase_stationary)
+    {
+      pad_held_ = true;
+      return;
+    }
+    if (phase == k_unit_touch_phase_ended || phase == k_unit_touch_phase_cancelled)
+      pad_held_ = false;
+  }
 
   void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final
   {
     const float stretch = stretch_;
     const float smear = smear_;
-    const float wetGain = mix_;
-    const float dryGain = 1.f - wetGain;
+    const float wet_coeff = 1.f - fasterexpf(-1.f / 192.f);
 
     for (uint32_t frameIndex = 0; frameIndex < frames; ++frameIndex)
     {
       const float dryLeft = in[frameIndex * 2U];
       const float dryRight = in[frameIndex * 2U + 1U];
       const float monoIn = 0.5f * (dryLeft + dryRight);
+
+      wet_ += ((pad_held_ ? 1.f : 0.f) - wet_) * wet_coeff;
+      const float wetGain = (touch_gated_ ? wet_ : 1.f) * mix_;
+      const float dryGain = 1.f - wetGain;
 
       pushSample(monoIn);
 
@@ -153,9 +179,12 @@ private:
   float stretch_;
   float smear_;
   float mix_;
+  float wet_ = 0.f;
   uint32_t fifo_count_ = 0U;
   uint32_t ola_read_pos_ = 0U;
   uint32_t analysis_write_pos_ = 0U;
+  bool pad_held_ = false;
+  bool touch_gated_ = false;
 
   void clearBuffers()
   {

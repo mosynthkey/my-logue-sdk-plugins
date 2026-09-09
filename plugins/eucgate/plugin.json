@@ -6,7 +6,7 @@
   "targets": [
     "nts-3_kaoss"
   ],
-  "description": "DJ Transform gate plus Euclidean / probability chopping. Not an LFO tremolo: hits sit on a musical grid. X = hit count, Y = duty or probability. Touch = Fill (all gates open / roll).",
+  "description": "DJ Transform gate plus Euclidean / probability chopping. Not an LFO tremolo: hits sit on a musical grid. X = hit count, Y = duty or probability. Hold the pad to engage the gate.",
   "params": [
     {
       "name": "HITS",

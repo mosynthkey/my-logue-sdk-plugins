@@ -4,7 +4,8 @@
  * File: ringexcit.h
  *
  * Input-excited Karplus-Strong string plus three modal resonators.
- * Touch injects a short noise burst so the pad can pluck with no input.
+ * Pad-held wet; touch also injects a short noise burst so the pad can pluck
+ * with no input.
  */
 
 #include "fx_dsp.h"
@@ -82,6 +83,8 @@ public:
     write_pos_ = 0U;
     damp_z_ = 0.f;
     noise_env_ = 0.f;
+    wet_ = 0.f;
+    pad_held_ = false;
     rng_ = 11U;
     for (uint32_t partialIndex = 0; partialIndex < kPartialCount; ++partialIndex)
     {
@@ -102,6 +105,8 @@ public:
     write_pos_ = 0U;
     damp_z_ = 0.f;
     noise_env_ = 0.f;
+    wet_ = 0.f;
+    pad_held_ = false;
     for (uint32_t partialIndex = 0; partialIndex < kPartialCount; ++partialIndex)
     {
       modal_re_[partialIndex] = 0.f;
@@ -111,8 +116,16 @@ public:
 
   void touchEvent(uint8_t, uint8_t phase, uint32_t, uint32_t) override final
   {
-    if (phase == k_unit_touch_phase_began)
-      noise_env_ = 1.f;
+    if (phase == k_unit_touch_phase_began || phase == k_unit_touch_phase_moved ||
+        phase == k_unit_touch_phase_stationary)
+    {
+      if (!pad_held_ && phase == k_unit_touch_phase_began)
+        noise_env_ = 1.f;
+      pad_held_ = true;
+      return;
+    }
+    if (phase == k_unit_touch_phase_ended || phase == k_unit_touch_phase_cancelled)
+      pad_held_ = false;
   }
 
   void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final
@@ -135,13 +148,16 @@ public:
     const float pickup = 0.08f + pos_norm_ * 0.42f;
     const float string_mix = (structure_ == STRUC_MOD) ? 0.15f : (structure_ == STRUC_HYB ? 0.55f : 1.f);
     const float modal_mix = 1.f - string_mix * 0.65f;
+    const float wet_coeff = 1.f - fasterexpf(-1.f / 160.f);
 
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
       float live_left = 0.f;
       float live_right = 0.f;
       fx::pickLive(in, raw, live_left, live_right);
-      const float excite_in = (live_left + live_right) * 0.5f;
+      const float excite_in = pad_held_ ? ((live_left + live_right) * 0.5f) : 0.f;
+
+      wet_ += ((pad_held_ ? 1.f : 0.f) - wet_) * wet_coeff;
 
       float burst = 0.f;
       if (noise_env_ > 0.0001f)
@@ -181,8 +197,9 @@ public:
       }
 
       const float wet = fx::softclip((string * string_mix + modal * modal_mix) * 0.7f);
-      out[0] = fx::mix(live_left, wet, mix_);
-      out[1] = fx::mix(live_right, wet, mix_);
+      const float amount = wet_ * mix_;
+      out[0] = fx::mix(live_left, wet, amount);
+      out[1] = fx::mix(live_right, wet, amount);
       in += 2;
       if (raw != nullptr)
         raw += 2;
@@ -195,6 +212,7 @@ private:
   uint32_t write_pos_ = 0U;
   float damp_z_ = 0.f;
   float noise_env_ = 0.f;
+  float wet_ = 0.f;
   float modal_re_[kPartialCount] = {};
   float modal_im_[kPartialCount] = {};
   float freq_norm_ = 0.27f;
@@ -203,4 +221,5 @@ private:
   float mix_ = 0.8f;
   uint32_t rng_ = 11U;
   uint8_t structure_ = STRUC_STR;
+  bool pad_held_ = false;
 };

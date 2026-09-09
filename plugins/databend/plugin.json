@@ -6,7 +6,7 @@
   "targets": [
     "nts-3_kaoss"
   ],
-  "description": "Media-failure buffer: CD skip, torn tape, and bit-rot as one macro. X = Bend (stutter / varispeed), Y = Corrupt (dropouts and broken words). Touch freezes the damaged frame into a noise wall.",
+  "description": "Media-failure buffer: CD skip, torn tape, and bit-rot as one macro. X = Bend (stutter / varispeed), Y = Corrupt (dropouts and broken words). Hold the pad to freeze and play the damaged frame.",
   "params": [
     {
       "name": "BEND",

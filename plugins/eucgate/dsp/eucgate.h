@@ -3,8 +3,8 @@
 /*
  * File: eucgate.h
  *
- * Euclidean / probability transform gate. Closed steps mute the input on a
- * tempo grid. Touch opens every step (Fill / roll).
+ * Euclidean / probability transform gate. Pad-held wet: closed steps mute
+ * the input on a tempo grid. Dry passthrough when the pad is up.
  */
 
 #include "fx_dsp.h"
@@ -69,7 +69,8 @@ public:
     clock_acc_ = 0.f;
     step_index_ = 0U;
     gate_ = 1.f;
-    fill_ = false;
+    wet_ = 0.f;
+    pad_held_ = false;
     rng_ = 5U;
     samples_into_step_ = 0.f;
   }
@@ -79,7 +80,8 @@ public:
     clock_acc_ = 0.f;
     step_index_ = 0U;
     gate_ = 1.f;
-    fill_ = false;
+    wet_ = 0.f;
+    pad_held_ = false;
   }
 
   void setTempo(float tempo) override final
@@ -90,8 +92,8 @@ public:
 
   void touchEvent(uint8_t, uint8_t phase, uint32_t, uint32_t) override final
   {
-    fill_ = phase == k_unit_touch_phase_began || phase == k_unit_touch_phase_moved ||
-            phase == k_unit_touch_phase_stationary;
+    pad_held_ = phase == k_unit_touch_phase_began || phase == k_unit_touch_phase_moved ||
+                phase == k_unit_touch_phase_stationary;
   }
 
   void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final
@@ -107,12 +109,15 @@ public:
     const float step_samples = static_cast<float>(fx::samplesPerBeat(bpm_, getSampleRate())) * 4.f / static_cast<float>(steps);
     const float duty = 0.08f + duty_norm_ * 0.9f;
     const float smooth = 1.f - fasterexpf(-1.f / 48.f);
+    const float wet_coeff = 1.f - fasterexpf(-1.f / 96.f);
 
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
       float live_left = 0.f;
       float live_right = 0.f;
       fx::pickLive(in, raw, live_left, live_right);
+
+      wet_ += ((pad_held_ ? 1.f : 0.f) - wet_) * wet_coeff;
 
       clock_acc_ += 1.f;
       samples_into_step_ += 1.f;
@@ -122,18 +127,18 @@ public:
         samples_into_step_ = 0.f;
         step_index_ = (step_index_ + 1U) % steps;
         const uint32_t rotated = (step_index_ + rotate) % steps;
-        bool hit = fill_ || fx::euclidHit(rotated, hits, steps);
+        bool hit = fx::euclidHit(rotated, hits, steps);
         if (hit && duty_norm_ < 0.95f && fx::randomFloat(rng_) > 0.35f + duty_norm_ * 0.65f)
-          hit = fill_;
+          hit = false;
         step_open_ = hit;
       }
 
       const float phase = (step_samples > 1.f) ? (samples_into_step_ / step_samples) : 0.f;
-      const bool inside = step_open_ && (fill_ || phase < duty);
+      const bool inside = step_open_ && (phase < duty);
       const float target = inside ? 1.f : 0.f;
       gate_ += (target - gate_) * smooth;
 
-      const float ducked = fx::mix(1.f, gate_, mix_);
+      const float ducked = fx::mix(1.f, gate_, wet_ * mix_);
       out[0] = live_left * ducked;
       out[1] = live_right * ducked;
       in += 2;
@@ -152,9 +157,10 @@ private:
   float rot_norm_ = 0.f;
   float mix_ = 1.f;
   float gate_ = 1.f;
+  float wet_ = 0.f;
   uint32_t step_index_ = 0U;
   uint32_t rng_ = 5U;
   uint8_t steps_sel_ = 2;
-  bool fill_ = false;
+  bool pad_held_ = false;
   bool step_open_ = true;
 };
