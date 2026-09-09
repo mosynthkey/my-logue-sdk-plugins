@@ -45,13 +45,13 @@ static float rmsAfter(const std::vector<float> &mono, uint32_t start, uint32_t l
   return static_cast<float>(std::sqrt(sum / static_cast<double>(count)));
 }
 
-static void setup(Trap808 &drum, int32_t hats, int32_t tune, int32_t groove)
+static void setup(Trap808 &drum, int32_t hats, int32_t groove, int32_t root)
 {
   drum.init(nullptr);
   drum.setParameter(Trap808::MIX, 1000);
   drum.setParameter(Trap808::HATS, hats);
-  drum.setParameter(Trap808::TUNE, tune);
   drum.setParameter(Trap808::GROOVE, groove);
+  drum.setParameter(Trap808::ROOT, root);
   drum.setParameter(Trap808::DECAY, 700);
   drum.setParameter(Trap808::DRIVE, 500);
   drum.setTempo(140.f);
@@ -62,11 +62,10 @@ int main()
 {
   Trap808 drum;
 
-  // Sparse hats should fire fewer hat triggers than dense rolls over one bar.
-  setup(drum, 100, 360, 300);
+  setup(drum, 100, 300, 33);
   drum.touchEvent(0, k_unit_touch_phase_began, 200, 200);
   std::vector<float> sparse;
-  render(drum, sparse, 48000U); // ~1s at 140 BPM covers >1 bar
+  render(drum, sparse, 48000U);
   const uint32_t sparse_hats = drum.debugHatTriggers();
   const uint32_t sparse_kicks = drum.debugKickTriggers();
   const float sparse_peak = peakAbs(sparse);
@@ -76,7 +75,7 @@ int main()
   if (sparse_kicks < 1U)
     return 2;
 
-  setup(drum, 980, 360, 300);
+  setup(drum, 980, 300, 33);
   drum.touchEvent(0, k_unit_touch_phase_began, 900, 200);
   std::vector<float> dense;
   render(drum, dense, 48000U);
@@ -88,28 +87,51 @@ int main()
   if (dense_peak < 0.05f || dense_peak > 1.25f)
     return 4;
 
-  // 808 body must still be audible well past 20 ms (not an attack click).
-  setup(drum, 200, 360, 200);
+  setup(drum, 200, 200, 36);
   drum.touchEvent(0, k_unit_touch_phase_began, 200, 200);
   std::vector<float> body;
   render(drum, body, 48000U);
-  const float early = rmsAfter(body, 0U, 960U);       // 0-20 ms
-  const float mid = rmsAfter(body, 4800U, 4800U);     // 100-200 ms
+  // First 4ppqn tick at 140 BPM is ~5143 samples — inspect after that.
+  const float early = rmsAfter(body, 5200U, 960U);
+  const float mid = rmsAfter(body, 10000U, 4800U);
   std::printf("808 early_rms=%.5f mid_rms=%.5f\n", early, mid);
-  if (mid < 0.01f)
+  if (early < 0.01f)
     return 5;
-  if (mid * 8.f < early)
+  if (mid < 0.01f)
     return 6;
+  if (mid * 8.f < early)
+    return 7;
 
-  // Top-right fill should spike hat activity.
-  setup(drum, 500, 360, 400);
+  setup(drum, 500, 400, 33);
+  drum.touchEvent(0, k_unit_touch_phase_began, 200, 200);
+  if (drum.debugHatTriggers() != 0U || drum.debugKickTriggers() != 0U)
+  {
+    std::printf("tap fired early hats=%u kicks=%u\n", drum.debugHatTriggers(), drum.debugKickTriggers());
+    return 8;
+  }
+  std::vector<float> before_tick;
+  render(drum, before_tick, 2000U);
+  if (drum.debugHatTriggers() != 0U || drum.debugKickTriggers() != 0U)
+  {
+    std::printf("pre-tick hits hats=%u kicks=%u\n", drum.debugHatTriggers(), drum.debugKickTriggers());
+    return 9;
+  }
+  std::vector<float> after_tick;
+  render(drum, after_tick, 8000U);
+  if (drum.debugKickTriggers() < 1U && drum.debugHatTriggers() < 1U)
+  {
+    std::printf("no beat-locked hits after clock\n");
+    return 10;
+  }
+
+  setup(drum, 500, 400, 33);
   drum.touchEvent(0, k_unit_touch_phase_began, 900, 900);
   std::vector<float> fill;
-  render(drum, fill, 24000U);
+  render(drum, fill, 48000U);
   const uint32_t fill_hats = drum.debugHatTriggers();
   std::printf("fill hats=%u\n", fill_hats);
-  if (fill_hats < dense_hats / 2U)
-    return 7;
+  if (fill_hats < 8U)
+    return 11;
 
   std::printf("ok\n");
   return 0;

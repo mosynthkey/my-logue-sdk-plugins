@@ -331,18 +331,21 @@ export const dspExplainById = {
   In --> Mix`,
   },
   trap808: {
-    en: "Trap phrase pad: half-time kick/snare, velocity-shaped closed hats with 32nd/triplet rolls, open-hat choke, and a sliding sine 808 (pitch drop + soft drive). X = hat density/rolls, Y = 808 root. Age-based envelopes; top-right flick arms a one-bar hat fill.",
-    ja: "トラップ・フレーズパッドです。ハーフタイムのキック／スネア、ベロシティ付きクローズハット＋32分／三連ロール、オープンハットのチョーク、ピッチドロップ付きスライド808（ソフトドライブ）。Xはハット密度／ロール、Yは808ルート。年齢ベースのエンベロープ。右上フリックで1小節ハット・フィル。",
+    en: "Beat-locked trap phrase pad. Hold gates the clock; hits ignore tap phase and fire on 4ppqn. Closed/open hats play packed 6-bit PCM from the TR-909 Hi-Hat ROM (CH top quarter, truncated OH). X = hat rolls, Y = groove, ROOT = 808 key. Age-based kick/snare/808; top-right arms a fill on the next downbeat.",
+    ja: "ビートロックのトラップ・フレーズパッドです。ホールドはゲートのみで、発音は4ppqnに同期（タップ位相は無視）。ハットはTR-909ハイハットROMの6bit PCM（CH=上位1/4、OHは短縮）。Xはロール、Yはグルーヴ、ROOTは808キー。キック／スネア／808は年齢エンベロープ。右上で次の拍頭からフィル。",
     mermaid: `flowchart LR
-  Pad[Hold pad] --> Clock[16th clock]
-  Clock --> Seq[Kick snare hat sched]
+  Pad[Hold gate] --> Arm[Arm running]
+  Host[4ppqn beat] --> Seq[Kick snare hat sched]
+  Arm --> Seq
   Hats[X hats] --> Seq
+  Groove[Y groove] --> Seq
   Seq --> Roll[32nd triplet rolls]
-  Roll --> HH[Noise hats choke]
+  Roll --> HH[909 ROM hats choke]
+  ROM[CH OH PCM] --> HH
   Seq --> Kick[Pitch-drop kick]
   Seq --> SD[Tone plus noise snare]
   Seq --> Bass[Sine 808 glide]
-  Tune[Y tune] --> Bass
+  Root[ROOT] --> Bass
   Kick --> Sum[Sum and softclip]
   SD --> Sum
   HH --> Sum
