@@ -330,6 +330,26 @@ export const dspExplainById = {
   Flt --> Mix[Dry or wet] --> Out[Out]
   In --> Mix`,
   },
+  trap808: {
+    en: "Trap phrase pad: half-time kick/snare, velocity-shaped closed hats with 32nd/triplet rolls, open-hat choke, and a sliding sine 808 (pitch drop + soft drive). X = hat density/rolls, Y = 808 root. Age-based envelopes; top-right flick arms a one-bar hat fill.",
+    ja: "トラップ・フレーズパッドです。ハーフタイムのキック／スネア、ベロシティ付きクローズハット＋32分／三連ロール、オープンハットのチョーク、ピッチドロップ付きスライド808（ソフトドライブ）。Xはハット密度／ロール、Yは808ルート。年齢ベースのエンベロープ。右上フリックで1小節ハット・フィル。",
+    mermaid: `flowchart LR
+  Pad[Hold pad] --> Clock[16th clock]
+  Clock --> Seq[Kick snare hat sched]
+  Hats[X hats] --> Seq
+  Seq --> Roll[32nd triplet rolls]
+  Roll --> HH[Noise hats choke]
+  Seq --> Kick[Pitch-drop kick]
+  Seq --> SD[Tone plus noise snare]
+  Seq --> Bass[Sine 808 glide]
+  Tune[Y tune] --> Bass
+  Kick --> Sum[Sum and softclip]
+  SD --> Sum
+  HH --> Sum
+  Bass --> Sum
+  Sum --> Mix[Dry or wet] --> Out[Out]
+  In[Audio in] --> Mix`,
+  },
   tapeosc: {
     en: "Tape-style oscillator: a band-limited source is written into a circular buffer while a varispeed read head ramps start/stop. Grit blends ZOH vs linear; wear LPF and wow/flutter modulate rate.",
     ja: "テープ風OSCです。帯域制限波形を円形バッファへ書き、読みヘッドが起動／停止で変速します。グリットでZOH／線形、摩耗LPFとワウ／フラッタで速度を変調します。",
