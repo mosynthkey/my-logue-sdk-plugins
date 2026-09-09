@@ -1,8 +1,10 @@
 # AmenTime sample source
 
-The embedded break is an original synthesized 1-bar drum pattern in the common
-amen chop map (16 equal 16ths). It is **not** the Winstons *Amen, Brother*
-recording.
+AmenTime ships a **synthesized** 1-bar drum pattern in the common amen chop
+map (16 equal 16ths). It is **not** the Winstons *Amen, Brother* recording.
+
+To slice a WAV you already have, use the separate **AmenWav** plugin
+(`plugins/amenwav/`) instead of replacing this PCM.
 
 Regenerate `dsp/amentime_pcm.h`:
 
