@@ -26,10 +26,10 @@ Typical BPM cited: classic 2-step ~130–132, modern ~134–138. Default 134.
 
 | Control | Role |
 | --- | --- |
-| Hold pad | Run internal 16th clock (tempo via `setTempo`) |
+| Hold pad | Gate only — phrase steps lock to host `tempo4ppqnTick` (16ths), not the tap instant. Falls back to a free-running internal 16th clock that keeps phase even while the pad is up. |
 | X / GHOST | Probability and seats for soft snare/rim ghosts |
 | Y / FILL | Hat density + extra kicks; near top → fill energy; top-right flick → 1-bar Fill |
-| SWING | 16th shuffle amount (default mid, toward UKG 64%-ish feel) |
+| SWING | Delays odd 16ths after the beat tick (UKG shuffle) |
 | TONE / DEC | Kick/snare pitch colour and shared decay |
 | MIX | Dry/wet |
 

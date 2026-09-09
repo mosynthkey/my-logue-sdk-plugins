@@ -67,9 +67,12 @@ public:
   {
     bpm_ = 134.f;
     running_ = false;
+    use_host_clock_ = false;
     fill_timer_ = 0U;
-    clock_acc_ = 0.f;
-    step_index_ = 0U;
+    tick_counter_ = 0U;
+    internal_tick_phase_ = 0.f;
+    swing_samples_left_ = 0;
+    pending_step_ = 0U;
     rng_ = 0xC0FFEEu;
     resetVoices();
   }
@@ -78,6 +81,7 @@ public:
   {
     running_ = false;
     fill_timer_ = 0U;
+    swing_samples_left_ = 0;
     resetVoices();
   }
 
@@ -87,22 +91,29 @@ public:
       bpm_ = tempo;
   }
 
+  // Lock phrase steps to the host 4ppqn grid (16ths). Touch only gates sound.
+  void tempo4ppqnTick(uint32_t counter) override final
+  {
+    use_host_clock_ = true;
+    handleTick(counter);
+  }
+
   void touchEvent(uint8_t, uint8_t phase, uint32_t x, uint32_t y) override final
   {
     if (phase == k_unit_touch_phase_ended || phase == k_unit_touch_phase_cancelled)
     {
       running_ = false;
+      swing_samples_left_ = 0;
       return;
     }
-    if (phase == k_unit_touch_phase_began)
+
+    if (phase == k_unit_touch_phase_began || phase == k_unit_touch_phase_moved ||
+        phase == k_unit_touch_phase_stationary)
     {
+      // Gate only — do not reset the clock or fire from the tap moment.
       running_ = true;
-      step_index_ = 0U;
-      clock_acc_ = 0.f;
-      if (x > 760U && y > 760U)
+      if (phase == k_unit_touch_phase_began && x > 760U && y > 760U)
         fill_timer_ = kSteps;
-      triggerStep(0U);
-      step_index_ = 1U;
     }
   }
 
@@ -114,30 +125,13 @@ public:
   void process(const float *__restrict in, const float *__restrict raw, float *__restrict out, uint32_t frames)
   {
     (void)raw;
-    const float sixteenth = static_cast<float>(fx::samplesPerBeat(bpm_, getSampleRate())) * 0.25f;
-    // Map SWING toward classic UKG 16th shuffle (~Ableton 63–67%).
-    const float swing = 0.45f + swing_norm_ * 0.35f;
 
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
-      if (running_)
-      {
-        float step_len = sixteenth;
-        if ((step_index_ & 1U) != 0U)
-          step_len *= 1.f + swing * 0.42f;
-        else
-          step_len *= 1.f - swing * 0.22f;
-
-        clock_acc_ += 1.f;
-        if (clock_acc_ >= step_len)
-        {
-          clock_acc_ -= step_len;
-          triggerStep(step_index_);
-          step_index_ = (step_index_ + 1U) % kSteps;
-          if (fill_timer_ > 0U)
-            --fill_timer_;
-        }
-      }
+      // Free-run even while the pad is up so the next hold joins the same grid.
+      if (!use_host_clock_)
+        advanceInternalClockOneSample();
+      advancePendingSwing();
 
       const float wet = renderVoices();
       out[0] = fx::mix(in[0], wet, mix_);
@@ -148,9 +142,15 @@ public:
   }
 
   // Host probes
-  uint32_t debugStepIndex() const { return step_index_; }
+  uint32_t debugStepIndex() const
+  {
+    if (tick_counter_ == 0U)
+      return 0U;
+    return (tick_counter_ - 1U) % kSteps;
+  }
   uint32_t debugGhostTriggers() const { return ghost_triggers_; }
   uint32_t debugMainTriggers() const { return main_triggers_; }
+  uint32_t debugTickCounter() const { return tick_counter_; }
   void debugResetCounters()
   {
     ghost_triggers_ = 0U;
@@ -186,6 +186,72 @@ private:
     kick_hz_ = 55.f;
     snare_hz_ = 190.f;
     hat_hp_ = 0.f;
+  }
+
+  float samplesPerSixteenth() const
+  {
+    if (bpm_ <= 0.f)
+      return 0.f;
+    return getSampleRate() * 60.f / (bpm_ * 4.f);
+  }
+
+  // Map SWING toward classic UKG 16th shuffle (~Ableton 63–67% feel).
+  float swingDelayFraction() const
+  {
+    const float swing = 0.45f + swing_norm_ * 0.35f;
+    return swing * 0.28f;
+  }
+
+  void emitStep(uint32_t step)
+  {
+    triggerStep(step);
+    if (fill_timer_ > 0U)
+      --fill_timer_;
+  }
+
+  void handleTick(uint32_t counter)
+  {
+    tick_counter_ = counter;
+    if (!running_)
+      return;
+
+    const uint32_t step_index = (counter - 1U) % kSteps;
+    const float delay_frac = swingDelayFraction();
+    // Delay odd 16ths for shuffle; even steps stay on the beat grid.
+    if ((step_index & 1U) != 0U && delay_frac > 0.001f)
+    {
+      pending_step_ = step_index;
+      swing_samples_left_ = static_cast<int32_t>(samplesPerSixteenth() * delay_frac);
+      if (swing_samples_left_ < 1)
+        emitStep(step_index);
+      return;
+    }
+
+    emitStep(step_index);
+  }
+
+  void advanceInternalClockOneSample()
+  {
+    const float samples_per_tick = samplesPerSixteenth();
+    if (samples_per_tick <= 0.f)
+      return;
+
+    internal_tick_phase_ += 1.f;
+    if (internal_tick_phase_ >= samples_per_tick)
+    {
+      internal_tick_phase_ -= samples_per_tick;
+      ++tick_counter_;
+      handleTick(tick_counter_);
+    }
+  }
+
+  void advancePendingSwing()
+  {
+    if (swing_samples_left_ <= 0)
+      return;
+    --swing_samples_left_;
+    if (swing_samples_left_ == 0)
+      emitStep(pending_step_);
   }
 
   static bool isKickSpine(uint32_t step)
@@ -381,7 +447,6 @@ private:
     return fx::softclip(kick + snare + ghost + hats);
   }
 
-  float clock_acc_ = 0.f;
   float bpm_ = 134.f;
   float ghost_norm_ = 0.35f;
   float fill_norm_ = 0.25f;
@@ -389,6 +454,7 @@ private:
   float tone_norm_ = 0.45f;
   float decay_norm_ = 0.45f;
   float mix_ = 1.f;
+  float internal_tick_phase_ = 0.f;
 
   float kick_age_ = 1e9f;
   float snare_age_ = 1e9f;
@@ -406,10 +472,13 @@ private:
   float snare_hz_ = 190.f;
   float hat_hp_ = 0.f;
 
-  uint32_t step_index_ = 0U;
+  uint32_t tick_counter_ = 0U;
+  uint32_t pending_step_ = 0U;
   uint32_t fill_timer_ = 0U;
   uint32_t rng_ = 0xC0FFEEu;
   uint32_t ghost_triggers_ = 0U;
   uint32_t main_triggers_ = 0U;
+  int32_t swing_samples_left_ = 0;
   bool running_ = false;
+  bool use_host_clock_ = false;
 };

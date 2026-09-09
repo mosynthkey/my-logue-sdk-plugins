@@ -164,13 +164,14 @@ export const dspExplainById = {
   HH --> Mix`,
   },
   ukgarage: {
-    en: "Hold-to-run tempo-synced 2-step UK Garage kit. Spine kicks on 1 and the and-of-3, snares on 2 and 4. X grows low-velocity ghost snares/rims; Y thickens hats and fill energy. Top-right flick = one-bar Fill. Age-based envelopes keep bodies musical.",
-    ja: "ホールドでテンポ同期の2-step UK Garageキットを鳴らします。キックは1と3の裏、スネアは2と4。Xで弱いゴースト、Yでハット／Fill。右上フリックで1小節Fill。",
+    en: "Hold-to-gate tempo-synced 2-step UK Garage kit. Hits lock to host 4ppqn (or a free-running 16th grid), not the tap moment. Spine kicks on 1 and the and-of-3, snares on 2 and 4. X grows low-velocity ghost snares/rims; Y thickens hats and fill energy. Top-right flick = one-bar Fill. Age-based envelopes keep bodies musical.",
+    ja: "ホールドはゲートのみ。タップ瞬間ではなくホストの4ppqn（なければ内部16分グリッド）に合わせて2-step UK Garageを鳴らします。キックは1と3の裏、スネアは2と4。Xで弱いゴースト、Yでハット／Fill。右上フリックで1小節Fill。",
     mermaid: `flowchart TD
-  Hold[Pad hold] --> Clock[16th swing clock]
-  Clock --> Spine[2-step kick snare spine]
-  Clock --> Ghost[X ghost seats]
-  Clock --> Fill[Y hats and fill]
+  Host[Host 4ppqn or free-run 16th] --> Gate{Pad held?}
+  Gate -->|yes| Spine[2-step kick snare spine]
+  Gate -->|yes| Ghost[X ghost seats]
+  Gate -->|yes| Fill[Y hats and fill]
+  Gate -->|no| Silence[No new hits]
   Spine --> Voices[Kick snare ghost hats]
   Ghost --> Voices
   Fill --> Voices

@@ -118,16 +118,50 @@ int main()
   }
 
   // Running clock for ~1 bar at 134 BPM should make audible output.
+  // Touch must not fire immediately — wait for the free-running 16th grid.
   setup(kit, 500, 400);
+  kit.debugResetCounters();
   kit.touchEvent(0, k_unit_touch_phase_began, 400U, 400U);
+  if (kit.debugMainTriggers() != 0U)
+  {
+    std::printf("touch fired immediately: mains=%u\n", kit.debugMainTriggers());
+    return 6;
+  }
+
+  // Advance less than one 16th (~5373 samples at 134 BPM) — still silent.
+  mono.clear();
+  render(kit, mono, 2000U);
+  if (kit.debugMainTriggers() != 0U || peakAbs(mono) > 0.02f)
+  {
+    std::printf("pre-grid leak: mains=%u peak=%f\n", kit.debugMainTriggers(), peakAbs(mono));
+    return 7;
+  }
+
   mono.clear();
   const uint32_t bar_samples = static_cast<uint32_t>(48000.f * 60.f / 134.f * 4.f);
   render(kit, mono, bar_samples);
   const float bar_peak = peakAbs(mono);
-  if (bar_peak < 0.08f)
+  if (bar_peak < 0.08f || kit.debugMainTriggers() < 4U)
   {
-    std::printf("bar peak too quiet: %f\n", bar_peak);
-    return 6;
+    std::printf("bar peak too quiet: peak=%f mains=%u\n", bar_peak, kit.debugMainTriggers());
+    return 8;
+  }
+
+  // Host 4ppqn path: holding mid-bar joins the next tick, does not restart at step 0.
+  setup(kit, 500, 400);
+  kit.debugResetCounters();
+  kit.tempo4ppqnTick(1U); // would be step 0 if running — pad is up, ignore
+  if (kit.debugMainTriggers() != 0U)
+  {
+    std::printf("host tick while up fired: %u\n", kit.debugMainTriggers());
+    return 9;
+  }
+  kit.touchEvent(0, k_unit_touch_phase_began, 400U, 400U);
+  kit.tempo4ppqnTick(11U); // step 10 = kick spine
+  if (kit.debugMainTriggers() < 1U)
+  {
+    std::printf("host mid-bar tick missed kick: mains=%u\n", kit.debugMainTriggers());
+    return 10;
   }
 
   std::printf("ok ghosts_high=%u ghosts_low=%u kick_peak=%f late_ratio=%f bar_peak=%f\n",

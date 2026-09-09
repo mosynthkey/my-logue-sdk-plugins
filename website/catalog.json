@@ -86,7 +86,7 @@
       "targets": [
         "nts-3_kaoss"
       ],
-      "description": "Live-capture granular pad for NTS-3. Touch freezes up to 3 s of AUDIO IN into a slow grain cloud (100–320 ms grains). X/FEEL: sparse \u2194 dense. Y = octave mix. ENV = grain attack/release. SYNC / SPRD / HPF / REVS. MIX = dry/wet.",
+      "description": "Live-capture granular pad for NTS-3. Touch freezes up to 3 s of AUDIO IN into a slow grain cloud (100\u2013320 ms grains). X/FEEL: sparse \u2194 dense. Y = octave mix. ENV = grain attack/release. SYNC / SPRD / HPF / REVS. MIX = dry/wet.",
       "params": [
         {
           "name": "FEEL",
@@ -298,7 +298,7 @@
       "targets": [
         "nts-3_kaoss"
       ],
-      "description": "Tempo-synced 2-step UK Garage kit. Hold to run. X grows ghost notes (soft snares/rims between the backbone); Y thickens hats and pushes toward Fill. Flick top-right for a one-bar Fill. Ghost notes are the groove.",
+      "description": "Tempo-synced 2-step UK Garage kit. Hold to run \u2014 pad only gates; hits lock to the host beat (4ppqn), not the tap moment. X grows ghost notes (soft snares/rims between the backbone); Y thickens hats and pushes toward Fill. Flick top-right for a one-bar Fill. Ghost notes are the groove.",
       "params": [
         {
           "name": "GHOST",
@@ -336,11 +336,11 @@
           "target": "nts-3_kaoss",
           "module": "genericfx",
           "file": "./units/ukgarage-nts-3_kaoss.nts3unit",
-          "size": 9020,
+          "size": 9312,
           "wasm": "./sim/ukgarage/nts-3_kaoss/ukgarage.html"
         }
       ]
     }
   ],
-  "generated_at": "2026-09-09T12:48:44Z"
+  "generated_at": "2026-09-09T20:50:32Z"
 }
