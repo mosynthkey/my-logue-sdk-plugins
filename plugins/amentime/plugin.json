@@ -4,14 +4,14 @@
   "name": "AmenTime",
   "type": "drum",
   "targets": ["nts-3_kaoss"],
-  "description": "Tempo-synced amen-style break slicer for NTS-3. Ships a synthesized 1-bar break (not the Winstons recording). For an arbitrary WAV, use WavSlice. Hold the pad to run. X = start 16th. Y = slice grid (1/4, 1/8, 1/16, 1/32). TUNE adds jungle pitch on top of tempo. RPT LOCK retriggers the start slice. REVS = reverse chance. HOLD GATE or LATCH.",
+  "description": "Tempo-synced amen-style break slicer for NTS-3. Ships a synthesized 1-bar break (not the Winstons recording). For an arbitrary WAV, use WavSlice. Hold the pad to run from the bar start on a step grid (tap position does not pick the start 16th). X = reverse chance. Y = slice grid (1/4, 1/8, 1/16, 1/32). STRT (Edit) offsets the walk origin. TUNE adds jungle pitch on top of tempo. RPT LOCK retriggers the start slice. HOLD GATE or LATCH.",
   "params": [
-    { "name": "STRT", "role": "X", "detail": "Which 16th of the bar to start from" },
+    { "name": "STRT", "role": "Edit", "detail": "Which 16th of the bar the walk starts from (not pad X)" },
     { "name": "SIZE", "role": "Y", "detail": "Slice length: 1/4, 1/8, 1/16, 1/32 of a bar, tempo-synced" },
     { "name": "MIX", "role": "Depth", "detail": "Dry/wet" },
     { "name": "TUNE", "role": "Edit", "detail": "Extra pitch around tempo-locked playback (±1 octave)" },
     { "name": "RPT", "role": "Edit", "detail": "RUN walks through slices. LOCK retriggers the start slice" },
-    { "name": "REVS", "role": "Edit", "detail": "Chance each slice plays backwards" },
+    { "name": "REVS", "role": "X", "detail": "Chance each slice plays backwards" },
     { "name": "HOLD", "role": "Edit", "detail": "GATE = hold to play. LATC keeps running after release" }
   ]
 }
