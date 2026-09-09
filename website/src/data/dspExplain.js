@@ -247,31 +247,17 @@ export const dspExplainById = {
   Voices --> Mix[Softclip dry-wet] --> Out[Out]`,
   },
   trance: {
-    en: "Hold-to-gate trance drum kit. Hits lock to host 4ppqn. Four-on-the-floor kicks, clap on 2/4, and offbeat hats from TR-909 ROM PCM (same dump as Trap808/HHat). X thickens 909 hats; Y builds clap rolls toward Fill. Default ~138 BPM.",
-    ja: "ホールドはゲートのみ。ホストの4ppqnに合わせてトランス・ドラムを鳴らします。四つ打ち＋2/4クラップ＋裏拍ハットはTR-909 ROM。Xで909ハット、Yでビルド。既定〜138 BPM。",
+    en: "Hold-to-gate trance kit. Hits lock to host 4ppqn. Hats are TR-909 ROM PCM (same dump as Trap808/HHat). Kick and clap are analog 909 circuit models — a real 909 has no BD/clap ROM to dump. X thickens 909 hats; Y builds clap rolls toward Fill. Default ~138 BPM.",
+    ja: "ホールドはゲートのみ。ホストの4ppqnに合わせてトランスを鳴らします。ハットはTR-909 ROM、キック／クラップは909アナログ回路モデル（実機にBD/クラップROMはありません）。Xで909ハット、Yでビルド。既定〜138 BPM。",
     mermaid: `flowchart TD
   Host[Host 4ppqn] --> Gate{Pad held?}
-  Gate -->|yes| Spine[Four-on-floor clap]
+  Gate -->|yes| Spine[909 BD clap models]
   Gate -->|yes| Hats[X 909 ROM hats]
   Gate -->|yes| Build[Y clap build]
   ROM[TR-909 HH ROM] --> Hats
   Spine --> Voices[Kick clap hats]
   Hats --> Voices
   Build --> Voices
-  Voices --> Mix[Softclip dry-wet] --> Out[Out]`,
-  },
-  drums: {
-    en: "Hold-to-gate multi-genre drum kit. Hits lock to host 4ppqn. GENRE selects Trance / DnB / Breakbeat / UK Garage / Boom-bap / Dembow / Footwork patterns and voice feel. X densifies; Y pushes fill energy. Trap808 stays separate.",
-    ja: "ホールドはゲートのみ。ホストの4ppqnに合わせてジャンル別ドラムを鳴らします。GENREで Trance / DnB / Break / UKG / Boom / Dembow / Footwork を切替。Xは密度、YはFill。Trap808は別ユニットです。",
-    mermaid: `flowchart TD
-  Host[Host 4ppqn] --> Gate{Pad held?}
-  Genre[GENRE] --> Pattern[Genre pattern]
-  Gate -->|yes| Pattern
-  Gate -->|yes| Dens[X densify]
-  Gate -->|yes| Fill[Y fill energy]
-  Pattern --> Voices[Kick snare hats]
-  Dens --> Voices
-  Fill --> Voices
   Voices --> Mix[Softclip dry-wet] --> Out[Out]`,
   },
   hclap: {

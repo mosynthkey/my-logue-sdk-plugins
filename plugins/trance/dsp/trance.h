@@ -5,9 +5,14 @@
  *
  * Tempo-synced trance drum kit for NTS-3.
  * Hold to run. X = offbeat 909-hat energy. Y = build / fill.
- * Four-on-the-floor kick + clap on 2/4; hats are TR-909 ROM PCM
- * (same HN61256P C43 dump as Trap808 / HHat). Top-right flick = one-bar Fill.
- * Hits lock to host 4ppqn.
+ *
+ * Voices follow the real TR-909 split:
+ *   Hats  — 6-bit ROM PCM (HN61256P C43, same dump as Trap808 / HHat)
+ *   Kick  — analog model (triangle VCO → soft sine shaper + pitch sweep + click)
+ *   Clap  — analog model (LFSR noise, sawtooth burst train + room tail; HClap 909 path)
+ *
+ * There is no BD/clap ROM to dump on a 909 — only hats/ride/crash are PCM.
+ * Top-right flick = one-bar Fill. Hits lock to host 4ppqn.
  */
 
 #include "fx_dsp.h"
@@ -184,8 +189,12 @@ private:
     clap_vel_ = 0.f;
     kick_phase_ = 0.f;
     kick_hz_ = 55.f;
-    clap_bp_ = 0.f;
-    clap_lp_ = 0.f;
+    kick_end_hz_ = 48.f;
+    clap_crack_low_ = 0.f;
+    clap_crack_band_ = 0.f;
+    clap_room_low_ = 0.f;
+    clap_room_band_ = 0.f;
+    lfsr_ = 0x7FFFFFFFu;
     for (uint32_t voiceIndex = 0; voiceIndex < kHatVoices; ++voiceIndex)
       hats_[voiceIndex] = HatVoice{};
     next_hat_ = 0U;
@@ -281,6 +290,49 @@ private:
     return (static_cast<float>(noise_state_) * (1.f / 2147483648.f)) - 1.f;
   }
 
+  // 31-stage LFSR (Electric Druid / TR-909 digital noise), taps 31 and 13.
+  float lfsrNoise()
+  {
+    const uint32_t bit = ((lfsr_ >> 30) ^ (lfsr_ >> 12)) & 1U;
+    lfsr_ = ((lfsr_ << 1) | bit) & 0x7FFFFFFFu;
+    if (lfsr_ == 0U)
+      lfsr_ = 0x7FFFFFFFu;
+    return (lfsr_ & 1U) ? 1.f : -1.f;
+  }
+
+  // HClap-style sawtooth burst train (service-note clap chatter).
+  static float clapBurstEnv(float age_sec, float spacing)
+  {
+    const float last_span = spacing * 2.f;
+    const float first_span = spacing * 3.f;
+    if (age_sec < 0.f)
+      return 0.f;
+    if (age_sec < first_span)
+    {
+      const float phase = age_sec / spacing;
+      const float within = phase - static_cast<float>(static_cast<int32_t>(phase));
+      return 1.f - within;
+    }
+    const float last_age = age_sec - first_span;
+    if (last_age < last_span)
+      return 1.f - last_age / last_span;
+    return 0.f;
+  }
+
+  static float svfF(float hz)
+  {
+    const float clamped = fx::clip(hz, 120.f, 8000.f);
+    return 2.f * fastersinfullf(3.14159265f * clamped / 48000.f);
+  }
+
+  static float bandpass(float input, float f, float damp, float &low, float &band)
+  {
+    low += f * band;
+    const float high = input - low - damp * band;
+    band += f * high;
+    return band;
+  }
+
   static uint8_t readPacked6(const uint8_t *packed, uint32_t sample_index)
   {
     const uint32_t bit_index = sample_index * 6U;
@@ -295,7 +347,9 @@ private:
   {
     kick_age_ = 0.f;
     kick_vel_ = velocityJitter(velocity);
-    kick_hz_ = 52.f + tone_norm_ * 26.f;
+    // 909 BD: pitch sweep from ~150–200 Hz down into the body.
+    kick_hz_ = 145.f + tone_norm_ * 70.f;
+    kick_end_hz_ = 42.f + tone_norm_ * 18.f;
     kick_phase_ = 0.f;
     ++main_triggers_;
   }
@@ -304,8 +358,10 @@ private:
   {
     clap_age_ = 0.f;
     clap_vel_ = velocityJitter(velocity);
-    clap_bp_ = 0.f;
-    clap_lp_ = 0.f;
+    clap_crack_low_ = 0.f;
+    clap_crack_band_ = 0.f;
+    clap_room_low_ = 0.f;
+    clap_room_band_ = 0.f;
     ++main_triggers_;
   }
 
@@ -406,40 +462,57 @@ private:
     return sample;
   }
 
+  float renderKick(float inv_sr)
+  {
+    const float amp_tau = 0.085f + decay_norm_ * 0.16f;
+    const float pitch_tau = 0.028f + tone_norm_ * 0.02f;
+    const float amp = (kick_age_ < amp_tau * 8.f) ? fasterexpf(-kick_age_ / amp_tau) * kick_vel_ : 0.f;
+    const float pitch_env = fasterexpf(-kick_age_ / pitch_tau);
+    const float start_hz = 145.f + tone_norm_ * 70.f;
+    const float hz = kick_end_hz_ + (start_hz - kick_end_hz_) * pitch_env;
+    kick_phase_ = fx::wrap01(kick_phase_ + hz * inv_sr);
+
+    // Triangle → soft sine shaper (909 diode waveshaper flavor).
+    const float centered = kick_phase_ - 0.5f;
+    const float abs_centered = (centered < 0.f) ? -centered : centered;
+    const float tri = 4.f * abs_centered - 1.f;
+    const float body = fastertanhf(tri * 1.35f);
+
+    // Short noise click / "Tone" transient.
+    const float click = fasterexpf(-kick_age_ / 0.0045f) * whiteNoise() * kick_vel_ * 0.22f;
+    kick_age_ += inv_sr;
+    return (body * amp * 1.25f + click);
+  }
+
+  float renderClap(float inv_sr)
+  {
+    // HClap 909 path: LFSR → dual BP → burst VCA + room VCA.
+    const float spacing = 0.012f;
+    const float tail_tau = 0.11f + decay_norm_ * 0.12f;
+    const float tone_ratio = fasterpow2f((tone_norm_ * 2.f - 1.f) * 0.4f);
+    const float crack_f = svfF(1400.f * tone_ratio);
+    const float room_f = svfF(950.f * (0.9f + tone_norm_ * 0.15f));
+    const float crack_damp = 1.f / 1.55f;
+    const float room_damp = 1.f / 0.95f;
+
+    const float noise = lfsrNoise();
+    const float burst = clapBurstEnv(clap_age_, spacing) * clap_vel_;
+    const float tail = fasterexpf(-clap_age_ / tail_tau) * clap_vel_;
+    const float crack = bandpass(noise, crack_f, crack_damp, clap_crack_low_, clap_crack_band_);
+    const float room = bandpass(noise, room_f, room_damp, clap_room_low_, clap_room_band_);
+    const float sample = crack * burst * 0.95f + room * tail * 0.42f;
+
+    clap_age_ += inv_sr;
+    if (clap_age_ > spacing * 5.f + tail_tau * 6.f)
+      clap_vel_ = 0.f;
+    return sample * 0.85f;
+  }
+
   float renderVoices()
   {
-    const float sr = getSampleRate();
-    const float kick_tau = (0.05f + decay_norm_ * 0.08f) * sr;
-    // 909 clap: short multi-burst crack + medium room tail.
-    const float clap_tau = (0.045f + decay_norm_ * 0.07f) * sr;
-
-    const float kick_env = (kick_age_ < kick_tau * 8.f) ? fasterexpf(-kick_age_ / kick_tau) * kick_vel_ : 0.f;
-    const float clap_env = (clap_age_ < clap_tau * 8.f) ? fasterexpf(-clap_age_ / clap_tau) * clap_vel_ : 0.f;
-
-    kick_age_ += 1.f;
-    clap_age_ += 1.f;
-
-    // Punchy 909-ish four-on-floor kick.
-    kick_hz_ += (35.f - kick_hz_) * 0.003f;
-    kick_phase_ = fx::wrap01(kick_phase_ + kick_hz_ / sr);
-    const float click = fasterexpf(-kick_age_ / (0.004f * sr)) * kick_vel_ * 0.28f;
-    const float kick = fastersinfullf(kick_phase_ * kTwoPi) * kick_env * 1.35f + click;
-
-    // Burst envelope: three short peaks ~1.5 ms apart (909 clap flavor).
-    const float age_ms = clap_age_ / (sr * 0.001f);
-    float burst = 0.f;
-    for (uint32_t burstIndex = 0; burstIndex < 3U; ++burstIndex)
-    {
-      const float center = static_cast<float>(burstIndex) * 1.5f;
-      const float d = age_ms - center;
-      if (d >= 0.f && d < 3.f)
-        burst += fasterexpf(-d * 2.2f);
-    }
-    const float noise = whiteNoise();
-    clap_bp_ += 0.35f * (noise - clap_bp_);
-    const float band = noise - clap_bp_;
-    clap_lp_ += 0.18f * (band - clap_lp_);
-    const float clap = (band * 0.7f + clap_lp_ * 0.3f) * (burst * 0.85f + clap_env * 0.55f) * 0.9f;
+    const float inv_sr = 1.f / getSampleRate();
+    const float kick = renderKick(inv_sr);
+    const float clap = renderClap(inv_sr);
 
     float hats = 0.f;
     for (uint32_t voiceIndex = 0; voiceIndex < kHatVoices; ++voiceIndex)
@@ -463,8 +536,11 @@ private:
   float clap_vel_ = 0.f;
   float kick_phase_ = 0.f;
   float kick_hz_ = 55.f;
-  float clap_bp_ = 0.f;
-  float clap_lp_ = 0.f;
+  float kick_end_hz_ = 48.f;
+  float clap_crack_low_ = 0.f;
+  float clap_crack_band_ = 0.f;
+  float clap_room_low_ = 0.f;
+  float clap_room_band_ = 0.f;
 
   HatVoice hats_[kHatVoices];
   uint32_t next_hat_ = 0U;
@@ -473,6 +549,7 @@ private:
   uint32_t fill_timer_ = 0U;
   uint32_t rng_ = 0x7A7CE1u;
   uint32_t noise_state_ = 0xA5A5A5A5u;
+  uint32_t lfsr_ = 0x7FFFFFFFu;
   uint32_t ghost_triggers_ = 0U;
   uint32_t main_triggers_ = 0U;
   int32_t swing_samples_left_ = 0;
