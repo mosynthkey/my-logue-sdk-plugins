@@ -92,7 +92,11 @@ function isTypingTarget(event) {
   if (!(target instanceof HTMLElement)) {
     return false;
   }
-  return target.closest("input, textarea, select, [contenteditable='true']") !== null;
+  return (
+    target.closest(
+      "input, textarea, select, [contenteditable='true'], .v-field, [role='combobox']",
+    ) !== null
+  );
 }
 
 function noteOn(midi) {
@@ -393,28 +397,26 @@ onBeforeUnmount(() => {
 <template>
   <div class="preview-keyboard-shell">
     <div class="preview-keyboard-head">
-      <button
-        type="button"
-        class="preview-chip"
+      <v-btn
+        variant="outlined"
         :disabled="!canOctaveDown"
         :aria-label="t('octaveDown')"
         @click="onOctaveDown"
       >
         Octave −
-      </button>
+      </v-btn>
       <span
         class="preview-octave"
         aria-live="polite"
       >{{ viewLabel }}</span>
-      <button
-        type="button"
-        class="preview-chip"
+      <v-btn
+        variant="outlined"
         :disabled="!canOctaveUp"
         :aria-label="t('octaveUp')"
         @click="onOctaveUp"
       >
         Octave +
-      </button>
+      </v-btn>
     </div>
 
     <div

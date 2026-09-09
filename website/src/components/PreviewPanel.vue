@@ -1,5 +1,5 @@
 <script setup>
-import { onBeforeUnmount, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import PreviewDebugLog from "./preview/PreviewDebugLog.vue";
 import PreviewDepthPad from "./preview/PreviewDepthPad.vue";
 import PreviewKeyboard from "./preview/PreviewKeyboard.vue";
@@ -65,6 +65,13 @@ const {
   startPreviewFromTap,
 } = useWasmPreview(previewShellRef);
 
+const drySourceItems = computed(() =>
+  drySources.map((source) => ({
+    value: source.id,
+    title: t(source.labelKey),
+  })),
+);
+
 watch(
   () => [props.build, props.plugin],
   ([build, plugin]) => {
@@ -124,54 +131,50 @@ function handleHoldToggle() {
             v-if="showDryInput"
             class="preview-dry-input"
           >
-            <button
-              type="button"
-              class="preview-chip preview-dry-input__play"
-              :class="{ 'is-on': dryPlaying }"
+            <v-btn
+              :variant="dryPlaying ? 'flat' : 'outlined'"
+              :color="dryPlaying ? 'primary' : undefined"
+              :prepend-icon="dryPlaying ? 'mdi-stop' : 'mdi-play'"
               :aria-pressed="dryPlaying"
               :aria-label="t(dryPlaying ? 'stop' : 'play')"
               :disabled="!isReady"
               @click="toggleDryPlayback"
             >
               {{ t(dryPlaying ? "stop" : "play") }}
-            </button>
-            <select
-              id="preview-dry-source"
+            </v-btn>
+            <v-select
               class="preview-dry-input__select"
+              :model-value="drySourceId"
+              :items="drySourceItems"
+              item-title="title"
+              item-value="value"
+              density="compact"
+              hide-details
               :aria-label="t('selectInputSource')"
-              :value="drySourceId"
               :disabled="!isReady"
-              @change="setDrySource($event.target.value)"
-            >
-              <option
-                v-for="source in drySources"
-                :key="source.id"
-                :value="source.id"
-              >
-                {{ t(source.labelKey) }}
-              </option>
-            </select>
+              @update:model-value="setDrySource"
+            />
           </div>
 
-          <button
+          <v-btn
             v-if="showInstrument && layout === 'keyboard' && !kickDemoActive"
-            type="button"
-            class="preview-chip"
-            :class="{ 'is-on': latchEnabled }"
+            :variant="latchEnabled ? 'flat' : 'outlined'"
+            :color="latchEnabled ? 'primary' : undefined"
+            :aria-pressed="latchEnabled"
             @click="onLatchToggle"
           >
             {{ t("latch") }} {{ t(latchEnabled ? "on" : "off") }}
-          </button>
+          </v-btn>
 
-          <button
+          <v-btn
             v-if="showInstrument && layout === 'xypad'"
-            type="button"
-            class="preview-chip"
-            :class="{ 'is-on': holdEnabled }"
+            :variant="holdEnabled ? 'flat' : 'outlined'"
+            :color="holdEnabled ? 'primary' : undefined"
+            :aria-pressed="holdEnabled"
             @click="handleHoldToggle"
           >
-            Hold {{ holdEnabled ? "On" : "Off" }}
-          </button>
+            {{ t("hold") }} {{ t(holdEnabled ? "on" : "off") }}
+          </v-btn>
         </div>
       </div>
 

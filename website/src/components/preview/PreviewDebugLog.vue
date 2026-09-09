@@ -25,13 +25,13 @@ async function onCopy() {
   >
     <header class="preview-debug__head">
       <h3>Preview debug log</h3>
-      <button
-        type="button"
-        class="preview-chip"
+      <v-btn
+        variant="outlined"
+        prepend-icon="mdi-content-copy"
         @click="onCopy"
       >
         {{ copied ? "Copied" : "Copy log" }}
-      </button>
+      </v-btn>
     </header>
     <pre class="preview-debug__body"><code
       v-for="(line, lineIndex) in lines"
