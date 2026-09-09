@@ -247,13 +247,14 @@ export const dspExplainById = {
   Voices --> Mix[Softclip dry-wet] --> Out[Out]`,
   },
   trance: {
-    en: "Hold-to-gate trance drum kit. Hits lock to host 4ppqn. Four-on-the-floor kicks, clap on 2/4, offbeat open hats. X thickens hats; Y builds snare rolls toward Fill. Default ~138 BPM.",
-    ja: "ホールドはゲートのみ。ホストの4ppqnに合わせてトランス・ドラムを鳴らします。四つ打ち＋2/4クラップ＋裏拍オープンハット。Xでハット、Yでビルド。既定〜138 BPM。",
+    en: "Hold-to-gate trance drum kit. Hits lock to host 4ppqn. Four-on-the-floor kicks, clap on 2/4, and offbeat hats from TR-909 ROM PCM (same dump as Trap808/HHat). X thickens 909 hats; Y builds clap rolls toward Fill. Default ~138 BPM.",
+    ja: "ホールドはゲートのみ。ホストの4ppqnに合わせてトランス・ドラムを鳴らします。四つ打ち＋2/4クラップ＋裏拍ハットはTR-909 ROM。Xで909ハット、Yでビルド。既定〜138 BPM。",
     mermaid: `flowchart TD
   Host[Host 4ppqn] --> Gate{Pad held?}
   Gate -->|yes| Spine[Four-on-floor clap]
-  Gate -->|yes| Hats[X offbeat opens]
-  Gate -->|yes| Build[Y snare build]
+  Gate -->|yes| Hats[X 909 ROM hats]
+  Gate -->|yes| Build[Y clap build]
+  ROM[TR-909 HH ROM] --> Hats
   Spine --> Voices[Kick clap hats]
   Hats --> Voices
   Build --> Voices
