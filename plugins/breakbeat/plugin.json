@@ -1,0 +1,42 @@
+{
+  "id": "breakbeat",
+  "experimental": true,
+  "name": "BreakBeat",
+  "type": "drum",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Tempo-synced Amen-inspired breakbeat kit (synthetic voices, not a sample). Hold to gate — hits lock to the host beat. Syncopated kick/snare map; X grows ghosts and secondary snares; Y pushes break energy toward Fill. Flick top-right for a one-bar Fill. Default ~174 BPM.",
+  "params": [
+    {
+      "name": "SYNC",
+      "role": "X",
+      "detail": "Syncopation / ghost and secondary-snare density"
+    },
+    {
+      "name": "ENERGY",
+      "role": "Y",
+      "detail": "Break energy, hats, and fill push"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet"
+    },
+    {
+      "name": "SWING",
+      "role": "Edit",
+      "detail": "16th swing"
+    },
+    {
+      "name": "TONE",
+      "role": "Edit",
+      "detail": "Kick / snare pitch colour"
+    },
+    {
+      "name": "DEC",
+      "role": "Edit",
+      "detail": "Shared body / hat decay"
+    }
+  ]
+}

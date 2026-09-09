@@ -1,0 +1,42 @@
+{
+  "id": "trance",
+  "experimental": true,
+  "name": "Trance",
+  "type": "drum",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Tempo-synced trance drum kit. Hold to gate — hits lock to the host beat. Four-on-the-floor kicks, clap on 2 and 4, offbeat open hats. X thickens hats; Y builds snare rolls toward Fill. Flick top-right for a one-bar Fill. Default ~138 BPM.",
+  "params": [
+    {
+      "name": "HATS",
+      "role": "X",
+      "detail": "Offbeat open-hat energy and closed-hat density"
+    },
+    {
+      "name": "BUILD",
+      "role": "Y",
+      "detail": "Build / snare-roll energy toward Fill"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet"
+    },
+    {
+      "name": "SWING",
+      "role": "Edit",
+      "detail": "Light 16th swing (trance stays fairly straight)"
+    },
+    {
+      "name": "TONE",
+      "role": "Edit",
+      "detail": "Kick / clap pitch colour"
+    },
+    {
+      "name": "DEC",
+      "role": "Edit",
+      "detail": "Shared body / hat decay"
+    }
+  ]
+}

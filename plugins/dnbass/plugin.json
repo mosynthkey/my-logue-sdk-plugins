@@ -1,0 +1,42 @@
+{
+  "id": "dnbass",
+  "experimental": true,
+  "name": "DnBass",
+  "type": "drum",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Tempo-synced drum & bass kit. Hold to gate — hits lock to the host beat. Half-time snare on 3 with syncopated kicks; X grows rolling hats, Y pushes break energy toward Fill. Flick top-right for a one-bar Fill. Default ~174 BPM.",
+  "params": [
+    {
+      "name": "HATS",
+      "role": "X",
+      "detail": "Rolling hat density (8ths toward busy 16ths)"
+    },
+    {
+      "name": "BREAK",
+      "role": "Y",
+      "detail": "Break energy: ghost kicks/snares and fill push"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet"
+    },
+    {
+      "name": "SWING",
+      "role": "Edit",
+      "detail": "Light 16th swing"
+    },
+    {
+      "name": "TONE",
+      "role": "Edit",
+      "detail": "Kick / snare pitch colour"
+    },
+    {
+      "name": "DEC",
+      "role": "Edit",
+      "detail": "Shared body / hat decay"
+    }
+  ]
+}
