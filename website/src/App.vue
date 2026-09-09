@@ -45,7 +45,15 @@ const {
   openSendModal,
   closeSendModal,
   sendPlugin,
+  sendToSlot,
   nts3Connected,
+  connectedTargets,
+  inlineSlotsByTarget,
+  inlineSlotsLoading,
+  inlineStatusText,
+  inlineStatusKind,
+  sending,
+  syncInlineSlots,
   startPresenceWatch,
 } = useMidiSend();
 
@@ -121,6 +129,14 @@ watch(nts3Connected, (connected) => {
   }
 });
 
+watch(activePlugin, (plugin) => {
+  syncInlineSlots(plugin);
+});
+
+watch(connectedTargets, () => {
+  syncInlineSlots(activePlugin.value);
+}, { deep: true });
+
 function onKeyDown(event) {
   if (event.key !== "Escape") return;
   if (programEditorOpen.value) {
@@ -136,9 +152,12 @@ function onKeyDown(event) {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   document.addEventListener("keydown", onKeyDown);
-  startPresenceWatch();
+  await startPresenceWatch();
+  if (activePlugin.value) {
+    syncInlineSlots(activePlugin.value);
+  }
 });
 
 onUnmounted(() => {
@@ -192,8 +211,15 @@ onUnmounted(() => {
           v-if="activePlugin"
           :plugin="activePlugin"
           :active-target="activeTarget"
+          :connected-targets="connectedTargets"
+          :inline-slots-by-target="inlineSlotsByTarget"
+          :inline-slots-loading="inlineSlotsLoading"
+          :inline-status-text="inlineStatusText"
+          :inline-status-kind="inlineStatusKind"
+          :sending="sending"
           @select-target="(target) => selectTarget(activePlugin.id, target)"
           @send="openSendModal"
+          @send-slot="sendToSlot"
           @explain-dsp="openDspExplainModal"
         />
 

@@ -13,8 +13,8 @@ import {
   readModuleSlots,
   readSlotStatus,
 } from "../../nts1-midi.js";
-import { LOAD_HINT } from "../constants.js";
-import { moduleFor } from "../utils/plugin.js";
+import { LOAD_HINT, SENDABLE_TARGETS } from "../constants.js";
+import { moduleFor, sendableBuilds } from "../utils/plugin.js";
 
 function deviceForTarget(target) {
   return DEVICES[target] || NTS1_MKII;
@@ -40,6 +40,28 @@ function slotOptionLabel(slotIndex, status) {
   return `Slot ${slotIndex} · ${status.name || "occupied"}`;
 }
 
+function emptyConnectedTargets() {
+  return {
+    "nts-1_mkii": false,
+    "nts-3_kaoss": false,
+  };
+}
+
+function buildSlotOptions(module, statuses) {
+  const count = MODULE_SLOTS[module] || 16;
+  const options = [];
+  for (let slotIndex = 0; slotIndex < count; slotIndex += 1) {
+    const status = statuses?.get(slotIndex) ?? null;
+    options.push({
+      value: slotIndex,
+      label: slotOptionLabel(slotIndex, status),
+      empty: status ? Boolean(status.empty) : true,
+      name: status && !status.empty ? (status.name || "occupied") : "",
+    });
+  }
+  return options;
+}
+
 export function useMidiSend() {
   const isOpen = ref(false);
   const pendingPlugin = ref(null);
@@ -62,23 +84,24 @@ export function useMidiSend() {
   const midiAccess = ref(null);
   let deviceInquiryToken = 0;
   let slotInquiryToken = 0;
+  let inlineSyncToken = 0;
   const currentSlotModule = ref("osc");
   const slotStatuses = ref(new Map());
   const slotStatusVersion = ref(0);
   const unitCache = new Map();
-  const nts3Connected = ref(false);
+  const connectedTargets = ref(emptyConnectedTargets());
+  const inlinePlugin = ref(null);
+  const inlineSlotsByTarget = ref({});
+  const inlineSlotsLoading = ref({});
+  const inlineStatusText = ref("");
+  const inlineStatusKind = ref("idle");
+  const sending = ref(false);
+
+  const nts3Connected = computed(() => connectedTargets.value["nts-3_kaoss"]);
 
   const slotOptions = computed(() => {
     slotStatusVersion.value;
-    const count = MODULE_SLOTS[currentSlotModule.value] || 16;
-    const options = [];
-    for (let slotIndex = 0; slotIndex < count; slotIndex += 1) {
-      options.push({
-        value: slotIndex,
-        label: slotOptionLabel(slotIndex, slotStatuses.value.get(slotIndex)),
-      });
-    }
-    return options;
+    return buildSlotOptions(currentSlotModule.value, slotStatuses.value);
   });
 
   function log(message, kind = "info") {
@@ -94,6 +117,11 @@ export function useMidiSend() {
     deviceStatusKind.value = kind;
   }
 
+  function setInlineStatus(text, kind = "idle") {
+    inlineStatusText.value = text;
+    inlineStatusKind.value = kind;
+  }
+
   function formatDeviceStatus(identity, output) {
     const deviceName = identity?.label || deviceForTarget(pendingTarget.value).shortLabel;
     return `${deviceName} on ${portLabel(output)}`;
@@ -107,6 +135,17 @@ export function useMidiSend() {
 
   function selectedPort(portId, ports) {
     return ports.get(portId) || null;
+  }
+
+  function portsForTarget(target) {
+    if (!midiAccess.value) {
+      return { output: null, input: null };
+    }
+    const device = deviceForTarget(target);
+    return {
+      output: pickPreferredPort(midiAccess.value.outputs, device),
+      input: pickPreferredPort(midiAccess.value.inputs, device),
+    };
   }
 
   const selectedOutputLabel = computed(() => {
@@ -125,23 +164,28 @@ export function useMidiSend() {
     return port ? portLabel(port) + portSuffix(port.name) : "";
   });
 
-  function updateNts3Connected() {
+  function updateConnectedTargets() {
     if (!midiAccess.value) {
-      nts3Connected.value = false;
+      connectedTargets.value = emptyConnectedTargets();
       return;
     }
     const ports = [
       ...listMidiPorts(midiAccess.value.outputs),
       ...listMidiPorts(midiAccess.value.inputs),
     ];
-    nts3Connected.value = ports.some((port) => looksLikeDevicePort(port.name, NTS3_KAOSS));
+    const next = emptyConnectedTargets();
+    for (const target of SENDABLE_TARGETS) {
+      const device = deviceForTarget(target);
+      next[target] = ports.some((port) => looksLikeDevicePort(port.name, device));
+    }
+    connectedTargets.value = next;
   }
 
   function refreshPortLists() {
     if (!midiAccess.value) {
       outputPorts.value = [];
       inputPorts.value = [];
-      updateNts3Connected();
+      updateConnectedTargets();
       return;
     }
 
@@ -174,7 +218,7 @@ export function useMidiSend() {
       selectedInputId.value = "";
     }
 
-    updateNts3Connected();
+    updateConnectedTargets();
   }
 
   function resetSlotStatuses() {
@@ -193,6 +237,26 @@ export function useMidiSend() {
     const maxSlot = (MODULE_SLOTS[module] || 16) - 1;
     const nextSlot = Number.isFinite(previous) ? Math.min(Math.max(previous, 0), maxSlot) : 1;
     slot.value = nextSlot;
+  }
+
+  function clearInlineSlots() {
+    inlineSlotsByTarget.value = {};
+    inlineSlotsLoading.value = {};
+  }
+
+  function seedInlineSlots(plugin) {
+    const nextSlots = {};
+    const nextLoading = {};
+    for (const build of sendableBuilds(plugin)) {
+      if (!connectedTargets.value[build.target]) {
+        continue;
+      }
+      const module = moduleFor(plugin, build.target);
+      nextSlots[build.target] = buildSlotOptions(module, null);
+      nextLoading[build.target] = true;
+    }
+    inlineSlotsByTarget.value = nextSlots;
+    inlineSlotsLoading.value = nextLoading;
   }
 
   async function connectMidi() {
@@ -215,6 +279,8 @@ export function useMidiSend() {
       refreshPortLists();
       if (isOpen.value) {
         inquireDevice();
+      } else if (inlinePlugin.value) {
+        syncInlineSlots(inlinePlugin.value);
       }
     };
     refreshPortLists();
@@ -224,52 +290,122 @@ export function useMidiSend() {
 
   async function startPresenceWatch() {
     if (!webMidiSupported.value) {
-      nts3Connected.value = false;
+      connectedTargets.value = emptyConnectedTargets();
       return false;
     }
     const connected = await connectMidi();
     if (!connected) {
-      nts3Connected.value = false;
+      connectedTargets.value = emptyConnectedTargets();
       return false;
     }
-    updateNts3Connected();
+    updateConnectedTargets();
     return true;
   }
 
-  async function inquireSlotOccupancy(module) {
+  async function inquireSlotOccupancy(module, target = pendingTarget.value) {
     const inquiryToken = ++slotInquiryToken;
-    if (!midiAccess.value || !hasMidiPorts()) {
-      resetSlotStatuses();
-      return;
-    }
-
-    const output = selectedPort(selectedOutputId.value, midiAccess.value.outputs);
-    const input = selectedPort(selectedInputId.value, midiAccess.value.inputs);
+    const { output, input } = portsForTarget(target);
     if (!output || !input) {
-      return;
+      if (target === pendingTarget.value && module === currentSlotModule.value) {
+        resetSlotStatuses();
+      }
+      return null;
     }
 
     try {
       const slots = await readModuleSlots(output, input, {
         module,
         channel: channel.value,
-        device: deviceForTarget(pendingTarget.value),
+        device: deviceForTarget(target),
       });
-      if (inquiryToken !== slotInquiryToken) {
-        return;
-      }
       const nextStatuses = new Map();
       for (const status of slots) {
         nextStatuses.set(status.slot, status);
       }
-      slotStatuses.value = nextStatuses;
-      slotStatusVersion.value += 1;
+      if (
+        inquiryToken === slotInquiryToken
+        && target === pendingTarget.value
+        && module === currentSlotModule.value
+      ) {
+        slotStatuses.value = nextStatuses;
+        slotStatusVersion.value += 1;
+      }
+      return nextStatuses;
     } catch (error) {
-      if (inquiryToken !== slotInquiryToken) {
+      log(`Slot occupancy inquiry failed: ${error.message}`, "warn");
+      return null;
+    }
+  }
+
+  async function syncInlineSlots(plugin) {
+    const syncToken = ++inlineSyncToken;
+    inlinePlugin.value = plugin || null;
+
+    if (!plugin) {
+      clearInlineSlots();
+      return;
+    }
+
+    if (!webMidiSupported.value || !midiAccess.value) {
+      clearInlineSlots();
+      return;
+    }
+
+    seedInlineSlots(plugin);
+
+    const builds = sendableBuilds(plugin).filter((build) => connectedTargets.value[build.target]);
+    if (builds.length === 0) {
+      clearInlineSlots();
+      return;
+    }
+
+    await Promise.all(builds.map(async (build) => {
+      const target = build.target;
+      const module = moduleFor(plugin, target);
+      const { output, input } = portsForTarget(target);
+      if (!output || !input) {
+        if (syncToken !== inlineSyncToken) {
+          return;
+        }
+        inlineSlotsLoading.value = { ...inlineSlotsLoading.value, [target]: false };
         return;
       }
-      log(`Slot occupancy inquiry failed: ${error.message}`, "warn");
-    }
+
+      try {
+        const identity = await detectDevice(output, input);
+        if (syncToken !== inlineSyncToken) {
+          return;
+        }
+        if (identity.deviceId !== deviceForTarget(target).id) {
+          const nextSlots = { ...inlineSlotsByTarget.value };
+          delete nextSlots[target];
+          inlineSlotsByTarget.value = nextSlots;
+          inlineSlotsLoading.value = { ...inlineSlotsLoading.value, [target]: false };
+          return;
+        }
+        if (identity.midiChannel != null) {
+          channel.value = identity.midiChannel;
+        }
+
+        const statuses = await inquireSlotOccupancy(module, target);
+        if (syncToken !== inlineSyncToken) {
+          return;
+        }
+        inlineSlotsByTarget.value = {
+          ...inlineSlotsByTarget.value,
+          [target]: buildSlotOptions(module, statuses),
+        };
+      } catch {
+        if (syncToken !== inlineSyncToken) {
+          return;
+        }
+        // Keep numbered slots so the user can still send without occupancy labels.
+      } finally {
+        if (syncToken === inlineSyncToken) {
+          inlineSlotsLoading.value = { ...inlineSlotsLoading.value, [target]: false };
+        }
+      }
+    }));
   }
 
   async function inquireDevice() {
@@ -299,8 +435,13 @@ export function useMidiSend() {
       return;
     }
 
-    const output = selectedPort(selectedOutputId.value, midiAccess.value.outputs);
-    const input = selectedPort(selectedInputId.value, midiAccess.value.inputs);
+    const { output, input } = portsForTarget(pendingTarget.value);
+    if (output) {
+      selectedOutputId.value = output.id;
+    }
+    if (input) {
+      selectedInputId.value = input.id;
+    }
     if (!output || !input) {
       setDeviceStatus(
         `Connect ${deviceForTarget(pendingTarget.value).shortLabel} over USB.`,
@@ -333,7 +474,7 @@ export function useMidiSend() {
       sendDisabled.value = false;
       if (pendingPlugin.value) {
         const module = moduleFor(pendingPlugin.value, pendingTarget.value);
-        await inquireSlotOccupancy(module);
+        await inquireSlotOccupancy(module, pendingTarget.value);
         if (inquiryToken !== deviceInquiryToken) {
           return;
         }
@@ -401,52 +542,63 @@ export function useMidiSend() {
     return bytes;
   }
 
-  async function sendPlugin() {
-    const plugin = pendingPlugin.value;
-    const target = pendingTarget.value;
-    if (!plugin) {
-      return;
-    }
+  async function transferUnit(plugin, target, slotIndex, { useModalStatus }) {
+    const setStatus = (text, kind) => {
+      if (useModalStatus) {
+        setDeviceStatus(text, kind);
+      } else {
+        setInlineStatus(text, kind);
+      }
+    };
 
     if (!midiAccess.value) {
       const connected = await connectMidi();
       if (!connected) {
-        setDeviceStatus("MIDI permission denied", "error");
-        return;
+        setStatus("MIDI permission denied", "error");
+        return false;
       }
     }
 
-    const output = selectedPort(selectedOutputId.value, midiAccess.value.outputs);
-    const input = selectedPort(selectedInputId.value, midiAccess.value.inputs);
+    const { output, input } = portsForTarget(target);
+    if (output) {
+      selectedOutputId.value = output.id;
+    }
+    if (input) {
+      selectedInputId.value = input.id;
+    }
     if (!output || !input) {
-      setDeviceStatus(`Connect ${deviceForTarget(target).shortLabel} over USB.`, "error");
-      return;
+      setStatus(`Connect ${deviceForTarget(target).shortLabel} over USB.`, "error");
+      return false;
     }
 
     const module = moduleFor(plugin, target);
     applySlotModule(module);
+    slot.value = slotIndex;
 
+    sending.value = true;
     sendDisabled.value = true;
-    setDeviceStatus("Sending…", "busy");
+    setStatus("Sending…", "busy");
 
     try {
       const device = deviceForTarget(target);
       try {
         const identity = await detectDevice(output, input);
         if (identity.deviceId !== device.id) {
-          setDeviceStatus(`This port is ${identity.shortLabel}, not ${device.shortLabel}.`, "error");
+          setStatus(`This port is ${identity.shortLabel}, not ${device.shortLabel}.`, "error");
           log(`Expected ${device.shortLabel}, got ${identity.label}`, "error");
-          return;
+          return false;
         }
         if (identity.midiChannel != null) {
           channel.value = identity.midiChannel;
         }
         log(`Device identified: ${identity.label}${identity.midiChannel != null ? ` · ch ${identity.midiChannel}` : ""}`);
-        setDeviceStatus(formatDeviceStatus(identity, output), "ok");
+        if (useModalStatus) {
+          setDeviceStatus(formatDeviceStatus(identity, output), "ok");
+        }
       } catch (error) {
-        setDeviceStatus(`No ${device.shortLabel} device found. Check USB connection.`, "error");
+        setStatus(`No ${device.shortLabel} device found. Check USB connection.`, "error");
         log(`Device inquiry failed: ${error.message}`, "error");
-        return;
+        return false;
       }
 
       const unitBytes = await fetchUnit(plugin, target);
@@ -455,15 +607,15 @@ export function useMidiSend() {
       try {
         const slotInfo = await readSlotStatus(output, input, {
           module,
-          slot: slot.value,
+          slot: slotIndex,
           channel: channel.value,
           device,
         });
         if (slotInfo.empty) {
-          log(`${module} slot ${slot.value} is empty`);
+          log(`${module} slot ${slotIndex} is empty`);
         } else {
           const loadedName = slotInfo.name || "occupied";
-          log(`${module} slot ${slot.value} currently has ${loadedName} and will be overwritten`);
+          log(`${module} slot ${slotIndex} currently has ${loadedName} and will be overwritten`);
         }
       } catch (error) {
         log(`Slot inquiry skipped: ${error.message}`, "warn");
@@ -471,28 +623,53 @@ export function useMidiSend() {
 
       await installUnit(output, input, unitBytes, {
         module,
-        slot: slot.value,
+        slot: slotIndex,
         channel: channel.value,
         device,
         onProgress: ({ phase, packetIndex, packetCount }) => {
           if (phase === "start") {
-            log(`Sending ${packetCount} SysEx packet(s) to ${module} slot ${slot.value}`);
+            log(`Sending ${packetCount} SysEx packet(s) to ${module} slot ${slotIndex}`);
           }
           if (phase === "packet") {
-            setDeviceStatus(`Sent packet ${packetIndex} / ${packetCount}`, "busy");
+            setStatus(`Sent packet ${packetIndex} / ${packetCount}`, "busy");
           }
         },
       });
 
-      setDeviceStatus(`${plugin.name} → ${module} ${slot.value}`, "ok");
+      setStatus(`${plugin.name} → ${module} ${slotIndex}`, "ok");
       log(LOAD_HINT[module] || "Load it on the device.", "ok");
-      await inquireSlotOccupancy(module);
+      await inquireSlotOccupancy(module, target);
+      if (!useModalStatus && inlinePlugin.value) {
+        await syncInlineSlots(inlinePlugin.value);
+      }
+      return true;
     } catch (error) {
-      setDeviceStatus("Transfer failed", "error");
+      setStatus("Transfer failed", "error");
       log(error.message, "error");
+      return false;
     } finally {
+      sending.value = false;
       sendDisabled.value = false;
     }
+  }
+
+  async function sendPlugin() {
+    const plugin = pendingPlugin.value;
+    const target = pendingTarget.value;
+    if (!plugin) {
+      return;
+    }
+    await transferUnit(plugin, target, slot.value, { useModalStatus: true });
+  }
+
+  async function sendToSlot(plugin, target, slotIndex) {
+    if (!plugin || sending.value) {
+      return;
+    }
+    pendingPlugin.value = plugin;
+    pendingTarget.value = target;
+    clearLog();
+    await transferUnit(plugin, target, slotIndex, { useModalStatus: false });
   }
 
   function onMidiSettingChange() {
@@ -517,8 +694,16 @@ export function useMidiSend() {
     openSendModal,
     closeSendModal,
     sendPlugin,
+    sendToSlot,
     onMidiSettingChange,
     nts3Connected,
+    connectedTargets,
+    inlineSlotsByTarget,
+    inlineSlotsLoading,
+    inlineStatusText,
+    inlineStatusKind,
+    sending,
+    syncInlineSlots,
     startPresenceWatch,
   };
 }

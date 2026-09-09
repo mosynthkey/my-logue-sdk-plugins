@@ -5,6 +5,7 @@ import { useI18n } from "../composables/useI18n.js";
 import {
   buildForTarget,
   downloadableBuilds,
+  moduleFor,
   sendableBuilds,
   targetName,
   unitFileName,
@@ -19,9 +20,33 @@ const props = defineProps({
     type: String,
     required: true,
   },
+  connectedTargets: {
+    type: Object,
+    default: () => ({}),
+  },
+  inlineSlotsByTarget: {
+    type: Object,
+    default: () => ({}),
+  },
+  inlineSlotsLoading: {
+    type: Object,
+    default: () => ({}),
+  },
+  inlineStatusText: {
+    type: String,
+    default: "",
+  },
+  inlineStatusKind: {
+    type: String,
+    default: "idle",
+  },
+  sending: {
+    type: Boolean,
+    default: false,
+  },
 });
 
-const emit = defineEmits(["select-target", "send", "explain-dsp"]);
+const emit = defineEmits(["select-target", "send", "send-slot", "explain-dsp"]);
 const { pluginDescription, t } = useI18n();
 
 const activeBuild = computed(() => buildForTarget(props.plugin, props.activeTarget));
@@ -42,6 +67,43 @@ const targetItems = computed(() => {
     title: targetName(target),
   }));
 });
+
+const inlineStatusColor = computed(() => {
+  if (props.inlineStatusKind === "ok") return "success";
+  if (props.inlineStatusKind === "error") return "error";
+  if (props.inlineStatusKind === "warn") return "warning";
+  if (props.inlineStatusKind === "busy") return "info";
+  return "secondary";
+});
+
+function isTargetConnected(target) {
+  return Boolean(props.connectedTargets[target]);
+}
+
+function slotsFor(target) {
+  return props.inlineSlotsByTarget[target] || [];
+}
+
+function isSlotsLoading(target) {
+  return Boolean(props.inlineSlotsLoading[target]);
+}
+
+function showInlineSlots(target) {
+  return isTargetConnected(target)
+    && (isSlotsLoading(target) || slotsFor(target).length > 0);
+}
+
+function slotButtonLabel(option) {
+  if (option.empty) {
+    return String(option.value);
+  }
+  const name = option.name || "occupied";
+  return `${option.value} · ${name}`;
+}
+
+function moduleLabel(target) {
+  return moduleFor(props.plugin, target);
+}
 </script>
 
 <template>
@@ -84,19 +146,60 @@ const targetItems = computed(() => {
       <v-col
         v-if="sends.length"
         cols="12"
-        md="6"
+        :md="downloads.length ? 6 : 12"
       >
         <h2 class="text-title-medium mb-3">{{ t("sendToDevice") }}</h2>
-        <div class="d-flex flex-wrap ga-2">
-          <v-btn
+
+        <v-alert
+          v-if="inlineStatusText"
+          :color="inlineStatusColor"
+          variant="tonal"
+          density="compact"
+          class="mb-3"
+          :text="inlineStatusText"
+        />
+
+        <div class="d-flex flex-column ga-4">
+          <div
             v-for="build in sends"
             :key="`send-${build.target}`"
-            variant="outlined"
-            prepend-icon="mdi-usb"
-            @click="emit('send', plugin, build.target)"
           >
-            {{ targetName(build.target) }}
-          </v-btn>
+            <template v-if="showInlineSlots(build.target)">
+              <div class="d-flex align-center flex-wrap ga-2 mb-2">
+                <span class="text-label-large">{{ targetName(build.target) }}</span>
+                <span class="text-body-small text-medium-emphasis">
+                  {{ t("sendSlotHint", { module: moduleLabel(build.target) }) }}
+                </span>
+                <v-progress-circular
+                  v-if="isSlotsLoading(build.target)"
+                  indeterminate
+                  size="16"
+                  width="2"
+                />
+              </div>
+              <div class="slot-grid">
+                <v-btn
+                  v-for="option in slotsFor(build.target)"
+                  :key="`slot-${build.target}-${option.value}`"
+                  size="small"
+                  :variant="option.empty ? 'outlined' : 'tonal'"
+                  :disabled="sending"
+                  :title="option.label"
+                  @click="emit('send-slot', plugin, build.target, option.value)"
+                >
+                  {{ slotButtonLabel(option) }}
+                </v-btn>
+              </div>
+            </template>
+            <v-btn
+              v-else
+              variant="outlined"
+              prepend-icon="mdi-usb"
+              @click="emit('send', plugin, build.target)"
+            >
+              {{ targetName(build.target) }}
+            </v-btn>
+          </div>
         </div>
       </v-col>
     </v-row>
@@ -134,3 +237,13 @@ const targetItems = computed(() => {
     </v-card>
   </div>
 </template>
+
+<style scoped>
+.slot-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  max-height: 12rem;
+  overflow: auto;
+}
+</style>
