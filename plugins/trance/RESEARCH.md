@@ -1,18 +1,26 @@
 # Trance Research Notes
 
-Tempo-synced trance drum phrase pad for NTS-3. Four-on-the-floor + offbeat
-**TR-909 ROM open hats** are the identity.
+Tempo-synced trance drum phrase pad for NTS-3.
 
-## Voices
+## Voices (TR-909 split)
 
 | Voice | Source |
 | --- | --- |
-| Kick | Analog model (909-ish punch + click) |
-| Clap | Analog multi-burst noise (909 clap flavor) |
 | Closed / Open hats | Packed 6-bit PCM from TR-909 Hi-Hat ROM (HN61256P C43), same dump as Trap808 / HHat |
+| Kick (BD) | Analog circuit model — triangle VCO → soft tanh sine shaper, pitch sweep, short noise click |
+| Clap | Analog circuit model — 31-stage LFSR noise, sawtooth burst train + room tail (HClap 909 path) |
+
+### Why kick/clap are models, not ROM
+
+Roland never sampled the 909 bass drum or hand clap. Service notes:
+
+- BD / SD / toms / rim / clap = analog voice board
+- Hats / ride / crash = 6-bit PCM ROMs
+
+So hats can be “taken from the 909” as ROM dumps; BD and clap have to be circuit models (same approach as HClap / HSnare). Sample packs are one-shots, not original material.
 
 Hat playback: 30 kHz ZOH → 6-bit DAC mid/scale → light LPF. Closed chokes open.
-Near-1 envelope coeffs use `1 + x` linearization (not `fasterexpf`).
+Near-1 hat envelopes use `1 + x` linearization (not `fasterexpf`).
 
 ## Pattern spine (16 steps)
 

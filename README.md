@@ -41,7 +41,7 @@ Plugins:
 - **Footwork** — NTS-3 Chicago footwork / juke kit. Beat-locked; X = kick stutters, Y = snare rolls. Default ~160 BPM. Experimental; open with `?experimental`.
 - **BreakBeat** — NTS-3 Amen-inspired synthetic breakbeat (not a sample). Beat-locked; X = syncopation/ghosts, Y = break energy. Default ~174 BPM. Experimental; open with `?experimental`.
 - **DnBass** — NTS-3 drum & bass kit. Beat-locked half-time snare on 3; X = rolling hats, Y = break energy. Default ~174 BPM. Experimental; open with `?experimental`.
-- **Trance** — NTS-3 trance drums with TR-909 ROM hats. Beat-locked four-on-the-floor + offbeat opens; X = hats, Y = build. Default ~138 BPM. Experimental; open with `?experimental`.
+- **Trance** — NTS-3 trance kit with TR-909 ROM hats and analog 909-style kick/clap models (BD/clap have no ROM on a real 909). Beat-locked four-on-the-floor + offbeat opens; X = hats, Y = build. Default ~138 BPM. Experimental; open with `?experimental`.
 - **AmenTime** — NTS-3 tempo-synced amen-style break slicer. A synthesized 1-bar break (not the Winstons recording) is stored as 12 kHz PCM and chopped to the host clock. Hold the pad to walk a step grid (tap position does not pick the start 16th); X = reverse chance, Y = slice grid, STRT is Edit. Experimental; open with `?experimental`.
 - **WavSlice** — Generic NTS-3 1-bar WAV slicer (same pad/chop as AmenTime). Ships an original CC0 drum loop; drop your own file at `assets/loop.wav` or `make -C plugins/wavslice embed WAV=...`. Experimental; open with `?experimental`.
 - **Trap808** — NTS-3 trap drums with TR-909 ROM hi-hats and a sliding 808. Hold gates the phrase; hits lock to the beat. X = hat rolls, Y = groove, ROOT = 808 key. Experimental; open with `?experimental`.
