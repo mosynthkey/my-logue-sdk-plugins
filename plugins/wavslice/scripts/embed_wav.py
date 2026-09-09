@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Embed a local 1-bar break WAV as 8-bit PCM for AmenWav.
+"""Embed a 1-bar WAV as 8-bit PCM for WavSlice.
 
-The Winstons' Amen, Brother recording is not fetched or committed here.
-Put your own 1-bar WAV at assets/break.wav (gitignored). Without that file
-this script writes an original click-grid placeholder so CI can still build.
-Do not commit PCM derived from a recording you do not have rights to ship.
+Resolution order when --wav is omitted:
+  1. assets/loop.wav          (local override, gitignored)
+  2. assets/default-loop.wav  (shipped CC0 backbeat)
+  3. click-grid placeholder   (so CI still builds if the WAV is missing)
+
+BPM: pass --bpm, or it is inferred from the file length as --bars bars
+(bpm = 240 * bars / duration). Use --start to pick one bar out of a longer file.
+
+Do not commit PCM or loop.wav derived from a recording you cannot redistribute.
 """
 
 from __future__ import annotations
@@ -19,8 +24,10 @@ import tempfile
 import wave
 
 PCM_RATE = 12000
-DEFAULT_BPM = 136.0
 CHUNKS = 32
+PLUGIN_ROOT = pathlib.Path(__file__).resolve().parents[1]
+OVERRIDE_WAV = PLUGIN_ROOT / "assets" / "loop.wav"
+DEFAULT_WAV = PLUGIN_ROOT / "assets" / "default-loop.wav"
 
 
 def pcm_length_for_bpm(bpm: float) -> int:
@@ -49,12 +56,12 @@ def write_header(path: pathlib.Path, codes: list[int], bpm: float, origin: str) 
         "",
         "#include <stdint.h>",
         "",
-        f"static const uint32_t kAmenSampleRate = {PCM_RATE}u;",
-        f"static const float kAmenSourceBpm = {bpm:.1f}f;",
-        f"static const uint32_t kAmenSixteenths = 16u;",
-        f"static const uint32_t kAmenPcmLength = {len(codes)}u;",
+        f"static const uint32_t kSliceSampleRate = {PCM_RATE}u;",
+        f"static const float kSliceSourceBpm = {bpm:.1f}f;",
+        f"static const uint32_t kSliceSixteenths = 16u;",
+        f"static const uint32_t kSlicePcmLength = {len(codes)}u;",
         "",
-        "static const int8_t kAmenPcm8[] = {",
+        "static const int8_t kSlicePcm8[] = {",
     ]
     row: list[str] = []
     for sample_index, code in enumerate(codes):
@@ -65,6 +72,19 @@ def write_header(path: pathlib.Path, codes: list[int], bpm: float, origin: str) 
     lines.append("};")
     lines.append("")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def write_wav(path: pathlib.Path, samples: list[float], sample_rate: int) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(sample_rate)
+        frames = b"".join(
+            struct.pack("<h", max(-32767, min(32767, int(round(sample * 32767.0)))))
+            for sample in samples
+        )
+        handle.writeframes(frames)
 
 
 def synthesize_click_bar(bpm: float) -> list[float]:
@@ -153,63 +173,129 @@ def resample_linear(samples: list[float], src_rate: int, dst_rate: int) -> list[
     return fit_length(samples, dst_len)
 
 
-def cut_and_fit(samples: list[float], sample_rate: int, start_sec: float, bpm: float) -> list[float]:
+def load_mono(path: pathlib.Path) -> tuple[list[float], int]:
+    if shutil.which("ffmpeg"):
+        try:
+            samples, rate = load_wav_python(path)
+            if rate > 0:
+                return samples, rate
+        except SystemExit:
+            pass
+        samples = load_mono_ffmpeg(path, 44100)
+        return samples, 44100
+    return load_wav_python(path)
+
+
+def bpm_from_duration(n_samples: int, sample_rate: int, bars: float) -> float:
+    duration = n_samples / float(sample_rate)
+    if duration < 0.12:
+        raise SystemExit("WAV is too short to infer BPM")
+    return 240.0 * bars / duration
+
+
+def cut_bar(samples: list[float], sample_rate: int, start_sec: float, bpm: float) -> list[float]:
     bar_seconds = 4.0 * 60.0 / bpm
     start = max(0, int(round(start_sec * sample_rate)))
-    stop = start + int(round(bar_seconds * sample_rate))
+    needed = int(round(bar_seconds * sample_rate))
     if start >= len(samples):
         raise SystemExit("start is past the end of the WAV")
-    region = samples[start:stop]
+    region = samples[start : start + needed]
     if len(region) < 32:
         raise SystemExit("WAV region is too short for one bar")
-    needed = stop - start
     if len(region) < needed:
         region = region + [0.0] * (needed - len(region))
-    return fit_length(region, pcm_length_for_bpm(bpm))
+    return region
 
 
-def load_break(path: pathlib.Path, bpm: float, start_sec: float) -> list[float]:
-    if shutil.which("ffmpeg"):
-        samples = load_mono_ffmpeg(path, PCM_RATE)
-        return cut_and_fit(samples, PCM_RATE, start_sec, bpm)
-    samples, rate = load_wav_python(path)
-    samples = resample_linear(samples, rate, PCM_RATE)
-    return cut_and_fit(samples, PCM_RATE, start_sec, bpm)
+def resolve_wav(explicit: pathlib.Path | None) -> pathlib.Path | None:
+    if explicit is not None:
+        if not explicit.is_file():
+            raise SystemExit(f"WAV not found: {explicit}")
+        return explicit
+    if OVERRIDE_WAV.is_file():
+        return OVERRIDE_WAV
+    if DEFAULT_WAV.is_file():
+        return DEFAULT_WAV
+    return None
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--out",
         type=pathlib.Path,
-        default=pathlib.Path("plugins/amenwav/dsp/amenwav_pcm.h"),
+        default=PLUGIN_ROOT / "dsp" / "wavslice_pcm.h",
     )
     parser.add_argument(
         "--wav",
         type=pathlib.Path,
-        default=pathlib.Path("plugins/amenwav/assets/break.wav"),
+        default=None,
+        help="WAV to embed. Default: assets/loop.wav, else assets/default-loop.wav",
     )
-    parser.add_argument("--bpm", type=float, default=DEFAULT_BPM)
+    parser.add_argument(
+        "--bpm",
+        type=float,
+        default=None,
+        help="Source BPM of the WAV. Inferred from duration if omitted",
+    )
     parser.add_argument("--start", type=float, default=0.0, help="Start time in seconds")
+    parser.add_argument(
+        "--bars",
+        type=float,
+        default=1.0,
+        help="How many bars the (remaining) file is, used only to infer BPM",
+    )
+    parser.add_argument(
+        "--write-loop",
+        type=pathlib.Path,
+        default=None,
+        help="Write the cut 1-bar region as 16-bit WAV (typically assets/loop.wav)",
+    )
     args = parser.parse_args()
 
-    if args.wav.is_file():
-        pcm = load_break(args.wav, args.bpm, args.start)
-        origin = f"Embedded from local WAV {args.wav.name}. Not committed."
-        print(f"embedding {args.wav}")
+    wav_path = resolve_wav(args.wav)
+    origin: str
+    bpm: float
+    pcm: list[float]
+
+    if wav_path is None:
+        bpm = args.bpm if args.bpm is not None else 120.0
+        pcm = synthesize_click_bar(bpm)
+        origin = "Placeholder click grid (no default-loop.wav or loop.wav)."
+        print("no WAV found, writing click placeholder")
     else:
-        pcm = synthesize_click_bar(args.bpm)
-        origin = "Placeholder click grid (no assets/break.wav). Not the Winstons recording."
-        print(f"no {args.wav}, writing click placeholder")
+        samples, rate = load_mono(wav_path)
+        start = max(0, int(round(args.start * rate)))
+        remaining = samples[start:]
+        if args.bpm is not None:
+            bpm = args.bpm
+        else:
+            bpm = bpm_from_duration(len(remaining), rate, args.bars)
+            print(f"inferred bpm={bpm:.3f} from {len(remaining) / float(rate):.3f}s / {args.bars:g} bar(s)")
+        if bpm < 40.0 or bpm > 300.0:
+            raise SystemExit(
+                f"BPM {bpm:.2f} is outside 40-300. Pass --bpm or --bars (and --start) explicitly."
+            )
+        if bpm < 60.0 or bpm > 220.0:
+            print(f"warning: unusual BPM {bpm:.2f}; pass --bpm if this is a longer loop")
+
+        bar = cut_bar(samples, rate, args.start, bpm)
+        if args.write_loop is not None:
+            write_wav(args.write_loop, bar, rate)
+            print(f"wrote 1-bar WAV {args.write_loop}")
+
+        pcm = fit_length(resample_linear(bar, rate, PCM_RATE), pcm_length_for_bpm(bpm))
+        origin = f"Embedded from {wav_path.name}."
+        print(f"embedding {wav_path}")
 
     if len(pcm) % CHUNKS != 0:
         raise SystemExit(f"PCM length {len(pcm)} is not divisible by {CHUNKS}")
     codes = to_pcm8(pcm)
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    write_header(args.out, codes, args.bpm, origin)
+    write_header(args.out, codes, bpm, origin)
     peak = max(abs(code) for code in codes)
     rms = math.sqrt(sum(code * code for code in codes) / float(len(codes)))
-    print(f"wrote {args.out} length={len(codes)} peak={peak} rms={rms:.1f}")
+    print(f"wrote {args.out} length={len(codes)} bpm={bpm:.2f} peak={peak} rms={rms:.1f}")
 
 
 if __name__ == "__main__":

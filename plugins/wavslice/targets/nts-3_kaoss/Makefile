@@ -176,10 +176,32 @@ all: PRE_ALL $(OBJS) $(OUTFILES) POST_ALL
 	@echo Done
 	@echo
 
-PRE_ALL: $(PLUGIN_ROOT)/dsp/amenwav_pcm.h
+WAV ?=
+BPM ?=
+START ?= 0
+BARS ?= 1
 
-$(PLUGIN_ROOT)/dsp/amenwav_pcm.h:
-	python3 $(PLUGIN_ROOT)/scripts/embed_wav.py --out $@ --wav $(PLUGIN_ROOT)/assets/break.wav
+EMBED_PCM = python3 $(PLUGIN_ROOT)/scripts/embed_wav.py --out $(PLUGIN_ROOT)/dsp/wavslice_pcm.h --start $(START) --bars $(BARS)
+ifneq ($(strip $(WAV)),)
+EMBED_PCM += --wav $(WAV) --write-loop $(PLUGIN_ROOT)/assets/loop.wav
+endif
+ifneq ($(strip $(BPM)),)
+EMBED_PCM += --bpm $(BPM)
+endif
+
+LOOP_WAV := $(wildcard $(PLUGIN_ROOT)/assets/loop.wav)
+ifeq ($(LOOP_WAV),)
+LOOP_WAV := $(PLUGIN_ROOT)/assets/default-loop.wav
+endif
+
+$(PLUGIN_ROOT)/dsp/wavslice_pcm.h: $(LOOP_WAV) $(PLUGIN_ROOT)/scripts/embed_wav.py
+	$(EMBED_PCM)
+
+PRE_ALL: $(PLUGIN_ROOT)/dsp/wavslice_pcm.h
+
+.PHONY: embed
+embed:
+	$(EMBED_PCM)
 
 POST_ALL:
 
@@ -209,7 +231,7 @@ $(COBJS) : $(OBJDIR)/%.o : %.c Makefile
 	@echo Compiling $(<F)
 	@$(CC) -c $(CFLAGS) -I. $(INCDIR) $< -o $@
 
-$(CXXOBJS) : $(OBJDIR)/%.o : %.cc Makefile $(PLUGIN_ROOT)/dsp/amenwav_pcm.h
+$(CXXOBJS) : $(OBJDIR)/%.o : %.cc Makefile $(PLUGIN_ROOT)/dsp/wavslice_pcm.h
 	@echo Compiling $(<F)
 	@$(CXXC) -c $(CXXFLAGS) -I. $(INCDIR) $< -o $@
 
@@ -240,7 +262,7 @@ $(BUILDDIR)/%.elf: $(OBJS) $(LDSCRIPT)
 clean:
 	@echo Cleaning
 	-rm -fR $(PROJECT_ROOT)/.dep $(BUILDDIR) $(PROJECT_ROOT)/$(PRODUCT) $(WASMDIR)
-	-rm -f $(PLUGIN_ROOT)/dsp/amenwav_pcm.h
+	-rm -f $(PLUGIN_ROOT)/dsp/wavslice_pcm.h
 	@echo Done
 	@echo
 
@@ -259,7 +281,8 @@ wasm: wasm-ci
 	@echo Opening the sandbox
 	@$(EMCC_BIN_PATH)/emrun --browser chrome --serve_after_close $(WASMDIR)/$(PROJECT).html
 
-wasm-ci: $(PLUGIN_ROOT)/dsp/amenwav_pcm.h
+wasm-ci:
+	$(EMBED_PCM)
 	@echo Building WebAssembly audio processor
 	@mkdir -p $(WASMDIR)
 	@cp -r $(SANDBOXDIR)/samples $(WASMDIR)/

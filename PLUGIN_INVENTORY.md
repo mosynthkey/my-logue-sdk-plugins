@@ -12,9 +12,9 @@
   - 対応: nts-3_kaoss
   - 合成した 1 小節の amen 風ブレイクをホスト BPM に同期してスライス再生。オリジナル録音は同梱しない。X=開始 16 分、Y=グリッド。
 
-- **AmenWav** (`amenwav`) — drum（実験的）
+- **WavSlice** (`wavslice`) — drum（実験的）
   - 対応: nts-3_kaoss
-  - AmenTime と同じスライサー。手元の `assets/break.wav` をビルド時に埋め込む。公開／CI はクリックグリッド。
+  - 汎用 1 小節 WAV スライサー。同梱はオリジナル CC0 ドラムループ。`assets/loop.wav` または `make embed WAV=...` で差し替え。
 
 - **BeatRepeat** (`beatrepeat`) — fx（実験的）
   - 対応: nts-3_kaoss

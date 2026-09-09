@@ -2,7 +2,7 @@
 # Configuration for Makefile
 #
 
-PROJECT := amenwav
+PROJECT := wavslice
 PROJECT_TYPE := genericfx
 
 ##############################################################################

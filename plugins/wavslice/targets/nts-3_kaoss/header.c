@@ -2,7 +2,7 @@
     BSD 3-Clause License
 
     Copyright (c) 2023, KORG INC.
-    Copyright (c) 2026, AmenWav contributors
+    Copyright (c) 2026, WavSlice contributors
     All rights reserved.
 
     Redistribution and use in source and binary forms, with or without
@@ -35,7 +35,7 @@
 /*
  * File: header.c
  *
- * NTS-3 generic effect unit header for AmenWav
+ * NTS-3 generic effect unit header for WavSlice
  *
  */
 
@@ -50,7 +50,7 @@ const __unit_header genericfx_unit_header_t unit_header = {
         .dev_id = MLSA_DEV_ID,
         .unit_id = 0x0000003AU,
         .version = MLSA_VERSION_EXPERIMENTAL,
-        .name = "AmenWav",
+        .name = "WavSlice",
         .num_params = 7,
         .params = {
             {0, 1023, 0, 0, k_unit_param_type_none, 0, 0, 0, {"STRT"}},

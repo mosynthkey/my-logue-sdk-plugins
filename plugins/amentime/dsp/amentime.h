@@ -7,6 +7,10 @@
  */
 
 #include "amentime_pcm.h"
-#include "amen_slicer.h"
 
-using AmenTime = AmenSlicer;
+#define kSlicePcm8 kAmenPcm8
+#define kSlicePcmLength kAmenPcmLength
+
+#include "wav_slicer.h"
+
+using AmenTime = WavSlicer;

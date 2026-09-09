@@ -18,8 +18,8 @@ plugins/*/targets/*/*.mk2unit
 plugins/airhorn/assets/*.wav
 plugins/airhorn/assets/*.ogg
 plugins/airhorn/assets/*.mp3
-plugins/amenwav/assets/*.wav
-plugins/amenwav/dsp/amenwav_pcm.h
+plugins/wavslice/assets/loop.wav
+plugins/wavslice/dsp/wavslice_pcm.h
 website/node_modules/
 website/dist/
 website/.vite/

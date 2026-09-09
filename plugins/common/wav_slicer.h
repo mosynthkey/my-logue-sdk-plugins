@@ -1,8 +1,8 @@
 #pragma once
 
 /*
- * Shared tempo-synced 1-bar break slicer for AmenTime / AmenWav.
- * PCM symbols (kAmenPcm8, kAmenPcmLength) come from the plugin header
+ * Shared tempo-synced 1-bar WAV slicer (AmenTime, WavSlice).
+ * PCM symbols (kSlicePcm8, kSlicePcmLength) come from the plugin header
  * included before this file.
  */
 
@@ -13,7 +13,7 @@
 #include "utils/float_math.h"
 #include <stdint.h>
 
-class AmenSlicer : public Processor
+class WavSlicer : public Processor
 {
 public:
   static constexpr uint32_t kVoiceCount = 2U;
@@ -254,7 +254,7 @@ private:
   float playbackIncrement() const
   {
     const float host_bar = static_cast<float>(fx::samplesPerBeat(bpm_, getSampleRate()) * 4U);
-    const float base = static_cast<float>(kAmenPcmLength) / host_bar;
+    const float base = static_cast<float>(kSlicePcmLength) / host_bar;
     const float ratio = fasterpow2f((tune_norm_ - 0.5f) * 2.f);
     return base * ratio;
   }
@@ -269,7 +269,7 @@ private:
     if (rpt_ == RPT_RUN)
       source_chunk = (start_chunk + step_index_ * chunks_per_slice) % kChunks;
 
-    const float chunk_len = static_cast<float>(kAmenPcmLength) / static_cast<float>(kChunks);
+    const float chunk_len = static_cast<float>(kSlicePcmLength) / static_cast<float>(kChunks);
     const float start = static_cast<float>(source_chunk) * chunk_len;
     const float length = static_cast<float>(chunks_per_slice) * chunk_len;
     const bool reverse = fx::randomFloat(rng_) < reverse_norm_;
@@ -306,7 +306,7 @@ private:
 
   static float wrapPcm(float pos)
   {
-    const float pcm_length = static_cast<float>(kAmenPcmLength);
+    const float pcm_length = static_cast<float>(kSlicePcmLength);
     if (pcm_length <= 1.f)
       return 0.f;
     while (pos >= pcm_length)
@@ -324,11 +324,11 @@ private:
     const float pos = wrapPcm(voice.start + offset);
     const uint32_t index0 = static_cast<uint32_t>(pos);
     uint32_t index1 = index0 + 1U;
-    if (index1 >= kAmenPcmLength)
+    if (index1 >= kSlicePcmLength)
       index1 = 0U;
     const float frac = pos - static_cast<float>(index0);
-    const float sample0 = static_cast<float>(kAmenPcm8[index0]) * kPcmScale;
-    const float sample1 = static_cast<float>(kAmenPcm8[index1]) * kPcmScale;
+    const float sample0 = static_cast<float>(kSlicePcm8[index0]) * kPcmScale;
+    const float sample1 = static_cast<float>(kSlicePcm8[index1]) * kPcmScale;
     return sample0 + (sample1 - sample0) * frac;
   }
 

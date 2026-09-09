@@ -1,10 +1,10 @@
 {
-  "id": "amenwav",
+  "id": "wavslice",
   "experimental": true,
-  "name": "AmenWav",
+  "name": "WavSlice",
   "type": "drum",
   "targets": ["nts-3_kaoss"],
-  "description": "Tempo-synced 1-bar WAV break slicer for NTS-3. Drop your own break at assets/break.wav and rebuild; the public build is a click grid, not the Winstons recording. Hold the pad to run. X = start 16th. Y = slice grid (1/4, 1/8, 1/16, 1/32). Same chop controls as AmenTime.",
+  "description": "Generic tempo-synced 1-bar WAV slicer for NTS-3. Ships an original CC0 drum loop; drop your own WAV at assets/loop.wav or run make embed WAV=.... Hold the pad to run. X = start 16th. Y = slice grid (1/4, 1/8, 1/16, 1/32).",
   "params": [
     { "name": "STRT", "role": "X", "detail": "Which 16th of the bar to start from" },
     { "name": "SIZE", "role": "Y", "detail": "Slice length: 1/4, 1/8, 1/16, 1/32 of a bar, tempo-synced" },

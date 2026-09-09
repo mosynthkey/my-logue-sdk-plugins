@@ -7,6 +7,7 @@ Use an existing plugin with a similar target as the starting point:
 - `plugins/fbackosc/` for an NTS-1 mkII keyboard oscillator.
 - `plugins/shaker/` for a plugin shared by NTS-1 mkII and NTS-3.
 - `plugins/kaocid/` for an NTS-3 XY-pad effect.
+- `plugins/wavslice/` for an NTS-3 1-bar WAV slicer (`make -C plugins/wavslice embed WAV=...`).
 - `plugins/hypersaw/targets/microkorg2/` for a microKORG2 target.
 
 A typical plugin has this structure:

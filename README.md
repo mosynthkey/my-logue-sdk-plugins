@@ -36,7 +36,7 @@ Plugins:
 - **HClap** — NTS-3 808/909 analog hand clap. Hold the pad for a 16-step Euclidean phrase (X = density, spine on 2 and 4). Y morphs TR-808 (transistor noise, one VCA) into TR-909 (LFSR, dual VCA). Experimental; open with `?experimental`.
 - **HSnare** — NTS-3 808/909 analog snare (separate unit from HClap). Same phrase pad; Y morphs 808 bridged-T shells + HPF snappy into 909 triangle VCOs, 20 ms pitch bend, and split snappy. Experimental; open with `?experimental`.
 - **AmenTime** — NTS-3 tempo-synced amen-style break slicer. A synthesized 1-bar break (not the Winstons recording) is stored as 12 kHz PCM and chopped to the host clock. Hold the pad; X = start 16th, Y = slice grid. Experimental; open with `?experimental`.
-- **AmenWav** — Same slicer as AmenTime, but the bar comes from a local `assets/break.wav` you supply at build time. The public/CI unit is a click grid so the original Amen recording is never committed. Experimental; open with `?experimental`.
+- **WavSlice** — Generic NTS-3 1-bar WAV slicer (same pad/chop as AmenTime). Ships an original CC0 drum loop; drop your own file at `assets/loop.wav` or `make -C plugins/wavslice embed WAV=...`. Experimental; open with `?experimental`.
 - **NTS-3 idea pack (experimental)** — performance FX/OSC units that do not overlap stock NTS-3, Kaocid, airFM, GlitchPad, TechnoRumble, or AirHorn. Remaining batch: BeatRepeat, RingExcit, WarpsMorph, EucGate, DataBend, ReesePhr, PercIter, GridsDrum, RevRoll, DredBass. Extra: EucRoll (Euclidean step roll), StepFenv (step filter envelope), StepDice. Skipped as overlapping: Kick Rumble (#26 → TechnoRumble), Airhorn (#29 → AirHorn). Open the site with `?experimental` to preview them.
 
 ## Targets

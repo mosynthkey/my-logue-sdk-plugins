@@ -33,11 +33,11 @@ export const dspExplainById = {
   Read --> Xfade[2-voice xfade] --> Mix[Dry or wet] --> Out[Out]
   In[Audio in] --> Mix`,
   },
-  amenwav: {
-    en: "Same slicer as AmenTime. Build embeds local assets/break.wav when present; otherwise a click-grid placeholder so CI never ships the Winstons recording.",
-    ja: "AmenTimeと同じスライサーです。ビルド時に手元の assets/break.wav を埋め、無いときはクリックグリッドにします。Winstonsの録音は公開ユニットに入りません。",
+  wavslice: {
+    en: "Same pad slicer as AmenTime, for any 1-bar WAV. Build embeds assets/loop.wav when present, otherwise the shipped CC0 default-loop.wav backbeat.",
+    ja: "AmenTimeと同じパッド・スライサーで、任意の1小節WAVを再生します。assets/loop.wav があればそれを埋め、無ければ同梱のCC0ドラムループを使います。",
     mermaid: `flowchart LR
-  Wav[Local WAV or click grid] --> PCM[12 kHz 8-bit PCM]
+  Wav[loop.wav or default-loop.wav] --> PCM[12 kHz 8-bit PCM]
   Pad[Pad gate] --> Clock[Internal slice clock]
   BPM[Host BPM] --> Rate[PCM length over bar]
   Clock --> Slice[Start 16th and SIZE grid]
