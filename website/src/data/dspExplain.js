@@ -136,6 +136,19 @@ export const dspExplainById = {
   SD --> Mix
   HH --> Mix`,
   },
+  ukgarage: {
+    en: "Hold-to-run tempo-synced 2-step UK Garage kit. Spine kicks on 1 and the and-of-3, snares on 2 and 4. X grows low-velocity ghost snares/rims; Y thickens hats and fill energy. Top-right flick = one-bar Fill. Age-based envelopes keep bodies musical.",
+    ja: "ホールドでテンポ同期の2-step UK Garageキットを鳴らします。キックは1と3の裏、スネアは2と4。Xで弱いゴースト、Yでハット／Fill。右上フリックで1小節Fill。",
+    mermaid: `flowchart TD
+  Hold[Pad hold] --> Clock[16th swing clock]
+  Clock --> Spine[2-step kick snare spine]
+  Clock --> Ghost[X ghost seats]
+  Clock --> Fill[Y hats and fill]
+  Spine --> Voices[Kick snare ghost hats]
+  Ghost --> Voices
+  Fill --> Voices
+  Voices --> Mix[Softclip dry-wet] --> Out[Out]`,
+  },
   hclap: {
     en: "Tempo 16-step Euclidean clap. Analog noise and LFSR morph 808→909 dual-VCA style; burst and room bandpasses shape each voice. Density and flams follow pad-style params, then dry/wet mix.",
     ja: "テンポ同期のユークリッド・クラップです。アナログノイズとLFSRを808→909的にモーフィングし、バースト／ルーム帯域で複数ボイスを重ねます。ドライ／ウェット混合します。",

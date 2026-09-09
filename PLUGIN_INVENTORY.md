@@ -48,6 +48,10 @@
   - 対応: nts-3_kaoss
   - Mutable Grids 風の BD/SD/HH 生成フレーズ。X=キック/スネアマップ、Y=ハット密度。右上フリックで 1 小節 Fill。
 
+- **UKGarage** (`ukgarage`) — drum（実験的）
+  - 対応: nts-3_kaoss
+  - テンポ同期の 2-step UK Garage キット。X=ゴーストノート密度、Y=ハット／Fill。右上フリックで 1 小節 Fill。ゴーストがキモ。
+
 - **HClap** (`hclap`) — drum（実験的）
   - 対応: nts-3_kaoss
   - 808/909 風アナログハンドクラップのフレーズパッド。X=ヒット密度、Y=808↔909。調整中。
