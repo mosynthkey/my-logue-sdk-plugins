@@ -181,6 +181,84 @@ export const dspExplainById = {
   Fill --> Voices
   Voices --> Mix[Softclip dry-wet] --> Out[Out]`,
   },
+  boombap: {
+    en: "Hold-to-gate boom-bap kit. Hits lock to host 4ppqn. Boom kick on 1 with late pushes; hard snares on 2 and 4. X grows dusty ghost snares/rims; Y thickens swung hats. Top-right flick = one-bar Fill. Default feel ~90 BPM.",
+    ja: "ホールドはゲートのみ。ホストの4ppqnに合わせてブームバップを鳴らします。キックは1と遅めの押し、スネアは2と4。Xでダスティなゴースト、Yでスウィング・ハット。右上フリックで1小節Fill。既定〜90 BPM。",
+    mermaid: `flowchart TD
+  Host[Host 4ppqn] --> Gate{Pad held?}
+  Gate -->|yes| Spine[Boom kick hard snare]
+  Gate -->|yes| Ghost[X dusty ghosts]
+  Gate -->|yes| Hats[Y swung hats]
+  Spine --> Voices[Kick snare ghost hats]
+  Ghost --> Voices
+  Hats --> Voices
+  Voices --> Mix[Softclip dry-wet] --> Out[Out]`,
+  },
+  dembow: {
+    en: "Hold-to-gate reggaeton dembow kit. Hits lock to host 4ppqn. Kick/cha spine carries the dembow feel; X grows rim answers; Y adds percussion toward Fill. Top-right flick = one-bar Fill. Default ~96 BPM.",
+    ja: "ホールドはゲートのみ。ホストの4ppqnに合わせてデンボウを鳴らします。キック／チャの骨格に、Xでリム応答、Yでパーカッション。右上フリックで1小節Fill。既定〜96 BPM。",
+    mermaid: `flowchart TD
+  Host[Host 4ppqn] --> Gate{Pad held?}
+  Gate -->|yes| Spine[Dembow kick cha]
+  Gate -->|yes| Rim[X rim answers]
+  Gate -->|yes| Perc[Y hats perc]
+  Spine --> Voices[Kick snare rim hats]
+  Rim --> Voices
+  Perc --> Voices
+  Voices --> Mix[Softclip dry-wet] --> Out[Out]`,
+  },
+  footwork: {
+    en: "Hold-to-gate Chicago footwork / juke kit. Hits lock to host 4ppqn. Sparse kick spine plus X stutter kicks; Y grows snare rolls and frantic hats. Short bodies for ~160 BPM. Top-right flick = one-bar Fill.",
+    ja: "ホールドはゲートのみ。ホストの4ppqnに合わせてフットワークを鳴らします。疎なキックスパインにXでスタッター、Yでスネアロールと忙しいハット。短いボディで〜160 BPM向け。右上フリックで1小節Fill。",
+    mermaid: `flowchart TD
+  Host[Host 4ppqn] --> Gate{Pad held?}
+  Gate -->|yes| Spine[Sparse kick snare]
+  Gate -->|yes| Stut[X kick stutters]
+  Gate -->|yes| Roll[Y snare rolls]
+  Spine --> Voices[Short kick snare hats]
+  Stut --> Voices
+  Roll --> Voices
+  Voices --> Mix[Softclip dry-wet] --> Out[Out]`,
+  },
+  breakbeat: {
+    en: "Hold-to-gate Amen-inspired synthetic breakbeat (not a sample). Hits lock to host 4ppqn. Syncopated kick/snare map; X grows ghosts and secondary snares; Y pushes break energy toward Fill. Default ~174 BPM.",
+    ja: "ホールドはゲートのみ。Amen風のシンセ・ブレイクビー（サンプルではない）をホストの4ppqnに合わせて鳴らします。シンコペしたキック／スネアに、Xでゴーストと副スネア、Yでブレイク・エネルギー。既定〜174 BPM。",
+    mermaid: `flowchart TD
+  Host[Host 4ppqn] --> Gate{Pad held?}
+  Gate -->|yes| Spine[Amen-ish kick snare]
+  Gate -->|yes| Sync[X ghosts secondary]
+  Gate -->|yes| Energy[Y break energy]
+  Spine --> Voices[Kick snare ghost hats]
+  Sync --> Voices
+  Energy --> Voices
+  Voices --> Mix[Softclip dry-wet] --> Out[Out]`,
+  },
+  dnbass: {
+    en: "Hold-to-gate drum & bass kit. Hits lock to host 4ppqn. Half-time snare on beat 3 with syncopated kicks; X rolls hats; Y pushes break energy toward Fill. Default ~174 BPM.",
+    ja: "ホールドはゲートのみ。ホストの4ppqnに合わせてDnBを鳴らします。ハーフタイムのスネア（3拍目）とシンコペ・キック。Xでローリング・ハット、Yでブレイク。既定〜174 BPM。",
+    mermaid: `flowchart TD
+  Host[Host 4ppqn] --> Gate{Pad held?}
+  Gate -->|yes| Spine[Half-time snare kicks]
+  Gate -->|yes| Hats[X rolling hats]
+  Gate -->|yes| Break[Y break energy]
+  Spine --> Voices[Kick snare hats]
+  Hats --> Voices
+  Break --> Voices
+  Voices --> Mix[Softclip dry-wet] --> Out[Out]`,
+  },
+  trance: {
+    en: "Hold-to-gate trance drum kit. Hits lock to host 4ppqn. Four-on-the-floor kicks, clap on 2/4, offbeat open hats. X thickens hats; Y builds snare rolls toward Fill. Default ~138 BPM.",
+    ja: "ホールドはゲートのみ。ホストの4ppqnに合わせてトランス・ドラムを鳴らします。四つ打ち＋2/4クラップ＋裏拍オープンハット。Xでハット、Yでビルド。既定〜138 BPM。",
+    mermaid: `flowchart TD
+  Host[Host 4ppqn] --> Gate{Pad held?}
+  Gate -->|yes| Spine[Four-on-floor clap]
+  Gate -->|yes| Hats[X offbeat opens]
+  Gate -->|yes| Build[Y snare build]
+  Spine --> Voices[Kick clap hats]
+  Hats --> Voices
+  Build --> Voices
+  Voices --> Mix[Softclip dry-wet] --> Out[Out]`,
+  },
   hclap: {
     en: "Tempo 16-step Euclidean clap. Analog noise and LFSR morph 808→909 dual-VCA style; burst and room bandpasses shape each voice. Density and flams follow pad-style params, then dry/wet mix.",
     ja: "テンポ同期のユークリッド・クラップです。アナログノイズとLFSRを808→909的にモーフィングし、バースト／ルーム帯域で複数ボイスを重ねます。ドライ／ウェット混合します。",

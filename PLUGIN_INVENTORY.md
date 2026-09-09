@@ -60,6 +60,30 @@
   - 対応: nts-3_kaoss
   - テンポ同期の 2-step UK Garage キット。X=ゴーストノート密度、Y=ハット／Fill。右上フリックで 1 小節 Fill。ゴーストがキモ。
 
+- **BoomBap** (`boombap`) — drum（実験的）
+  - 対応: nts-3_kaoss
+  - テンポ同期のブームバップキット。X=ゴースト、Y=ハット。既定〜90 BPM。
+
+- **BreakBeat** (`breakbeat`) — drum（実験的）
+  - 対応: nts-3_kaoss
+  - Amen 風シンセ・ブレイクビー（サンプルではない）。X=シンコペ／ゴースト、Y=エネルギー。既定〜174 BPM。
+
+- **DnBass** (`dnbass`) — drum（実験的）
+  - 対応: nts-3_kaoss
+  - ドラムンベース。ハーフタイム・スネア（3拍目）。X=ローリング・ハット、Y=ブレイク。既定〜174 BPM。
+
+- **Trance** (`trance`) — drum（実験的）
+  - 対応: nts-3_kaoss
+  - トランス・ドラム。四つ打ち＋裏拍オープンハット。X=ハット、Y=ビルド。既定〜138 BPM。
+
+- **Dembow** (`dembow`) — drum（実験的）
+  - 対応: nts-3_kaoss
+  - テンポ同期のレゲトン・デンボウキット。X=リム／チャ応答、Y=パーカッション。既定〜96 BPM。
+
+- **Footwork** (`footwork`) — drum（実験的）
+  - 対応: nts-3_kaoss
+  - シカゴ・フットワーク／ジューク。X=キック・スタッター、Y=スネアロール。既定〜160 BPM。
+
 - **HClap** (`hclap`) — drum（実験的）
   - 対応: nts-3_kaoss
   - 808/909 風アナログハンドクラップのフレーズパッド。X=ヒット密度、Y=808↔909。調整中。
