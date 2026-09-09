@@ -88,6 +88,10 @@
   - 対応: nts-3_kaoss
   - 作者モチーフのフィードバック・ハウル。JP-8080 風コムスクリーム。X=LFO 深さ、Y=ハーモニクス。
 
+- **Passort** (`passort`) — fx（実験的）
+  - 対応: nts-3_kaoss
+  - Performance Assort。タッチ開始位置でエフェクトがロックされる。左上=HPF、右上=LPF、中央=テープストップ、左下=付点8分ディレイ、右下=ステップロール。
+
 - **PercIter** (`perciter`) — synth（実験的）
   - 対応: nts-3_kaoss
   - Basimilus 風パーカッションパッド。加算/FM ボディ＋ノイズ＋フォルダ。Y で Skin↔Metal。タッチがトリガ、連打でフィル。

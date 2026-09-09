@@ -129,6 +129,22 @@ export const dspExplainById = {
   Mode --> Mix[Dry or wet fade] --> Out[Out]
   In --> Mix`,
   },
+  passort: {
+    en: "Performance Assort: the first touch locks a region effect, then motion drives its parameters. Top-left HPF, top-right LPF, center tape stop, bottom-left dotted-8th delay, bottom-right beat-sync step roll. Pad up bypasses.",
+    ja: "Performance Assort。タッチ開始位置でエフェクトがロックされ、その後の動きがパラメータになります。左上HPF／右上LPF／中央テープストップ／左下付点8分ディレイ／右下ステップロール。離すとバイパス。",
+    mermaid: `flowchart TD
+  Start[Touch began] --> Region{Start region}
+  Region -->|top-left| HPF[HPF cutoff and res]
+  Region -->|top-right| LPF[LPF cutoff and res]
+  Region -->|center| Tape[Tape stop]
+  Region -->|bottom-left| Dly[Dotted-8th delay]
+  Region -->|bottom-right| Roll[Step roll]
+  HPF --> Mix[Dry or wet] --> Out[Out]
+  LPF --> Mix
+  Tape --> Mix
+  Dly --> Mix
+  Roll --> Mix`,
+  },
   grainpad: {
     en: "Live-capture granular pad. Touch freezes up to 3 s of AUDIO IN into long, slow grains (100–320 ms). X/FEEL: sparse stitches ↔ dense wash. Y: octave mix. ENV = grain attack/release; SPRD / HPF / REVS as edits.",
     ja: "AUDIO INを最大3秒フリーズし、長めのグレイン（100–320 ms）をゆっくり重ねます。Xは疎↔密、Yはoct混率。ENVで粒のアタック／リリース、SPRD／HPF／REVSあり。",
