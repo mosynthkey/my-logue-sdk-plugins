@@ -37,14 +37,30 @@ int main()
   fx.touchEvent(0, k_unit_touch_phase_began, 800, 512);
 
   float peak = 0.f;
+  float late_abs = 0.f;
+  uint32_t late_count = 0U;
+  uint32_t rendered = 0U;
+  const uint32_t late_start = static_cast<uint32_t>(fx.getSampleRate() * 0.12f);
+  const uint32_t late_end = static_cast<uint32_t>(fx.getSampleRate() * 0.22f);
+
   for (int blockIndex = 0; blockIndex < 300; ++blockIndex)
   {
     fx.process(input.data(), input.data(), output.data(), kFrames);
-    for (float sample : output)
+    for (uint32_t sampleIndex = 0; sampleIndex < kFrames; ++sampleIndex)
     {
-      const float abs_sample = sample < 0.f ? -sample : sample;
+      const float left = output[sampleIndex * 2U];
+      const float right = output[sampleIndex * 2U + 1U];
+      const float abs_left = left < 0.f ? -left : left;
+      const float abs_right = right < 0.f ? -right : right;
+      const float abs_sample = abs_left > abs_right ? abs_left : abs_right;
       if (abs_sample > peak)
         peak = abs_sample;
+      if (rendered >= late_start && rendered < late_end)
+      {
+        late_abs += abs_sample;
+        ++late_count;
+      }
+      ++rendered;
     }
   }
 
@@ -52,6 +68,7 @@ int main()
   for (int blockIndex = 0; blockIndex < 100; ++blockIndex)
     fx.process(input.data(), input.data(), output.data(), kFrames);
 
-  std::printf("grainpad_offline_peak=%.6f\n", peak);
-  return peak > 0.001f ? 0 : 1;
+  const float late_mean = late_count > 0U ? late_abs / static_cast<float>(late_count) : 0.f;
+  std::printf("grainpad_offline_peak=%.6f late_mean=%.6f\n", peak, late_mean);
+  return (peak > 0.001f && late_mean > 0.001f) ? 0 : 1;
 }

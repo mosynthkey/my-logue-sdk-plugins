@@ -6,7 +6,7 @@
  * Live capture granular pad for NTS-3.
  *
  * Always records AUDIO IN; touch freezes and granulates.
- * X/FEEL: left = sparse stitches; right = dense Hann-overlap cloud.
+ * X/FEEL: left = sparse long stitches; right = dense Hann-overlap wash.
  * Y = octave mix. ENV = grain attack/release. Capture window is fixed max.
  * SPRD = stereo width. HPF = wet high-pass. Prefers get_raw_input while pad up.
  */
@@ -22,8 +22,8 @@ public:
   static constexpr uint32_t kMaxCaptureSamples = 144000U;
   static constexpr uint32_t kMinCaptureSamples = 2048U;
   static constexpr uint32_t kMaxGrains = 24U;
-  static constexpr float kMinGrainMs = 45.f;
-  static constexpr float kMaxGrainMs = 90.f;
+  static constexpr float kMinGrainMs = 100.f;
+  static constexpr float kMaxGrainMs = 320.f;
   static constexpr float kMinBpm = 40.f;
   static constexpr float kMaxBpm = 300.f;
   static constexpr float kMinCapturePeak = 0.003f;
@@ -410,16 +410,19 @@ private:
     const float grain_ms = kMinGrainMs + smooth * (kMaxGrainMs - kMinGrainMs);
     const float grain_samples = grain_ms * 0.001f * getSampleRate();
 
-    // Left stays a bit sparse but always overlaps (~1.4×) so Hann edges don't click.
-    // Right ≈ 6× overlapping cloud.
-    const float target_overlap = 1.4f + smooth * 4.6f;
+    // Left ~1.2× joined stitches; right ~3.5× wash (not a 6× hailstorm).
+    const float target_overlap = 1.2f + smooth * 2.3f;
     spawn_period_ = grain_samples / target_overlap;
 
     // Keep a loose tempo tether without forcing 1-grain-per-SYNC chops.
     const float max_period = sync_period_ * (1.15f - smooth * 0.55f);
     if (spawn_period_ > max_period)
       spawn_period_ = max_period;
-    const float min_period = sync_period_ / (4.f + smooth * 10.f);
+    float min_period = sync_period_ / (4.f + smooth * 10.f);
+    // SYNC can slow the clock, but not enough to open holes in the Hann join.
+    const float gapless_period = grain_samples / 1.2f;
+    if (min_period > gapless_period)
+      min_period = gapless_period;
     if (spawn_period_ < min_period)
       spawn_period_ = min_period;
     if (spawn_period_ < 12.f)
