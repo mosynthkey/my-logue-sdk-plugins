@@ -8,6 +8,14 @@
   - 対応: nts-1_mkii, nts-3_kaoss, microkorg2
   - エアホーンを鳴らす。調整中。正式リリース予定。
 
+- **AmenTime** (`amentime`) — drum（実験的）
+  - 対応: nts-3_kaoss
+  - 合成した 1 小節の amen 風ブレイクをホスト BPM に同期してスライス再生。オリジナル録音は同梱しない。X=開始 16 分、Y=グリッド。
+
+- **WavSlice** (`wavslice`) — drum（実験的）
+  - 対応: nts-3_kaoss
+  - 汎用 1 小節 WAV スライサー。同梱はオリジナル CC0 ドラムループ。`assets/loop.wav` または `make embed WAV=...` で差し替え。
+
 - **BeatRepeat** (`beatrepeat`) — fx（実験的）
   - 対応: nts-3_kaoss
   - テンポ同期の Beat Repeat。AUDIO IN を常時キャプチャし、グリッド上でスライスをスタッター。X=ループ長、Y=発火確率、タッチで強制フリーズ。
