@@ -57,7 +57,7 @@ const __unit_header genericfx_unit_header_t unit_header = {
             {0, 1023, 0, 360, k_unit_param_type_none, 0, 0, 0, {"PITCH"}},
             {0, 1023, 0, 520, k_unit_param_type_none, 0, 0, 0, {"DETUN"}},
             {0, 1000, 0, 1000, k_unit_param_type_percent, 1, 1, 0, {"MIX"}},
-            {24, 48, 0, 36, k_unit_param_type_midi_note, 0, 0, 0, {"ROOT"}},
+            {24, 48, 36, 36, k_unit_param_type_midi_note, 0, 0, 0, {"ROOT"}},
             {0, 1023, 0, 300, k_unit_param_type_none, 0, 0, 0, {"RATE"}},
             {0, 1023, 0, 400, k_unit_param_type_none, 0, 0, 0, {"SUB"}},
             {0, 0, 0, 0, k_unit_param_type_none, 0, 0, 0, {""}},

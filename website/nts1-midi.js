@@ -40,8 +40,10 @@ export const USER_API_VERSION = 0x47;
 export const CLEAR_USER_SLOT = 0x1b;
 
 export const STATUS = {
+  0x22: "Invalid request",
   0x23: "Operation completed",
-  0x24: "Operation error",
+  0x24: "Device busy",
+  0x25: "Flash error",
   0x26: "Data format error",
   0x27: "User data size error",
   0x28: "User data CRC error",
@@ -52,6 +54,9 @@ export const STATUS = {
   0x2d: "User slot error",
   0x2e: "User format error",
   0x2f: "User internal error",
+  0x30: "Unit header format error",
+  0x31: "Unit parameter descriptor format error",
+  0x32: "Unit missing required APIs",
 };
 
 export const MODULE_IDS = { modfx: 1, delfx: 2, revfx: 3, osc: 4, genericfx: 7 };
