@@ -6,7 +6,7 @@
   "targets": [
     "nts-3_kaoss"
   ],
-  "description": "Tempo-synced step filter envelope for NTS-3. Each step fires a cutoff envelope (attack 0, decay set, sustain 0, release 0) into a resonant low-pass on AUDIO IN. X = cutoff, Y = env depth. Touch resets the grid.",
+  "description": "Touch-gated tempo-synced step filter envelope for NTS-3. Dry until the pad is held; each period retriggers a cutoff envelope into a resonant low-pass on AUDIO IN. X = cutoff, Y = env depth. Touch starts the grid; release returns to bypass.",
   "params": [
     {
       "name": "CUT",
@@ -21,12 +21,12 @@
     {
       "name": "MIX",
       "role": "Depth",
-      "detail": "Dry/wet"
+      "detail": "Dry/wet while the pad is held"
     },
     {
       "name": "DEC",
       "role": "Edit",
-      "detail": "Filter envelope decay (~15 ms to 1.2 s). Attack, sustain, and release stay at 0"
+      "detail": "Envelope duration (~15 ms to 1.2 s)"
     },
     {
       "name": "RES",
@@ -36,7 +36,12 @@
     {
       "name": "STEPS",
       "role": "Edit",
-      "detail": "Grid: 8, 12, or 16 steps per bar"
+      "detail": "Retrigger period: 4Bar, 2Bar, 16St, 8St, 4St, 2St, 1St, 1/2"
+    },
+    {
+      "name": "SHAPE",
+      "role": "Edit",
+      "detail": "Envelope curve: Saw, Rise, Tri, Sigm, Puls"
     }
   ]
 }

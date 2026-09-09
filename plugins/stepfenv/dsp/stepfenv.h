@@ -3,9 +3,10 @@
 /*
  * File: stepfenv.h
  *
- * Tempo-synced step filter envelope. Every grid step retriggers a cutoff
- * envelope with attack / sustain / release fixed at 0. Decay is the only
- * time parameter. X is the resting cutoff; Y is how far the envelope opens.
+ * Tempo-synced step filter envelope. Dry by default; touch engages a resonant
+ * low-pass whose cutoff is driven by a retriggered envelope. Period sets the
+ * retrigger grid (4 bars down to 1/2 step). Shape selects the envelope curve.
+ * X is the resting cutoff; Y is how far the envelope opens.
  */
 
 #include "fx_dsp.h"
@@ -24,6 +25,8 @@ public:
   static constexpr float kMaxDecayOctaves = 6.3f;
   static constexpr float kMaxEnvOctaves = 6.f;
   static constexpr float kParamSmoothCoeff = 0.0025f;
+  static constexpr uint8_t kNumPeriods = 8U;
+  static constexpr uint8_t kNumShapes = 5U;
 
   uint32_t getBufferSize() const override final { return 0; }
 
@@ -35,7 +38,29 @@ public:
     DEC,
     RES,
     STEPS,
+    SHAPE,
     NUM_PARAMS
+  };
+
+  enum
+  {
+    PERIOD_4BAR = 0U,
+    PERIOD_2BAR,
+    PERIOD_16STEP,
+    PERIOD_8STEP,
+    PERIOD_4STEP,
+    PERIOD_2STEP,
+    PERIOD_1STEP,
+    PERIOD_HALF
+  };
+
+  enum
+  {
+    SHAPE_SAW = 0U,
+    SHAPE_RISE,
+    SHAPE_TRI,
+    SHAPE_SIGM,
+    SHAPE_PULS
   };
 
   void setParameter(uint8_t index, int32_t value) override final
@@ -58,7 +83,10 @@ public:
       resonance_norm_target_ = param_10bit_to_f32(value);
       break;
     case STEPS:
-      steps_sel_ = static_cast<uint8_t>(fx::clip(static_cast<float>(value), 0.f, 2.f));
+      period_sel_ = static_cast<uint8_t>(fx::clip(static_cast<float>(value), 0.f, static_cast<float>(kNumPeriods - 1U)));
+      break;
+    case SHAPE:
+      shape_sel_ = static_cast<uint8_t>(fx::clip(static_cast<float>(value), 0.f, static_cast<float>(kNumShapes - 1U)));
       break;
     default:
       break;
@@ -67,13 +95,13 @@ public:
 
   const char *getParameterStrValue(uint8_t index, int32_t value) const override final
   {
-    if (index != STEPS)
-      return nullptr;
-    if (value <= 0)
-      return "8";
-    if (value == 1)
-      return "12";
-    return "16";
+    static const char *period_names[kNumPeriods] = {"4Bar", "2Bar", "16St", "8St", "4St", "2St", "1St", "1/2"};
+    static const char *shape_names[kNumShapes] = {"Saw", "Rise", "Tri", "Sigm", "Puls"};
+    if (index == STEPS && value >= 0 && value < static_cast<int32_t>(kNumPeriods))
+      return period_names[value];
+    if (index == SHAPE && value >= 0 && value < static_cast<int32_t>(kNumShapes))
+      return shape_names[value];
+    return nullptr;
   }
 
   void init(float *) override final
@@ -87,13 +115,13 @@ public:
     resonance_norm_smooth_ = 0.4f;
     decay_norm_ = 0.5f;
     mix_ = 1.f;
-    steps_sel_ = 2;
+    period_sel_ = PERIOD_1STEP;
+    shape_sel_ = SHAPE_SAW;
     clock_acc_ = 0.f;
-    env_level_ = 0.f;
-    step_index_ = 0U;
+    env_age_ = 0.f;
+    pad_held_ = false;
     svf_left_ = SvfState();
     svf_right_ = SvfState();
-    triggerEnvelope();
   }
 
   void reset() override final
@@ -102,11 +130,10 @@ public:
     env_depth_smooth_ = env_depth_target_;
     resonance_norm_smooth_ = resonance_norm_target_;
     clock_acc_ = 0.f;
-    env_level_ = 0.f;
-    step_index_ = 0U;
+    env_age_ = 0.f;
+    pad_held_ = false;
     svf_left_ = SvfState();
     svf_right_ = SvfState();
-    triggerEnvelope();
   }
 
   void setTempo(float tempo) override final
@@ -117,11 +144,27 @@ public:
 
   void touchEvent(uint8_t, uint8_t phase, uint32_t, uint32_t) override final
   {
-    if (phase != k_unit_touch_phase_began)
+    if (phase == k_unit_touch_phase_began)
+    {
+      pad_held_ = true;
+      clock_acc_ = 0.f;
+      svf_left_ = SvfState();
+      svf_right_ = SvfState();
+      triggerEnvelope();
       return;
-    clock_acc_ = 0.f;
-    step_index_ = 0U;
-    triggerEnvelope();
+    }
+    if (phase == k_unit_touch_phase_moved || phase == k_unit_touch_phase_stationary)
+    {
+      pad_held_ = true;
+      return;
+    }
+    if (phase == k_unit_touch_phase_ended || phase == k_unit_touch_phase_cancelled)
+    {
+      pad_held_ = false;
+      env_age_ = 1.0e6f;
+      svf_left_ = SvfState();
+      svf_right_ = SvfState();
+    }
   }
 
   void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final
@@ -131,12 +174,10 @@ public:
 
   void process(const float *__restrict in, const float *__restrict raw, float *__restrict out, uint32_t frames)
   {
-    const uint32_t steps = (steps_sel_ == 0) ? 8U : (steps_sel_ == 1 ? 12U : 16U);
-    const float step_samples =
-        static_cast<float>(fx::samplesPerBeat(bpm_, getSampleRate())) * 4.f / static_cast<float>(steps);
+    const float sr = getSampleRate();
+    const float beat = static_cast<float>(fx::samplesPerBeat(bpm_, sr));
+    const float period_samples = beat * 0.25f * periodSixteenths(period_sel_);
     const float decay_sec = kMinDecaySec * fasterpow2f(decay_norm_ * kMaxDecayOctaves);
-    const float decay_x = -1.f / (decay_sec * getSampleRate());
-    const float decay_coeff = 1.f + decay_x;
 
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
@@ -144,22 +185,30 @@ public:
       float live_right = 0.f;
       fx::pickLive(in, raw, live_left, live_right);
 
+      if (!pad_held_)
+      {
+        out[0] = live_left;
+        out[1] = live_right;
+        in += 2;
+        if (raw != nullptr)
+          raw += 2;
+        out += 2;
+        continue;
+      }
+
       cutoff_norm_smooth_ += (cutoff_norm_target_ - cutoff_norm_smooth_) * kParamSmoothCoeff;
       env_depth_smooth_ += (env_depth_target_ - env_depth_smooth_) * kParamSmoothCoeff;
       resonance_norm_smooth_ += (resonance_norm_target_ - resonance_norm_smooth_) * kParamSmoothCoeff;
 
       clock_acc_ += 1.f;
-      if (clock_acc_ >= step_samples)
+      if (clock_acc_ >= period_samples)
       {
-        clock_acc_ -= step_samples;
-        step_index_ = (step_index_ + 1U) % steps;
+        clock_acc_ -= period_samples;
         triggerEnvelope();
       }
 
-      const float env = env_level_;
-      env_level_ *= decay_coeff;
-      if (env_level_ < 1.0e-6f)
-        env_level_ = 0.f;
+      const float env = envelopeLevel(shape_sel_, env_age_, decay_sec);
+      env_age_ += 1.f / sr;
 
       const float cutoff_hz = filterCutoffHz(cutoff_norm_smooth_, env, env_depth_smooth_);
       const float wet_left = processResonantLowpass(live_left, cutoff_hz, resonance_norm_smooth_, svf_left_);
@@ -183,7 +232,49 @@ private:
 
   void triggerEnvelope()
   {
-    env_level_ = 1.f;
+    env_age_ = 0.f;
+  }
+
+  static float periodSixteenths(uint8_t period_sel)
+  {
+    static const float kPeriods[kNumPeriods] = {64.f, 32.f, 16.f, 8.f, 4.f, 2.f, 1.f, 0.5f};
+    return kPeriods[period_sel < kNumPeriods ? period_sel : PERIOD_1STEP];
+  }
+
+  static float envelopeLevel(uint8_t shape, float age_sec, float decay_sec)
+  {
+    if (decay_sec < 1.0e-4f)
+      decay_sec = 1.0e-4f;
+    const float t = age_sec / decay_sec;
+
+    switch (shape)
+    {
+    case SHAPE_RISE:
+      if (t >= 1.f)
+        return 0.f;
+      return t;
+    case SHAPE_TRI:
+      if (t >= 1.f)
+        return 0.f;
+      if (t < 0.5f)
+        return t * 2.f;
+      return (1.f - t) * 2.f;
+    case SHAPE_SIGM:
+    {
+      if (t >= 1.2f)
+        return 0.f;
+      // Smooth high-to-low S-curve across the decay window.
+      const float x = (t - 0.5f) * 12.f;
+      const float sig = 1.f / (1.f + fasterexpf(x));
+      return sig;
+    }
+    case SHAPE_PULS:
+      return (t < 0.5f) ? 1.f : 0.f;
+    case SHAPE_SAW:
+    default:
+      // Age-based exp decay (same family as HClap / StepSaw).
+      return fasterexpf(-age_sec / decay_sec);
+    }
   }
 
   static float baseCutoffHz(float cutoff_norm)
@@ -227,7 +318,7 @@ private:
   }
 
   float clock_acc_ = 0.f;
-  float env_level_ = 0.f;
+  float env_age_ = 0.f;
   float bpm_ = 120.f;
   float cutoff_norm_target_ = 0.45f;
   float cutoff_norm_smooth_ = 0.45f;
@@ -237,8 +328,9 @@ private:
   float resonance_norm_smooth_ = 0.4f;
   float decay_norm_ = 0.5f;
   float mix_ = 1.f;
-  uint32_t step_index_ = 0U;
-  uint8_t steps_sel_ = 2;
+  uint8_t period_sel_ = PERIOD_1STEP;
+  uint8_t shape_sel_ = SHAPE_SAW;
+  bool pad_held_ = false;
   SvfState svf_left_;
   SvfState svf_right_;
 };

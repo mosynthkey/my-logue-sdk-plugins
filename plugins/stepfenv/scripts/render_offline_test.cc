@@ -58,6 +58,7 @@ int main()
   const float bpm = 120.f;
   const float sr = 48000.f;
   const uint32_t beat = static_cast<uint32_t>(sr * 60.f / bpm);
+  // PERIOD_2STEP = 2 sixteenths = eighth note at 4/4.
   const uint32_t step8 = beat / 2U;
   const uint32_t total = beat * 4U;
 
@@ -72,8 +73,10 @@ int main()
   fx.setParameter(StepFenv::MIX, 1000);
   fx.setParameter(StepFenv::DEC, 360);
   fx.setParameter(StepFenv::RES, 200);
-  fx.setParameter(StepFenv::STEPS, 0);
+  fx.setParameter(StepFenv::STEPS, StepFenv::PERIOD_2STEP);
+  fx.setParameter(StepFenv::SHAPE, StepFenv::SHAPE_SAW);
   fx.reset();
+  fx.touchEvent(0, k_unit_touch_phase_began, 512, 512);
 
   std::vector<float> out(total, 0.f);
   renderMono(fx, input, out);
@@ -102,15 +105,32 @@ int main()
   closed.setParameter(StepFenv::MIX, 1000);
   closed.setParameter(StepFenv::DEC, 360);
   closed.setParameter(StepFenv::RES, 200);
-  closed.setParameter(StepFenv::STEPS, 0);
+  closed.setParameter(StepFenv::STEPS, StepFenv::PERIOD_2STEP);
+  closed.setParameter(StepFenv::SHAPE, StepFenv::SHAPE_SAW);
   closed.reset();
+  closed.touchEvent(0, k_unit_touch_phase_began, 512, 512);
   std::vector<float> closed_out(total, 0.f);
   renderMono(closed, input, closed_out);
   const float closed_peak = windowRms(closed_out, 0U, 48U);
   const float closed_late = windowRms(closed_out, 9000U, 256U);
 
-  std::printf("peak=%.6f mid=%.6f late=%.6f retrig=%.6f closed_peak=%.6f closed_late=%.6f\n",
-              peak, mid_decay, late_decay, retrig, closed_peak, closed_late);
+  StepFenv dry;
+  dry.init(nullptr);
+  dry.setTempo(bpm);
+  dry.setParameter(StepFenv::CUT, 154);
+  dry.setParameter(StepFenv::ENV, 1023);
+  dry.setParameter(StepFenv::MIX, 1000);
+  dry.setParameter(StepFenv::DEC, 360);
+  dry.setParameter(StepFenv::RES, 200);
+  dry.setParameter(StepFenv::STEPS, StepFenv::PERIOD_2STEP);
+  dry.reset();
+  std::vector<float> dry_out(total, 0.f);
+  renderMono(dry, input, dry_out);
+  const float dry_peak = windowRms(dry_out, 0U, 48U);
+  const float dry_late = windowRms(dry_out, 9000U, 256U);
+
+  std::printf("peak=%.6f mid=%.6f late=%.6f retrig=%.6f closed_peak=%.6f closed_late=%.6f dry_peak=%.6f\n",
+              peak, mid_decay, late_decay, retrig, closed_peak, closed_late, dry_peak);
 
   if (nan_or_huge)
   {
@@ -140,6 +160,11 @@ int main()
   if (!(closed_late < peak * 0.35f) || !(std::fabs(closed_peak - closed_late) < 0.08f))
   {
     std::printf("FAIL: ENV=0 should stay near the resting cutoff\n");
+    return 1;
+  }
+  if (!(std::fabs(dry_peak - dry_late) < 0.05f) || !(dry_peak > 0.5f))
+  {
+    std::printf("FAIL: without touch the unit should stay dry (bypass)\n");
     return 1;
   }
 
