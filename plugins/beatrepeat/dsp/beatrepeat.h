@@ -4,8 +4,9 @@
  * File: beatrepeat.h
  *
  * Clock-synced Beat Repeat. A stereo ring buffer keeps AUDIO IN (prefer
- * get_raw_input). Pad-held wet grabs a slice and loops it. While held,
- * PROB can re-arm on each 16th.
+ * get_raw_input). Pad gates only — slices arm on the host 16th grid (4ppqn),
+ * with an internal 16th clock fallback. While held, PROB can re-arm on each
+ * 16th.
  */
 
 #include "fx_dsp.h"
@@ -72,6 +73,7 @@ public:
     rng_ = 1U;
     repeating_ = false;
     force_hold_ = false;
+    use_host_clock_ = false;
     wet_ = 0.f;
     loop_pos_ = 0.f;
     clock_acc_ = 0.f;
@@ -92,6 +94,7 @@ public:
     write_pos_ = 0U;
     captured_ = 0U;
     repeating_ = false;
+    force_hold_ = false;
     wet_ = 0.f;
     loop_pos_ = 0.f;
     feedback_left_ = 0.f;
@@ -112,13 +115,18 @@ public:
       bpm_ = tempo;
   }
 
+  void tempo4ppqnTick(uint32_t) override final
+  {
+    use_host_clock_ = true;
+    onSixteenth();
+  }
+
+  // Gate only — do not arm from the tap moment; wait for the next 16th.
   void touchEvent(uint8_t, uint8_t phase, uint32_t, uint32_t) override final
   {
     if (phase == k_unit_touch_phase_began || phase == k_unit_touch_phase_moved ||
         phase == k_unit_touch_phase_stationary)
     {
-      if (!force_hold_)
-        armRepeat(true);
       force_hold_ = true;
       return;
     }
@@ -152,21 +160,21 @@ public:
       if (captured_ < kMaxBufSamples)
         ++captured_;
 
-      clock_acc_ += 1.f;
-      if (clock_acc_ >= sixteenth)
+      // Free-run even while the pad is up so the next hold joins the same grid.
+      if (!use_host_clock_ && sixteenth > 1.f)
       {
-        clock_acc_ -= sixteenth;
-        onSixteenth(beat_samples);
+        clock_acc_ += 1.f;
+        if (clock_acc_ >= sixteenth)
+        {
+          clock_acc_ -= sixteenth;
+          onSixteenth();
+        }
       }
 
       if (!force_hold_ && !repeating_)
-      {
         wet_ += (0.f - wet_) * wet_coeff;
-      }
       else
-      {
         wet_ += (1.f - wet_) * wet_coeff;
-      }
 
       float wet_left = live_left;
       float wet_right = live_right;
@@ -215,13 +223,13 @@ private:
     return samples;
   }
 
-  void armRepeat(bool force)
+  void armRepeat()
   {
     const float beat_samples = static_cast<float>(fx::samplesPerBeat(bpm_, getSampleRate()));
     loop_length_ = lengthFromNorm(len_norm_, beat_samples);
     if (captured_ < loop_length_ + 64U)
     {
-      repeating_ = force;
+      repeating_ = true;
       return;
     }
 
@@ -234,9 +242,8 @@ private:
     repeating_ = true;
   }
 
-  void onSixteenth(float beat_samples)
+  void onSixteenth()
   {
-    (void)beat_samples;
     if (!force_hold_)
     {
       repeating_ = false;
@@ -245,13 +252,13 @@ private:
 
     if (!repeating_)
     {
-      armRepeat(true);
+      armRepeat();
       return;
     }
 
     const float roll = fx::randomFloat(rng_);
     if (roll < prob_norm_ * prob_norm_)
-      armRepeat(true);
+      armRepeat();
   }
 
   float *left_ = nullptr;
@@ -274,4 +281,5 @@ private:
   uint32_t rng_ = 1U;
   bool repeating_ = false;
   bool force_hold_ = false;
+  bool use_host_clock_ = false;
 };

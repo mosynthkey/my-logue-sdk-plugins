@@ -50,11 +50,13 @@ export const dspExplainById = {
   In[Audio in] --> Mix`,
   },
   beatrepeat: {
-    en: "Stereo ring buffer of live input. On each 16th note (or forced by touch) it may capture a slice and loop it with feedback, then crossfade dry/wet by Mix.",
-    ja: "入力をステレオリングバッファに常時録音します。16分音符ごと（またはタッチ強制）にスライスを掴んでループ＋フィードバックし、Mixでドライ／ウェットします。",
+    en: "Stereo ring buffer of live input. Pad gates only; slices arm on the host 16th grid (internal 16th fallback), with PROB re-arm while held, then crossfade dry/wet by Mix.",
+    ja: "入力をステレオリングバッファに常時録音します。パッドはゲートのみで、ホスト16分（なければ内部16分）でスライスを掴み、ホールド中はPROBで再アーム。Mixでドライ／ウェットします。",
     mermaid: `flowchart LR
   In[Live in] --> Buf[Stereo ring buffer]
-  Clock[16th clock or Touch] --> Arm[Arm slice loop]
+  Pad[Pad gate] --> Hold[Hold]
+  Clock[Host 16th or internal] --> Arm[Arm slice loop]
+  Hold --> Arm
   Buf --> Loop[Loop and feedback]
   Arm --> Loop
   In --> Mix[Dry or wet] --> Out[Out]
@@ -255,12 +257,14 @@ export const dspExplainById = {
   In[Audio in] --> Mix --> Out[Out]`,
   },
   revroll: {
-    en: "DJM Rev Roll: touch captures a tempo slice and plays it backwards with a speed curve. Release returns to live.",
-    ja: "DJM Rev Rollです。タッチでテンポ切片を掴み、速度カーブ付きで逆再生します。離すとライブに戻ります。",
+    en: "DJM Rev Roll: pad gates only; captures a tempo slice on the host 16th grid (internal fallback) and plays it backwards with a speed curve. Release returns to live.",
+    ja: "DJM Rev Rollです。パッドはゲートのみで、ホスト16分（なければ内部16分）でテンポ切片を掴み、速度カーブ付きで逆再生します。離すとライブに戻ります。",
     mermaid: `flowchart LR
   In[Live in] --> Buf[Always-on buffer]
-  Touch[Touch capture] --> Loop[Reverse loop]
-  Buf --> Loop --> Mix[Dry or wet] --> Out[Out]
+  Pad[Pad gate] --> Hold[Hold]
+  Clock[Host 16th or internal] --> Cap[Capture slice]
+  Hold --> Cap
+  Buf --> Cap --> Loop[Reverse loop] --> Mix[Dry or wet] --> Out[Out]
   In --> Mix`,
   },
   reesephr: {
