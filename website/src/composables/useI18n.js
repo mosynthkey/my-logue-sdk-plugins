@@ -6,6 +6,8 @@ const STORAGE_KEY = "logue-sdk-preview-language";
 export const japanesePluginDescriptions = {
   airfm: "Alesis airSynthに着想を得た、FM効果音シンセです。",
   airhorn: "AirHornを鳴らします。\n現在も調整中で、正式版\u2060は近日公開予定。",
+  amentime: "合成した1小節のamen風ブレイクを、ホストBPMに合わせてスライス再生します。オリジナル録音は入っていません。パッドを押しているあいだ再生。Xは開始16分、Yはグリッド（1/4〜1/32）です。手元のWAVはAmenWavを使います。",
+  amenwav: "AmenTimeと同じスライサーです。ビルド時に assets/break.wav を埋め込みます。公開／CIビルドはクリックグリッドで、Winstonsの録音はコミットしません。",
   fbackosc: "JP-8080に着想を得たFeedback oscillatorです。band-limited sawをkey-tracked resonant comb filterに通します。FEEDを上げても1/(1-fb)で音量が跳ねないよう補償しています。",
   mohowl: "作者モチーフのフィードバックハウリングです。パッドを押すとJP-8080風の金切り声が出ます。周波数はLFOで揺れ、Xはその深さ、Yはハーモニクス、フィードバックは最大固定です。",
   hypersaw: "Virus TIに着想を得た9-voice detuned saw stackです。Density、Spread、HyperSub、stereo widthを調整できます。",

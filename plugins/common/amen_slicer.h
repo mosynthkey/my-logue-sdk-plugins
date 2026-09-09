@@ -73,7 +73,10 @@ public:
     case HOLD:
       hold_ = (value != 0) ? HOLD_LATCH : HOLD_GATE;
       if (hold_ == HOLD_GATE && !pad_held_)
+      {
         running_ = false;
+        fadeOutVoices();
+      }
       break;
     default:
       break;
@@ -145,7 +148,10 @@ public:
     {
       pad_held_ = false;
       if (hold_ == HOLD_GATE)
+      {
         running_ = false;
+        fadeOutVoices();
+      }
     }
   }
 
@@ -179,19 +185,12 @@ public:
         voice.phase += voice.inc;
         voice.gain = fx::clip01(voice.gain + voice.fade);
 
-        const float slice_len = voice.end - voice.start;
-        if (slice_len > 1.f)
+        if (voice.length > 1.f)
         {
-          if (voice.inc > 0.f)
-          {
-            while (voice.phase >= voice.end)
-              voice.phase -= slice_len;
-          }
-          else
-          {
-            while (voice.phase < voice.start)
-              voice.phase += slice_len;
-          }
+          while (voice.phase >= voice.length)
+            voice.phase -= voice.length;
+          while (voice.phase < 0.f)
+            voice.phase += voice.length;
         }
 
         if (voice.gain <= 0.f && voice.fade < 0.f)
@@ -214,8 +213,9 @@ private:
   struct Voice
   {
     bool active = false;
+    bool reverse = false;
     float start = 0.f;
-    float end = 1.f;
+    float length = 1.f;
     float phase = 0.f;
     float inc = 0.f;
     float gain = 0.f;
@@ -277,7 +277,7 @@ private:
     ++trigger_count_;
   }
 
-  void startVoice(float start, float length, bool reverse)
+  void fadeOutVoices()
   {
     const float fade_delta = 1.f / static_cast<float>(kXfadeSamples);
     for (uint32_t voiceIndex = 0; voiceIndex < kVoiceCount; ++voiceIndex)
@@ -286,36 +286,46 @@ private:
       if (voice.active)
         voice.fade = -fade_delta;
     }
+  }
+
+  void startVoice(float start, float length, bool reverse)
+  {
+    fadeOutVoices();
 
     Voice &voice = voices_[next_voice_index_];
     next_voice_index_ = (next_voice_index_ + 1U) % kVoiceCount;
     voice.active = true;
+    voice.reverse = reverse;
     voice.start = start;
-    voice.end = start + length;
+    voice.length = length > 1.f ? length : 1.f;
     voice.inc = playbackIncrement();
-    if (reverse)
-    {
-      voice.phase = voice.end - 1.f;
-      voice.inc = -voice.inc;
-    }
-    else
-    {
-      voice.phase = start;
-    }
+    voice.phase = 0.f;
     voice.gain = 0.f;
-    voice.fade = fade_delta;
+    voice.fade = 1.f / static_cast<float>(kXfadeSamples);
+  }
+
+  static float wrapPcm(float pos)
+  {
+    const float pcm_length = static_cast<float>(kAmenPcmLength);
+    if (pcm_length <= 1.f)
+      return 0.f;
+    while (pos >= pcm_length)
+      pos -= pcm_length;
+    while (pos < 0.f)
+      pos += pcm_length;
+    return pos;
   }
 
   static float readVoice(const Voice &voice)
   {
-    float pos = voice.phase;
-    if (pos < 0.f)
-      pos = 0.f;
-    if (pos >= static_cast<float>(kAmenPcmLength - 1U))
-      pos = static_cast<float>(kAmenPcmLength - 2U);
-
+    float offset = voice.phase;
+    if (voice.reverse)
+      offset = voice.length - 1.f - voice.phase;
+    const float pos = wrapPcm(voice.start + offset);
     const uint32_t index0 = static_cast<uint32_t>(pos);
-    const uint32_t index1 = index0 + 1U;
+    uint32_t index1 = index0 + 1U;
+    if (index1 >= kAmenPcmLength)
+      index1 = 0U;
     const float frac = pos - static_cast<float>(index0);
     const float sample0 = static_cast<float>(kAmenPcm8[index0]) * kPcmScale;
     const float sample1 = static_cast<float>(kAmenPcm8[index1]) * kPcmScale;

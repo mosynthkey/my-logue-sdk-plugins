@@ -20,6 +20,33 @@ export const dspExplainById = {
   Voice --> Herm
   Herm --> Mix[Sum voices] --> Out[Wet or dry-wet]`,
   },
+  amentime: {
+    en: "Pad-gated 1-bar PCM slicer. An internal sample clock (not 4ppqn) walks equal 16th/32nd slices of a synthesized amen-style break. Playback rate is PCM length over host bar length so pitch tracks BPM; TUNE is an extra octave. Two voices crossfade; slices wrap the bar.",
+    ja: "パッド・ゲートの1小節PCMスライサーです。内部サンプル時計（4ppqnではない）で合成amen風ブレイクを等分スライスします。再生速度はPCM長／ホスト1小節なのでピッチがBPMに追従し、TUNEで±1octします。2ボイスでクロスフェードし、小節端はラップします。",
+    mermaid: `flowchart LR
+  Pad[Pad gate] --> Clock[Internal slice clock]
+  BPM[Host BPM] --> Rate[PCM length over bar]
+  Clock --> Slice[Start 16th and SIZE grid]
+  PCM[Synth 12 kHz PCM] --> Read[Linear wrap read]
+  Slice --> Read
+  Rate --> Read
+  Read --> Xfade[2-voice xfade] --> Mix[Dry or wet] --> Out[Out]
+  In[Audio in] --> Mix`,
+  },
+  amenwav: {
+    en: "Same slicer as AmenTime. Build embeds local assets/break.wav when present; otherwise a click-grid placeholder so CI never ships the Winstons recording.",
+    ja: "AmenTimeと同じスライサーです。ビルド時に手元の assets/break.wav を埋め、無いときはクリックグリッドにします。Winstonsの録音は公開ユニットに入りません。",
+    mermaid: `flowchart LR
+  Wav[Local WAV or click grid] --> PCM[12 kHz 8-bit PCM]
+  Pad[Pad gate] --> Clock[Internal slice clock]
+  BPM[Host BPM] --> Rate[PCM length over bar]
+  Clock --> Slice[Start 16th and SIZE grid]
+  PCM --> Read[Linear wrap read]
+  Slice --> Read
+  Rate --> Read
+  Read --> Xfade[2-voice xfade] --> Mix[Dry or wet] --> Out[Out]
+  In[Audio in] --> Mix`,
+  },
   beatrepeat: {
     en: "Stereo ring buffer of live input. On each 16th note (or forced by touch) it may capture a slice and loop it with feedback, then crossfade dry/wet by Mix.",
     ja: "入力をステレオリングバッファに常時録音します。16分音符ごと（またはタッチ強制）にスライスを掴んでループ＋フィードバックし、Mixでドライ／ウェットします。",

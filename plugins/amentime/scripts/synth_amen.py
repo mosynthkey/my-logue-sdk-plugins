@@ -35,48 +35,76 @@ def exp_decay(age: float, tau: float) -> float:
     return math.exp(-age / tau)
 
 
-def render_kick(age: float) -> float:
-    if age < 0.0 or age > 0.45:
+def render_kick(age: float, pickup: bool) -> float:
+    max_age = 0.22 if pickup else 0.38
+    if age < 0.0 or age > max_age:
         return 0.0
-    pitch = 52.0 + 155.0 * exp_decay(age, 0.028)
+    amp = 0.42 if pickup else 1.0
+    pitch = (48.0 if pickup else 42.0) + (210.0 if pickup else 255.0) * exp_decay(age, 0.018)
     body = math.sin(2.0 * math.pi * pitch * age)
-    click = math.sin(2.0 * math.pi * 1800.0 * age) * exp_decay(age, 0.004)
-    return body * exp_decay(age, 0.16) * 1.15 + click * 0.22
+    beater = math.sin(2.0 * math.pi * 2400.0 * age) * exp_decay(age, 0.0028)
+    air = math.sin(2.0 * math.pi * 90.0 * age) * exp_decay(age, 0.09)
+    return amp * (body * exp_decay(age, 0.11) * 1.05 + beater * 0.28 + air * 0.22)
 
 
-def render_snare(age: float, ghost: bool, noise: float) -> float:
-    if age < 0.0:
+def render_snare(age: float, ghost: bool, crack: float, body_noise: float) -> float:
+    max_age = 0.11 if ghost else 0.32
+    if age < 0.0 or age > max_age:
         return 0.0
-    max_age = 0.14 if ghost else 0.38
-    if age > max_age:
-        return 0.0
-    amp = 0.28 if ghost else 1.0
-    body_tau = 0.055 if ghost else 0.12
-    snap_tau = 0.018 if ghost else 0.045
-    body = math.sin(2.0 * math.pi * 188.0 * age) * exp_decay(age, body_tau)
-    ring = math.sin(2.0 * math.pi * 327.0 * age) * exp_decay(age, body_tau * 0.85)
-    snap = noise * exp_decay(age, snap_tau)
-    return amp * (body * 0.55 + ring * 0.22 + snap * 0.7)
+    amp = 0.32 if ghost else 1.0
+    body_hz = (205.0 if ghost else 188.0) + 55.0 * exp_decay(age, 0.012)
+    ring_hz = 335.0 + 40.0 * exp_decay(age, 0.01)
+    body = math.sin(2.0 * math.pi * body_hz * age) * exp_decay(age, 0.038 if ghost else 0.085)
+    ring = math.sin(2.0 * math.pi * ring_hz * age) * exp_decay(age, 0.028 if ghost else 0.07)
+    snap = crack * exp_decay(age, 0.012 if ghost else 0.028)
+    rattle = body_noise * exp_decay(age, 0.02 if ghost else 0.055)
+    stick = math.sin(2.0 * math.pi * 4200.0 * age) * exp_decay(age, 0.0018)
+    return amp * (body * 0.42 + ring * 0.2 + snap * 0.85 + rattle * 0.45 + stick * 0.18)
 
 
 def render_hat(age: float, noise: float, open_hat: bool) -> float:
-    if age < 0.0:
+    tau = 0.09 if open_hat else 0.018
+    if age < 0.0 or age > tau * 7.0:
         return 0.0
-    tau = 0.085 if open_hat else 0.028
-    if age > tau * 6.0:
-        return 0.0
-    return noise * exp_decay(age, tau) * (0.22 if open_hat else 0.16)
+    metal = math.sin(2.0 * math.pi * 10500.0 * age) * exp_decay(age, 0.004)
+    return (noise * 0.92 + metal * 0.18) * exp_decay(age, tau) * (0.26 if open_hat else 0.14)
 
 
-def render_splash(age: float, noise: float) -> float:
-    if age < 0.0 or age > 0.55:
+def render_crash(age: float, noise: float) -> float:
+    if age < 0.0 or age > 0.72:
         return 0.0
-    return noise * exp_decay(age, 0.16) * 0.18
+    bell = math.sin(2.0 * math.pi * 880.0 * age) * exp_decay(age, 0.08)
+    return noise * exp_decay(age, 0.22) * 0.28 + bell * 0.05
+
+
+def one_pole_lp(sample: float, state: float, coeff: float) -> tuple[float, float]:
+    state += coeff * (sample - state)
+    return state, state
 
 
 def one_pole_hp(sample: float, state: float, coeff: float) -> tuple[float, float]:
-    state += coeff * (sample - state)
-    return sample - state, state
+    low, state = one_pole_lp(sample, state, coeff)
+    return sample - low, state
+
+
+def apply_room(bar: list[float]) -> list[float]:
+    delays = (
+        int(HOST_RATE * 0.019),
+        int(HOST_RATE * 0.037),
+        int(HOST_RATE * 0.053),
+    )
+    decays = (0.22, 0.16, 0.11)
+    wet = list(bar)
+    lp_coeff = 1.0 - math.exp(-2.0 * math.pi * 4200.0 / HOST_RATE)
+    lp_state = 0.0
+    for sample_index, sample in enumerate(bar):
+        room = 0.0
+        for delay, decay in zip(delays, decays):
+            if sample_index >= delay:
+                room += wet[sample_index - delay] * decay
+        damped, lp_state = one_pole_lp(room, lp_state, lp_coeff)
+        wet[sample_index] = sample + damped
+    return wet
 
 
 def synthesize_bar() -> list[float]:
@@ -84,47 +112,51 @@ def synthesize_bar() -> list[float]:
     bar = [0.0] * length
     rng = 0xC0FFEE01
 
+    # Canonical 16-step amen chop map. Hits stay on the grid so equal slices land.
     kicks = {0, 6, 12}
+    pickup_kicks = {10}
     snares = {1, 4, 9, 12, 15}
     ghosts = {3, 7, 11}
-    hats = {0, 2, 4, 6, 8, 10, 12, 14}
+    closed_hats = {0, 2, 4, 6, 8, 10, 12}
     open_hats = {14}
-    splashes = {0}
+    crashes = {0}
 
-    hp_state = 0.0
-    hp_coeff = 1.0 - math.exp(-2.0 * math.pi * 1800.0 / HOST_RATE)
-    splash_hp_state = 0.0
-    splash_hp_coeff = 1.0 - math.exp(-2.0 * math.pi * 4000.0 / HOST_RATE)
+    hp_mid = 0.0
+    hp_air = 0.0
+    hp_cym = 0.0
+    hp_mid_coeff = 1.0 - math.exp(-2.0 * math.pi * 1800.0 / HOST_RATE)
+    hp_air_coeff = 1.0 - math.exp(-2.0 * math.pi * 3400.0 / HOST_RATE)
+    hp_cym_coeff = 1.0 - math.exp(-2.0 * math.pi * 5200.0 / HOST_RATE)
 
     for sample_index in range(length):
         rng, white = lcg(rng)
-        hat_noise, hp_state = one_pole_hp(white, hp_state, hp_coeff)
-        splash_noise, splash_hp_state = one_pole_hp(white, splash_hp_state, splash_hp_coeff)
+        crack, hp_air = one_pole_hp(white, hp_air, hp_air_coeff)
+        body_noise, hp_mid = one_pole_hp(white, hp_mid, hp_mid_coeff)
+        cym_noise, hp_cym = one_pole_hp(white, hp_cym, hp_cym_coeff)
 
         mix = 0.0
         for step_index in range(SIXTEENTHS):
             age = (sample_index - step_index * SAMPLES_PER_16TH_HOST) / float(HOST_RATE)
             if step_index in kicks:
-                mix += render_kick(age)
+                mix += render_kick(age, False)
+            if step_index in pickup_kicks:
+                mix += render_kick(age, True)
             if step_index in snares:
-                mix += render_snare(age, False, hat_noise)
+                mix += render_snare(age, False, crack, body_noise)
             if step_index in ghosts:
-                mix += render_snare(age, True, hat_noise)
-            if step_index in hats:
-                mix += render_hat(age, hat_noise, step_index in open_hats)
-            if step_index in splashes:
-                mix += render_splash(age, splash_noise)
+                mix += render_snare(age, True, crack, body_noise)
+            if step_index in closed_hats:
+                mix += render_hat(age, cym_noise, False)
+            if step_index in open_hats:
+                mix += render_hat(age, cym_noise, True)
+            if step_index in crashes:
+                mix += render_crash(age, cym_noise)
         bar[sample_index] = mix
 
-    # Short comb so the kit sits in a room instead of dry hits.
-    delay = int(HOST_RATE * 0.037)
-    wet = 0.18
-    for sample_index in range(delay, length):
-        bar[sample_index] += bar[sample_index - delay] * wet
-
+    bar = apply_room(bar)
     peak = max(abs(sample) for sample in bar) or 1.0
-    scale = 0.89 / peak
-    return [max(-1.0, min(1.0, math.tanh(sample * scale * 1.15))) for sample in bar]
+    scale = 0.9 / peak
+    return [max(-1.0, min(1.0, math.tanh(sample * scale * 1.12))) for sample in bar]
 
 
 def downsample(samples: list[float]) -> list[float]:

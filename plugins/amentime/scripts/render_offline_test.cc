@@ -128,12 +128,32 @@ int main()
 
   setup(fx, 120.f, 640);
   fx.touchEvent(0, k_unit_touch_phase_began, 0, 640);
+  std::vector<float> before_release;
+  render(fx, before_release, 256U);
   fx.touchEvent(0, k_unit_touch_phase_ended, 0, 640);
   if (fx.debugRunning())
   {
     std::printf("still running after gate release\n");
     return 12;
   }
+  std::vector<float> after_release;
+  render(fx, after_release, 4096U);
+  const float tail_peak = peakAbs(std::vector<float>(after_release.end() - 256, after_release.end()));
+  std::printf("gate tail peak=%.4f\n", tail_peak);
+  if (tail_peak > 0.02f)
+    return 13;
+
+  setup(fx, 120.f, 100);
+  fx.setParameter(AmenTime::STRT, 1023);
+  fx.touchEvent(0, k_unit_touch_phase_began, 0, 100);
+  std::vector<float> wrapped;
+  render(fx, wrapped, 96000U);
+  const float wrap_peak = peakAbs(wrapped);
+  std::printf("wrap strt peak=%.4f triggers=%u\n", wrap_peak, fx.debugTriggerCount());
+  if (wrap_peak < 0.08f)
+    return 14;
+  if (fx.debugTriggerCount() < 3U)
+    return 15;
 
   std::printf("ok\n");
   return 0;
