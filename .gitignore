@@ -23,3 +23,4 @@ plugins/wavslice/dsp/wavslice_pcm.h
 website/node_modules/
 website/dist/
 website/.vite/
+plugins/*/scripts/render_offline_test
