@@ -1,111 +1,97 @@
 # HHat Research and Implementation Notes
 
-Sibling of HSnare / HClap: an NTS-3 phrase pad for *modeled* hi-hat,
-not a WAV one-shot. Classical drum machines expose Closed and Open as
-two keys. Real playing lives mostly *between* those extremes (half-open,
-loose closed, foot choke). This unit puts that continuum on Y.
+NTS-3 phrase pad for a **TR-909 hi-hat PCM circuit model**, not 808
+metal squares and not a modern WAV player. Classical machines expose
+Closed and Open as two keys; this unit puts the continuum on Y.
 
-## What classic machines actually do
+## What the 909 hi-hat actually does
 
-### TR-808 / TR-606 (analog metal)
+Roland Service Notes + Network-909 + Colin Fraser:
 
-Shared bank of **six Schmitt-trigger square oscillators** (Werner /
-Baratatronix / service notes), mixed into an inharmonic “metal hum”,
-then band-pass filtered. Hats take the **high** path (~7100 Hz BPF on
-the 808), VCA + resonant / Sallen-Key HPF.
+```
+NAND astable (~60 kHz) → ÷2 → address counters
+      ↓
+HN61256P C43  (32 KB shared CH/OH)
+      ↓
+6-bit latch → resistor DAC
+      ↓
+analog decay VCA (CH / OH Decay pots) + anti-log
+      ↓
+two reconstruction LPFs → level
+```
 
-| Voice | Decay (808 service chart) |
+| | Closed | Open |
+| --- | --- | --- |
+| ROM window | `0x6000..0x7FFF` (top ¼) | `0x0000..0x5FFF` (bottom ¾) |
+| Selection | CLOSED line ORs top address bits to `11` | counters run until top bits hit `11` |
+| Envelope | analog RC decay (not address DAC) | same, longer pot range |
+| Clock | fixed ~30 kHz (no Tune knob) | same |
+
+Ride/Crash use address-derived anti-log envelopes so Tune shortens
+decay. Hats do **not** — Decay pots restore the compressed PCM.
+
+### ROM provenance
+
+| | |
 | --- | --- |
-| Closed | fixed ~50 ms |
-| Open | 90–600 ms pot |
-| Cymbal | 350–1200 ms (extra low BPF band) |
+| MAME | `hn61256p__c43.ic69` |
+| CRC32 | `2aaae11b` |
+| SHA1 | `22a34d603e78673bb096f5e56a8971afe14d8fee` |
+| Working dump | Colin Fraser `r909hh.wav` (8-bit left-aligned 6-bit @ 32 kHz, 32768 frames) |
 
-Open and closed share the *source*. The musical difference is almost
-entirely **envelope length**, plus the exclusive choke group: a closed
-trigger shortens / kills a ringing open. On the 606 the open decay also
-interacts with closed triggers mid-note (variable choke timing).
+Matches Ride909’s packing: 4 samples → 3 bytes, ~24.6 KB in the unit.
 
-Ideal oscillator frequencies from Werner’s SPICE (factory trim on the
-last two):
+## Experiments (Close–Open morph)
 
-```
-205.3, 304.4, 369.6, 522.7, 540, 800 Hz
-```
+Offline A/B on the real ROM (see `/tmp/hhat_exp_*.wav` during bring-up):
 
-Avoid exact harmonic multiples. Exact cents matter less than the
-inharmonic swarm.
+1. **CH/OH crossfade + τ(Y)** — closed punches from CH window, open
+   blooms from OH, half-open keeps body. Chosen.
+2. **OH-only + τ(Y)** — continuous but loses the tight CH stick.
+3. **Start-address lerp** — mid-Y lands in quiet mid-OH; weaker.
 
-### TR-909 (hybrid)
+Also compared earlier 808 six-square metal model: too “buzz saw”, not
+909 grit. PCM + ZOH + 6-bit DAC + dual LPF is the character.
 
-Closed / open hats are **6-bit PCM** with analog amplitude shaping.
-Different ROM windows, shared choke group, Decay knobs. Not what this
-unit models — Ride909 already covers the ROM path for ride.
-
-### Acoustic / e-drum continuous control
-
-Sample libraries and e-drums use many articulations (tight → loose →
-half → open → foot splash) selected by CC4 / pedal, plus choke fades
-when the pedal closes while a note rings. Continuous synthesis can skip
-sample switching: **one source, continuous τ**, with live choke when Y
-drops or a more-closed hit arrives.
-
-## Open-source / published models reviewed
-
-| Source | What it is | Use here |
-| --- | --- | --- |
-| Werner et al., ICMC 2014 (808 cymbal) | Circuit-informed digital model of the six squares + BPF/HPF/VCA | Osc freqs, topology |
-| Baratatronix 808 / 606 / KR-55 write-ups | Practical patch language restatement | Decay numbers, choke story |
-| Erica / Moritz Klein EDU + 606 video | Six squares → passive BPF → CH/OH envelopes | Confirm metal-noise approach |
-| Erica Black Hi-Hats vibe patch | 7 pulses + HPF noise, separate CH/OH, exclusive latch | Tick + noise shimmer extras |
-| Trap808 / UKGarage in this repo | Discrete CH/OH + choke, age-based `fasterexpf(-age/τ)` | Envelope / choke pattern |
-| PercIter | Y Skin↔Metal morph | Continuous Y morph idea |
-| HSnare / HClap | Euclidean X on hold-to-run pad | Phrase / clock scaffold |
-
-Trap808 hats today are bright noise × two discrete τ values (~28 ms /
-~180 ms). Fine for a kit layer; not a metal model and not continuous.
-
-## Design chosen for HHat
+## What this unit models
 
 ```
-free-running 6× square (808 freqs, TUNE transpose)
-        → mix
-        → SVF band-pass (TONE moves centre ~5–9 kHz)
-        → per-voice amp  (age-based exp; τ from Y + DEC)
-        → one-pole HPF   (closed brighter / tighter)
-        + short stick tick (HPF noise × fast env)
+30 kHz ZOH (TUNE ±7 st) → packed 6-bit ROM
+    ├─ CH reader @ 0x6000
+    └─ OH reader @ 0x0000
+         → equal-power-ish crossfade from Y
+         → age-based decay VCA  τ(Y, DEC)   [fasterexpf(-age/τ)]
+         → reconstruction LPF A (TONE) + LPF B
+         → DC block
 ```
 
-- **X = DENS**: `fx::euclidHit` on 16 steps (no 2-and-4 rotation —
-  hats sit on the grid from step 0). High dens adds 32nd rolls.
-- **Y = OPEN**: Close → Open. Maps to τ (~45–320 ms × DEC), HPF cut,
-  and a little noise shimmer. Openness is sampled at trigger; dropping
-  Y while a voice rings applies a foot choke (accelerates age).
-- **Choke group**: a new hit with lower openness clears / shortens
-  more-open voices (808 exclusive behaviour).
-- **Envelopes**: age-based `fasterexpf(-age/τ)` only — never
-  `fasterexpf` for near-1 per-sample coeffs (HSnare pitfall).
-- **No libm**: squares from phase compare, `float_math.h` only,
-  `ULIBS` empty.
+- **X = DENS**: `fx::euclidHit` on 16 steps from step 0; high dens → 32nd rolls (closed-biased).
+- **Y = OPEN**: CH↔OH window mix + τ; foot choke when Y drops or a more-closed hit arrives.
+- **No libm**: packed PCM, baked LPF coeffs, `exp2Approx` for Tune, age-based env only.
 
-## Param map
+## Size
 
-| Role | Name | Meaning |
-| --- | --- | --- |
-| X | DENS | Euclidean hits / bar (1–16), then 32nd rolls |
-| Y | OPEN | Close → Open continuum |
-| Depth | MIX | Dry/wet |
-| Edit | TONE | BPF centre / brightness |
-| Edit | TUNE | Metal oscillator transpose |
-| Edit | DEC | Master decay scale |
+Packed PCM ≈ 24.6 KB. Keep the phrase engine lean (6 voices) so the
+stripped unit stays under the 32 KB genericfx cap (same constraint as
+Ride909).
+
+## Regenerating the PCM header
+
+```bash
+python3 plugins/hhat/scripts/embed_rom.py \
+  --rom /path/to/hn61256p__c43.bin \
+  --out plugins/hhat/dsp/hhat_pcm.h
+```
+
+Or from Fraser’s WAV (mono 8-bit, 32768 frames): write the raw frames
+as a 32768-byte `.bin` first.
 
 ## Sources
 
-- Kurt Werner et al., *The TR-808 Cymbal: a Physically-Informed,
-  Circuit-Bendable, Digital Model* (ICMC 2014)
-- Roland TR-808 / TR-606 service notes (cymbal / hi-hat block)
-- [Baratatronix — 808 cymbal & hi-hat](https://www.baratatronix.com/blog/cascadia-808-cymbal-hi-hat-synthesis)
-- [Baratatronix — 606 cymbal & hi-hat](https://www.baratatronix.com/blog/606-cymbal-and-hi-hat-synthesis)
-- Moritz Klein, *Designing a TR-606 style hi-hat from scratch*
-- Raygum, *The Roland TR-909 Monograph* (PCM hats — out of scope here)
+- Network-909, *HiHat and Cymbals*
+- Colin Fraser, synth-diy: CH = top ¼, OH = bottom ¾; `r909hh.wav`
+- Raygum, *The Roland TR-909 Monograph*
+- Ride909 unit in this repo (ROM pack / ZOH / LPF path)
+- MAME `roland_tr909.cpp` ROM hashes
 
 Not affiliated with Roland.

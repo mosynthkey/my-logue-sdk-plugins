@@ -66,7 +66,7 @@
 
 - **HHat** (`hhat`) — drum（実験的）
   - 対応: nts-3_kaoss
-  - 808 風メタルノイズのモデリングハイハット。X=ユークリッド密度、Y=Close→Open 連続。調整中。
+  - TR-909 ハイハット PCM 回路モデル。X=ユークリッド密度、Y=Close→Open（CH/OH ROM 窓＋減衰）。調整中。
 
 - **HSnare** (`hsnare`) — drum（実験的）
   - 対応: nts-3_kaoss
