@@ -74,7 +74,7 @@
 
 - **Trance** (`trance`) — drum（実験的）
   - 対応: nts-3_kaoss
-  - トランス・ドラム。四つ打ち＋裏拍オープンハット。X=ハット、Y=ビルド。既定〜138 BPM。
+  - トランス・ドラム。ハットは TR-909 ROM。四つ打ち＋裏拍オープンハット。X=ハット、Y=ビルド。既定〜138 BPM。
 
 - **Dembow** (`dembow`) — drum（実験的）
   - 対応: nts-3_kaoss
@@ -111,10 +111,6 @@
 - **MoHowl** (`mohowl`) — synth
   - 対応: nts-3_kaoss
   - 作者モチーフのフィードバック・ハウル。JP-8080 風コムスクリーム。X=LFO 深さ、Y=ハーモニクス。
-
-- **Passort** (`passort`) — fx（実験的）
-  - 対応: nts-3_kaoss
-  - Performance Assort。タッチ開始位置でエフェクトがロックされる。左上=HPF、右上=LPF、中央=テープストップ、左下=付点8分ディレイ、右下=ステップロール。
 
 - **PercIter** (`perciter`) — synth（実験的）
   - 対応: nts-3_kaoss

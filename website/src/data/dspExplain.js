@@ -129,22 +129,6 @@ export const dspExplainById = {
   Mode --> Mix[Dry or wet fade] --> Out[Out]
   In --> Mix`,
   },
-  passort: {
-    en: "Performance Assort: the first touch locks a region effect, then motion drives its parameters. Top-left HPF, top-right LPF, center tape stop, bottom-left dotted-8th delay, bottom-right beat-sync step roll. Pad up bypasses.",
-    ja: "Performance Assort。タッチ開始位置でエフェクトがロックされ、その後の動きがパラメータになります。左上HPF／右上LPF／中央テープストップ／左下付点8分ディレイ／右下ステップロール。離すとバイパス。",
-    mermaid: `flowchart TD
-  Start[Touch began] --> Region{Start region}
-  Region -->|top-left| HPF[HPF cutoff and res]
-  Region -->|top-right| LPF[LPF cutoff and res]
-  Region -->|center| Tape[Tape stop]
-  Region -->|bottom-left| Dly[Dotted-8th delay]
-  Region -->|bottom-right| Roll[Step roll]
-  HPF --> Mix[Dry or wet] --> Out[Out]
-  LPF --> Mix
-  Tape --> Mix
-  Dly --> Mix
-  Roll --> Mix`,
-  },
   grainpad: {
     en: "Live-capture granular pad. Touch freezes up to 3 s of AUDIO IN into long, slow grains (100–320 ms). X/FEEL: sparse stitches ↔ dense wash. Y: octave mix. ENV = grain attack/release; SPRD / HPF / REVS as edits.",
     ja: "AUDIO INを最大3秒フリーズし、長めのグレイン（100–320 ms）をゆっくり重ねます。Xは疎↔密、Yはoct混率。ENVで粒のアタック／リリース、SPRD／HPF／REVSあり。",
@@ -263,13 +247,14 @@ export const dspExplainById = {
   Voices --> Mix[Softclip dry-wet] --> Out[Out]`,
   },
   trance: {
-    en: "Hold-to-gate trance drum kit. Hits lock to host 4ppqn. Four-on-the-floor kicks, clap on 2/4, offbeat open hats. X thickens hats; Y builds snare rolls toward Fill. Default ~138 BPM.",
-    ja: "ホールドはゲートのみ。ホストの4ppqnに合わせてトランス・ドラムを鳴らします。四つ打ち＋2/4クラップ＋裏拍オープンハット。Xでハット、Yでビルド。既定〜138 BPM。",
+    en: "Hold-to-gate trance drum kit. Hits lock to host 4ppqn. Four-on-the-floor kicks, clap on 2/4, and offbeat hats from TR-909 ROM PCM (same dump as Trap808/HHat). X thickens 909 hats; Y builds clap rolls toward Fill. Default ~138 BPM.",
+    ja: "ホールドはゲートのみ。ホストの4ppqnに合わせてトランス・ドラムを鳴らします。四つ打ち＋2/4クラップ＋裏拍ハットはTR-909 ROM。Xで909ハット、Yでビルド。既定〜138 BPM。",
     mermaid: `flowchart TD
   Host[Host 4ppqn] --> Gate{Pad held?}
   Gate -->|yes| Spine[Four-on-floor clap]
-  Gate -->|yes| Hats[X offbeat opens]
-  Gate -->|yes| Build[Y snare build]
+  Gate -->|yes| Hats[X 909 ROM hats]
+  Gate -->|yes| Build[Y clap build]
+  ROM[TR-909 HH ROM] --> Hats
   Spine --> Voices[Kick clap hats]
   Hats --> Voices
   Build --> Voices

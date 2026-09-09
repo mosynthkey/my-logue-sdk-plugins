@@ -6,17 +6,17 @@
   "targets": [
     "nts-3_kaoss"
   ],
-  "description": "Tempo-synced trance drum kit. Hold to gate — hits lock to the host beat. Four-on-the-floor kicks, clap on 2 and 4, offbeat open hats. X thickens hats; Y builds snare rolls toward Fill. Flick top-right for a one-bar Fill. Default ~138 BPM.",
+  "description": "Tempo-synced trance drum kit with TR-909 ROM hi-hats. Hold to gate — hits lock to the host beat. Four-on-the-floor kicks, clap on 2 and 4, offbeat 909 open hats. X thickens hats; Y builds clap rolls toward Fill. Flick top-right for a one-bar Fill. Default ~138 BPM.",
   "params": [
     {
       "name": "HATS",
       "role": "X",
-      "detail": "Offbeat open-hat energy and closed-hat density"
+      "detail": "909 ROM offbeat open-hat energy and closed-hat density"
     },
     {
       "name": "BUILD",
       "role": "Y",
-      "detail": "Build / snare-roll energy toward Fill"
+      "detail": "Build / clap-roll energy toward Fill"
     },
     {
       "name": "MIX",
