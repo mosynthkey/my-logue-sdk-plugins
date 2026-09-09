@@ -1,0 +1,47 @@
+{
+  "id": "drums",
+  "experimental": true,
+  "name": "Drums",
+  "type": "drum",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Tempo-synced multi-genre drum kit. Hold to gate — hits lock to the host beat. GENRE selects Trance / DnB / Breakbeat / UK Garage / Boom-bap / Dembow / Footwork patterns. X densifies ghosts/hats/stutters; Y pushes fill energy. Flick top-right for a one-bar Fill. Trap808 stays a separate specialised unit.",
+  "params": [
+    {
+      "name": "DENS",
+      "role": "X",
+      "detail": "Genre density: hats, ghosts, rims, or kick stutters"
+    },
+    {
+      "name": "FILL",
+      "role": "Y",
+      "detail": "Fill / break / build energy toward a one-bar Fill"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet"
+    },
+    {
+      "name": "GENRE",
+      "role": "Edit",
+      "detail": "TRNC / DNB / BRK / UKG / BOOM / DEM / FOOT"
+    },
+    {
+      "name": "SWING",
+      "role": "Edit",
+      "detail": "16th swing amount (feel scales with genre)"
+    },
+    {
+      "name": "TONE",
+      "role": "Edit",
+      "detail": "Kick / snare pitch colour"
+    },
+    {
+      "name": "DEC",
+      "role": "Edit",
+      "detail": "Shared body / hat decay"
+    }
+  ]
+}

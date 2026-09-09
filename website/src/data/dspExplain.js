@@ -260,6 +260,20 @@ export const dspExplainById = {
   Build --> Voices
   Voices --> Mix[Softclip dry-wet] --> Out[Out]`,
   },
+  drums: {
+    en: "Hold-to-gate multi-genre drum kit. Hits lock to host 4ppqn. GENRE selects Trance / DnB / Breakbeat / UK Garage / Boom-bap / Dembow / Footwork patterns and voice feel. X densifies; Y pushes fill energy. Trap808 stays separate.",
+    ja: "ホールドはゲートのみ。ホストの4ppqnに合わせてジャンル別ドラムを鳴らします。GENREで Trance / DnB / Break / UKG / Boom / Dembow / Footwork を切替。Xは密度、YはFill。Trap808は別ユニットです。",
+    mermaid: `flowchart TD
+  Host[Host 4ppqn] --> Gate{Pad held?}
+  Genre[GENRE] --> Pattern[Genre pattern]
+  Gate -->|yes| Pattern
+  Gate -->|yes| Dens[X densify]
+  Gate -->|yes| Fill[Y fill energy]
+  Pattern --> Voices[Kick snare hats]
+  Dens --> Voices
+  Fill --> Voices
+  Voices --> Mix[Softclip dry-wet] --> Out[Out]`,
+  },
   hclap: {
     en: "Tempo 16-step Euclidean clap. Analog noise and LFSR morph 808→909 dual-VCA style; burst and room bandpasses shape each voice. Density and flams follow pad-style params, then dry/wet mix.",
     ja: "テンポ同期のユークリッド・クラップです。アナログノイズとLFSRを808→909的にモーフィングし、バースト／ルーム帯域で複数ボイスを重ねます。ドライ／ウェット混合します。",
