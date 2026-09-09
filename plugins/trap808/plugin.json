@@ -1,0 +1,42 @@
+{
+  "id": "trap808",
+  "experimental": true,
+  "name": "Trap808",
+  "type": "drum",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Trap drum machine with rolling hi-hats and a sliding 808 bass. Hold the pad to run. X = hat density/rolls (8ths → 16ths → 32nd/triplet bursts), Y = 808 root pitch. Top-right flick = one-bar hat fill.",
+  "params": [
+    {
+      "name": "HATS",
+      "role": "X",
+      "detail": "Hi-hat density: 8ths → 16ths with velocity → 32nd rolls and triplets"
+    },
+    {
+      "name": "TUNE",
+      "role": "Y",
+      "detail": "808 root pitch (low to high)"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet"
+    },
+    {
+      "name": "GROOVE",
+      "role": "Edit",
+      "detail": "Kick/snare density (sparse half-time toward busier)"
+    },
+    {
+      "name": "DECAY",
+      "role": "Edit",
+      "detail": "808 body length"
+    },
+    {
+      "name": "DRIVE",
+      "role": "Edit",
+      "detail": "Saturation / punch on the 808 and kick"
+    }
+  ]
+}
