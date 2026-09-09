@@ -20,6 +20,33 @@ export const dspExplainById = {
   Voice --> Herm
   Herm --> Mix[Sum voices] --> Out[Wet or dry-wet]`,
   },
+  amentime: {
+    en: "Pad-gated 1-bar PCM slicer. An internal sample clock (not 4ppqn) walks equal 16th/32nd slices of a synthesized amen-style break. Playback rate is PCM length over host bar length so pitch tracks BPM; TUNE is an extra octave. Two voices crossfade; slices wrap the bar.",
+    ja: "パッド・ゲートの1小節PCMスライサーです。内部サンプル時計（4ppqnではない）で合成amen風ブレイクを等分スライスします。再生速度はPCM長／ホスト1小節なのでピッチがBPMに追従し、TUNEで±1octします。2ボイスでクロスフェードし、小節端はラップします。",
+    mermaid: `flowchart LR
+  Pad[Pad gate] --> Clock[Internal slice clock]
+  BPM[Host BPM] --> Rate[PCM length over bar]
+  Clock --> Slice[Start 16th and SIZE grid]
+  PCM[Synth 12 kHz PCM] --> Read[Linear wrap read]
+  Slice --> Read
+  Rate --> Read
+  Read --> Xfade[2-voice xfade] --> Mix[Dry or wet] --> Out[Out]
+  In[Audio in] --> Mix`,
+  },
+  wavslice: {
+    en: "Same pad slicer as AmenTime, for any 1-bar WAV. Build embeds assets/loop.wav when present, otherwise the shipped CC0 default-loop.wav backbeat.",
+    ja: "AmenTimeと同じパッド・スライサーで、任意の1小節WAVを再生します。assets/loop.wav があればそれを埋め、無ければ同梱のCC0ドラムループを使います。",
+    mermaid: `flowchart LR
+  Wav[loop.wav or default-loop.wav] --> PCM[12 kHz 8-bit PCM]
+  Pad[Pad gate] --> Clock[Internal slice clock]
+  BPM[Host BPM] --> Rate[PCM length over bar]
+  Clock --> Slice[Start 16th and SIZE grid]
+  PCM --> Read[Linear wrap read]
+  Slice --> Read
+  Rate --> Read
+  Read --> Xfade[2-voice xfade] --> Mix[Dry or wet] --> Out[Out]
+  In[Audio in] --> Mix`,
+  },
   beatrepeat: {
     en: "Stereo ring buffer of live input. On each 16th note (or forced by touch) it may capture a slice and loop it with feedback, then crossfade dry/wet by Mix.",
     ja: "入力をステレオリングバッファに常時録音します。16分音符ごと（またはタッチ強制）にスライスを掴んでループ＋フィードバックし、Mixでドライ／ウェットします。",
@@ -99,8 +126,8 @@ export const dspExplainById = {
   In --> Mix`,
   },
   grainpad: {
-    en: "Live-capture granular pad. Touch freezes up to 3 s of AUDIO IN. X/FEEL: sparse ↔ dense cloud. Y: octave mix. ENV = grain attack/release; SPRD / HPF / REVS as edits.",
-    ja: "AUDIO INを最大3秒フリーズしてグレイン雲にします。Xは疎↔密、Yはoct混率。ENVで粒のアタック／リリース、SPRD／HPF／REVSあり。",
+    en: "Live-capture granular pad. Touch freezes up to 3 s of AUDIO IN into long, slow grains (100–320 ms). X/FEEL: sparse stitches ↔ dense wash. Y: octave mix. ENV = grain attack/release; SPRD / HPF / REVS as edits.",
+    ja: "AUDIO INを最大3秒フリーズし、長めのグレイン（100–320 ms）をゆっくり重ねます。Xは疎↔密、Yはoct混率。ENVで粒のアタック／リリース、SPRD／HPF／REVSあり。",
     mermaid: `flowchart LR
   In[Audio in] --> Ring[SDRAM max 3s]
   Touch[Touch freeze] --> Cloud[Grain cloud]
@@ -299,6 +326,42 @@ export const dspExplainById = {
   Depth[Y env depth] --> Env
   LPF --> Mix[Dry or wet] --> Out[Out]
   In --> Mix`,
+  },
+  steprndflt: {
+    en: "Tempo-synced sample-and-hold LFO into a multimode resonant filter on AUDIO IN. Each step redraws a random bipolar offset around CUT; X (DEPTH) scales that swing in octaves, Y is resonance. TYPE selects LP12 / LP24 / BPF / HP12 / HP24. Hold the pad to engage.",
+    ja: "AUDIO INへのテンポ同期S&H LFO→マルチモード共振フィルタです。各ステップでCUT周りのバイポーラ乱数を引き直し、X（DEPTH）がその振れ幅（オクターブ）、Yがレゾナンス。TYPEはLP12/LP24/BPF/HP12/HP24。パッド押下中のみ効きます。",
+    mermaid: `flowchart LR
+  Tempo[BPM clock] --> Grid[Step period]
+  Grid --> SH[Sample and hold]
+  SH --> CutMod[Cutoff offset]
+  Depth[X depth] --> CutMod
+  Cut[CUT center] --> CutMod
+  In[Audio in] --> Flt[LP12 LP24 BPF HP12 HP24]
+  CutMod --> Flt
+  Res[Y resonance] --> Flt
+  Type[TYPE] --> Flt
+  Flt --> Mix[Dry or wet] --> Out[Out]
+  In --> Mix`,
+  },
+  trap808: {
+    en: "Trap phrase pad: half-time kick/snare, velocity-shaped closed hats with 32nd/triplet rolls, open-hat choke, and a sliding sine 808 (pitch drop + soft drive). X = hat density/rolls, Y = 808 root. Age-based envelopes; top-right flick arms a one-bar hat fill.",
+    ja: "トラップ・フレーズパッドです。ハーフタイムのキック／スネア、ベロシティ付きクローズハット＋32分／三連ロール、オープンハットのチョーク、ピッチドロップ付きスライド808（ソフトドライブ）。Xはハット密度／ロール、Yは808ルート。年齢ベースのエンベロープ。右上フリックで1小節ハット・フィル。",
+    mermaid: `flowchart LR
+  Pad[Hold pad] --> Clock[16th clock]
+  Clock --> Seq[Kick snare hat sched]
+  Hats[X hats] --> Seq
+  Seq --> Roll[32nd triplet rolls]
+  Roll --> HH[Noise hats choke]
+  Seq --> Kick[Pitch-drop kick]
+  Seq --> SD[Tone plus noise snare]
+  Seq --> Bass[Sine 808 glide]
+  Tune[Y tune] --> Bass
+  Kick --> Sum[Sum and softclip]
+  SD --> Sum
+  HH --> Sum
+  Bass --> Sum
+  Sum --> Mix[Dry or wet] --> Out[Out]
+  In[Audio in] --> Mix`,
   },
   tapeosc: {
     en: "Tape-style oscillator: a band-limited source is written into a circular buffer while a varispeed read head ramps start/stop. Grit blends ZOH vs linear; wear LPF and wow/flutter modulate rate.",

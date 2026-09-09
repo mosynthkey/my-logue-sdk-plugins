@@ -8,6 +8,14 @@
   - 対応: nts-1_mkii, nts-3_kaoss, microkorg2
   - エアホーンを鳴らす。調整中。正式リリース予定。
 
+- **AmenTime** (`amentime`) — drum（実験的）
+  - 対応: nts-3_kaoss
+  - 合成した 1 小節の amen 風ブレイクをホスト BPM に同期してスライス再生。オリジナル録音は同梱しない。X=開始 16 分、Y=グリッド。
+
+- **WavSlice** (`wavslice`) — drum（実験的）
+  - 対応: nts-3_kaoss
+  - 汎用 1 小節 WAV スライサー。同梱はオリジナル CC0 ドラムループ。`assets/loop.wav` または `make embed WAV=...` で差し替え。
+
 - **BeatRepeat** (`beatrepeat`) — fx（実験的）
   - 対応: nts-3_kaoss
   - テンポ同期の Beat Repeat。AUDIO IN を常時キャプチャし、グリッド上でスライスをスタッター。X=ループ長、Y=発火確率、タッチで強制フリーズ。
@@ -103,6 +111,14 @@
 - **StepFenv** (`stepfenv`) — fx（実験的）
   - 対応: nts-3_kaoss
   - テンポ同期のステップ・フィルタ・エンベロープ。各ステップでカットオフEG（アタック0、ディケイ可変、サスティン0、リリース0）。X=カットオフ、Y=エンベロープ深さ。タッチでグリッドリセット。
+
+- **StepRndFlt** (`steprndflt`) — fx（実験的）
+  - 対応: nts-3_kaoss
+  - テンポ同期の S&H LFO をマルチモード・フィルタのカットオフへ。各ステップでランダム値をホールド。X=LFO深さ、Y=レゾナンス。TYPE=LP12/LP24/BPF/HP12/HP24。タッチでエンゲージ。
+
+- **Trap808** (`trap808`) — drum（実験的）
+  - 対応: nts-3_kaoss
+  - トラップ風ドラム＋スライドする808ベース。X=ハイハット密度／ロール（8分→16分→32分・三連）、Y=808ルート音。右上フリックで1小節ハット・フィル。
 
 - **TapeOsc** (`tapeosc`) — osc（実験的）
   - 対応: nts-1_mkii
