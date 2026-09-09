@@ -4,13 +4,13 @@
   "name": "HHat",
   "type": "drum",
   "targets": ["nts-3_kaoss"],
-  "description": "Modeled 808-style hi-hat on a phrase pad. Hold to run. X = Euclidean step density, Y = Close → Open continuum (half-open lives in between).\nStill being fine-tuned; the official release is coming soon.",
+  "description": "TR-909 hi-hat PCM circuit model on a phrase pad. Hold to run. X = Euclidean step density, Y = Close → Open continuum (CH/OH ROM windows + decay).\nStill being fine-tuned; the official release is coming soon.",
   "params": [
     { "name": "DENS", "role": "X", "detail": "Euclidean hits per 16-step bar (1–16), then 32nd rolls" },
-    { "name": "OPEN", "role": "Y", "detail": "Close (bottom) → Open (top). Continuous decay / brightness; closing chokes ringing open" },
+    { "name": "OPEN", "role": "Y", "detail": "Close (bottom) → Open (top). Crossfades CH/OH ROM windows and morphs analog decay; closing chokes" },
     { "name": "MIX", "role": "Depth", "detail": "Dry/wet" },
-    { "name": "TONE", "role": "Edit", "detail": "Band-pass centre / metallic brightness" },
-    { "name": "TUNE", "role": "Edit", "detail": "Transpose the six metal square oscillators" },
+    { "name": "TONE", "role": "Edit", "detail": "Reconstruction LPF tilt (darker ↔ brighter)" },
+    { "name": "TUNE", "role": "Edit", "detail": "ROM clock rate (±7 st around 30 kHz; hardware hats had no Tune)" },
     { "name": "DEC", "role": "Edit", "detail": "Master decay scale for the Close–Open range" }
   ]
 }
