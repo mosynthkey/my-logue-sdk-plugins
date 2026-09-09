@@ -8,7 +8,7 @@ export function previewLayout(build) {
 }
 
 export function usesKickDemo(plugin) {
-  return plugin?.id === "technorumble" || plugin?.id === "pumpduck";
+  return plugin?.id === "technorumble";
 }
 
 export function usesDryInput(plugin, build) {

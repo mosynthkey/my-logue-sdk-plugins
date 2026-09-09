@@ -68,101 +68,37 @@
   - 対応: nts-1_mkii
   - キーボード制御のマイクロルーパー osc。外部入力をループし、MIDI ノートでループ長を設定。テンポ同期・ゲート・進化。
 
-- **MeloCap** (`melocap`) — fx（実験的）
-  - 対応: nts-3_kaoss
-  - DJM Melodic Capture 風。タッチで直近キャプチャをスケール量子化ピッチ（X）とグレイン長（Y）で再生。長押しで再キャプチャ。
-
-- **MicroGap** (`microgap`) — fx（実験的）
-  - 対応: nts-3_kaoss
-  - ドロップ前の真空マイクロギャップ。タッチで次のダウンビートに量子化したミュートをアーム。X=ギャップ長、Y=微小ノイズ床。
-
 - **MoHowl** (`mohowl`) — synth
   - 対応: nts-3_kaoss
   - 作者モチーフのフィードバック・ハウル。JP-8080 風コムスクリーム。X=LFO 深さ、Y=ハーモニクス。
-
-- **MsWidth** (`mswidth`) — fx（実験的）
-  - 対応: nts-3_kaoss
-  - Mid/Side 幅とセンターキル。X=Mid、Y=Side。タッチで Center Kill（Mid ミュート）プリセット。
 
 - **PercIter** (`perciter`) — synth（実験的）
   - 対応: nts-3_kaoss
   - Basimilus 風パーカッションパッド。加算/FM ボディ＋ノイズ＋フォルダ。Y で Skin↔Metal。タッチがトリガ、連打でフィル。
 
-- **PullUp** (`pullup`) — fx（実験的）
-  - 対応: nts-3_kaoss
-  - プルアップ / リワインド。常時録音。タッチで 1 小節目・ドロップキュー・ホットキューへジャンプ。Y=リワインド演出。
-
-- **PumpDuck** (`pumpduck`) — fx（実験的）
-  - 対応: nts-3_kaoss
-  - エンベロープフォロワー・サイドチェーン。AUDIO IN に追従して振幅/フィルタ/プレートをダック。X=アタック/リリース感、Y=深さ。
-
 - **ReesePhr** (`reesephr`) — synth（実験的）
   - 対応: nts-3_kaoss
   - デチューン・リース・ドローン＋疎なフレーズ生成。タッチでビートするスーパーソーをゲート。1–2 小節ごとにルートが短3度歩いて圧力変化。
-
-- **RevBass** (`revbass`) — synth（実験的）
-  - 対応: nts-3_kaoss
-  - ハードスタイル風リバースベース。オフビートにロックするスウェル。X=ピッチ、Y=アタック長とドライブ。
 
 - **RevRoll** (`revroll`) — fx（実験的）
   - 対応: nts-3_kaoss
   - DJM Rev Roll。タッチでテンポ同期スライスをキャプチャし逆再生で繰り返す。X=スライス長、Y=逆再生カーブ。
 
-- **RiddimJg** (`riddimjg`) — fx（実験的）
-  - 対応: nts-3_kaoss
-  - サウンドシステム風リディム・ジャグル。ループをバージョン・スライスに分割。X=バージョン選択、Y=クロスフェード速度。破壊グリッチではなくセレクタ切替。
-
 - **Ride909** (`ride909`) — drum
   - 対応: nts-3_kaoss
   - テクノ定番の裏拍 909 ライドシンバル。ピッチ調整可。調整中。正式リリース予定。
-
-- **RiffDice** (`riffdice`) — synth（実験的）
-  - 対応: nts-3_kaoss
-  - Elektron 風条件付きリフ生成。16 ステップのスケールシーケンスに always / 1:2 / パーセントトリガ。X=ルート、Y=条件ステップの発火確率。
 
 - **RingExcit** (`ringexcit`) — fx（実験的）
   - 対応: nts-3_kaoss
   - 入力励起レゾネータ。キックやノイズで Karplus-Strong 弦＋3 モーダル倍音を弾く。タッチで内部ノイズ・プラック（ワンショットにも）。
 
-- **RmxScene** (`rmxscene`) — fx（実験的）
-  - 対応: nts-3_kaoss
-  - Pioneer RMX 風 Scene FX。X で Build（ノイズ+HPF）↔ Break（クラッシュ+エコー）。離すと短いエコー残響かスナップバック。
-
 - **Shaker** (`shaker`) — shaker
   - 対応: nts-1_mkii, nts-3_kaoss
   - PhISEM シェイカーの移植。XY パッドやキーボードで各種パーカッション。調整中。正式リリース予定。
 
-- **Shepard** (`shepard`) — synth（実験的）
-  - 対応: nts-3_kaoss
-  - 無限 Shepard / Risset ライザー。重なったオクターブが永遠に上昇。ホールドでビルド、離すとトーンを落としてドロップへ。
-
-- **SlipRoll** (`sliproll`) — fx（実験的）
-  - 対応: nts-3_kaoss
-  - Pioneer DJM Slip Roll。タッチで現在スライスをループしつつ下のトラックは進む。X 変更で再キャプチャ。Y=ライブ・ドライ残量（Helix）。
-
-- **SnareRush** (`snarerush`) — synth（実験的）
-  - 対応: nts-3_kaoss
-  - 指数的スネアロール・ビルド。タッチで密度が倍々に増えるラッシュ、離すと最後のヒット。X=何小節に圧縮するか、Y=タイト↔ウォッシュ。
-
-- **SpecCloud** (`speccloud`) — fx（実験的）
-  - 対応: nts-3_kaoss
-  - FFT スペクトラル・バンドクラウド。対数バンドのゲインをランダム再抽選。X=バンド数、Y=再抽選確率/スムーズ。タッチで即再描画。
-
-- **SpecWarp** (`specwarp`) — fx（実験的）
-  - 対応: nts-1_mkii, nts-3_kaoss
-  - Vital 風スペクトラル・ストレッチ/スミア。FFT → 周波数領域ワープ → 再合成。X=Stretch、Y=Smear。ドラムループで異世界アンビエンス。
-
 - **StepFenv** (`stepfenv`) — fx（実験的）
   - 対応: nts-3_kaoss
   - テンポ同期のステップ・フィルタ・エンベロープ。各ステップでカットオフEG（アタック0、ディケイ可変、サスティン0、リリース0）。X=カットオフ、Y=エンベロープ深さ。タッチでグリッドリセット。
-
-- **Spiral** (`spiral`) — fx（実験的）
-  - 対応: nts-3_kaoss
-  - Pioneer Spiral。エコーの各リピートでピッチドリフトが蓄積。X=エコー音価、Y=ドリフト量と方向。
-
-- **TalkForm** (`talkform`) — fx（実験的）
-  - 対応: nts-3_kaoss
-  - Talk / Digi Talk フォルマント・フィルタ。X/Y で第1・第2フォルマント。タッチであいうえお格子にスナップ。
 
 - **TapeOsc** (`tapeosc`) — osc（実験的）
   - 対応: nts-1_mkii
@@ -180,6 +116,3 @@
   - 対応: nts-3_kaoss
   - Mutable Warps 風クロスモッド・モーフ。ダイオードリング / XOR / コンパレータ / ミニボコーダ / ウェーブフォルダを横断。
 
-- **WashOut** (`washout`) — fx（実験的）
-  - 対応: nts-3_kaoss
-  - ウォッシュアウト・ブラー・ビルド。タッチでリバーブ・コーラス・HPF の指数マクロ。離すとドライにスナップ。

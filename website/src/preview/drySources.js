@@ -17,7 +17,7 @@ export const DRY_SOURCES = [
 export const DRY_SOURCE_IDS = new Set(DRY_SOURCES.map((source) => source.id));
 
 export function defaultDrySourceId(plugin) {
-  if (plugin?.id === "technorumble" || plugin?.id === "pumpduck") {
+  if (plugin?.id === "technorumble") {
     return "kick";
   }
   return "house";

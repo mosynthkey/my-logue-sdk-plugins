@@ -101,7 +101,7 @@ Use `website/` for editable web application source. `website/dist/` is Vite's
 temporary production build output, while `dist/website/` is the assembled,
 gitignored deployment artifact.
 
-## NTS-3 Hardware Pitfalls (HSnare / SnareRush notes)
+## NTS-3 Hardware Pitfalls (HSnare notes)
 
 Symptom “only an attack click / プツ on the device” is **not always** a link /
 Resolve Symbol failure. Check both.
@@ -124,11 +124,10 @@ Prefer header-only `utils/float_math.h` (`faster*` / `si_fabsf`) and keep
 `plugins/common/fx_dsp.h` libm-free. If a true libm call is unavoidable,
 set `ULIBS = -lm` in `config.mk` so the code is linked into the unit.
 
-### 2. HSnare / SnareRush (2026-09): not a link error
+### 2. HSnare (2026-09): not a link error
 
-Built `hsnare.elf` and `snarerush.elf` have **no undefined libm symbols**.
-PLT entries are only local methods + `memset`. SnareRush already has
-`ULIBS = -lm`; HSnare has `ULIBS =` empty. Link resolution is fine.
+Built `hsnare.elf` has **no undefined libm symbols**. PLT entries are only
+local methods + `memset`. HSnare has `ULIBS =` empty. Link resolution is fine.
 
 Root cause of the click-only sound:
 
@@ -139,9 +138,9 @@ Root cause of the click-only sound:
   so a supposed ~85 ms body dies in ~5 ms → attack click only.
   Host-side single-trigger probe (SNAP=0): peak ~0.09, nearly silent by 20 ms.
 
-- **SnareRush** uses hardcoded multiply decays `0.988` / `0.992`
-  (~12–18 ms to −60 dB). Each hit is already a short click; a roll is a
-  train of clicks. Also not a link issue.
+- Hardcoded multiply decays such as `0.988` / `0.992` (~12–18 ms to −60 dB)
+  also sound like attack clicks; that is an envelope length issue, not a link
+  issue.
 
 Safer patterns for amp envelopes on NTS-3:
 
@@ -156,6 +155,6 @@ Safer patterns for amp envelopes on NTS-3:
 
 1. `nm -u` / `readelf -r` → any `sinf`/`expf`/… UND? → link/libm problem.
 2. No UND, but body under ~20 ms on a host offline render → envelope /
-   `fasterexpf` misuse (HSnare/SnareRush class), not the loader.
+   `fasterexpf` misuse (HSnare class), not the loader.
 3. Kaocid-style: also confirm touch clock (prefer internal sample clock over
    relying only on host `tempo4ppqnTick` if ticks are sparse).

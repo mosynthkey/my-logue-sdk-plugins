@@ -190,26 +190,6 @@ export const dspExplainById = {
   Evol[4PPQN evolution] --> Play
   Play --> Mix[Wet mix] --> Out[Out]`,
   },
-  melocap: {
-    en: "Melodic capture: always records; touch loops the last stub at a scale-quantized rate. Hold recaptures. Grain size sets the loop window.",
-    ja: "旋律キャプチャです。常時録音し、タッチで最後のスタブをスケール量子化レートでループします。長押しで再キャプチャ。グレインがループ窓です。",
-    mermaid: `flowchart LR
-  In[Live in] --> Buf[Always-on buffer]
-  Touch[Touch play] --> Freeze[Last stub freeze]
-  Hold[Long hold] --> Freeze
-  Buf --> Freeze --> Pitch[Scale-quantized read] --> Mix[Dry or wet] --> Out[Out]
-  In --> Mix`,
-  },
-  microgap: {
-    en: "Vacuum gap: touch arms a quantized mute (immediate or next downbeat). During the gap, dry is cut and a tiny noise floor can remain.",
-    ja: "真空ギャップです。タッチで量子化ミュートを武装（即時または次ダウンビート）。ギャップ中はドライを切り、微小ノイズ床を残せます。",
-    mermaid: `flowchart LR
-  Touch[Touch arm] --> Q[Quantize now or downbeat]
-  Q --> Gap[Mute window]
-  In[Live in] --> Gate[Gap mute]
-  Noise[Noise floor] --> Gate --> Out[Out]
-  Gap --> Gate`,
-  },
   mohowl: {
     en: "Pad-gated JP-8080 comb howl (same core as FbOsc) at max feedback. Pitch LFO wobbles the note; attack/release envelope and level shape the scream, then dry/wet with input.",
     ja: "パッド・ゲートのJP-8080コームハウリング（FbOsc同系、FB最大）です。ピッチLFOで揺れ、アタック／リリースとレベル後にドライ／ウェットします。",
@@ -219,18 +199,6 @@ export const dspExplainById = {
   Env --> Comb
   Comb --> Mix[Dry or wet] --> Out[Out]
   In[Audio in] --> Mix`,
-  },
-  mswidth: {
-    en: "Mid/Side width processor. Adjust mid and side gains; side is high-passed. Touch snaps toward Center Kill (mute mid, boost side), then dry/wet.",
-    ja: "Mid/Side幅プロセッサです。Mid/SideゲインとSide用HPFを調整します。タッチでセンター・キル（Midミュート、Side強調）へ寄り、ドライ／ウェットします。",
-    mermaid: `flowchart LR
-  In[Stereo in] --> MS[M/S encode]
-  MS --> Mid[Mid gain]
-  MS --> Side[Side HPF and gain]
-  Touch[Center Kill] --> Mid
-  Touch --> Side
-  Mid --> LR[M/S decode] --> Mix[Dry or wet] --> Out[Out]
-  Side --> LR`,
   },
   perciter: {
     en: "One-shot percussion on each touch: sine/FM body with wavefold, plus HP noise. Mode morphs skin/liquid/metal character; pitch decays; then dry/wet.",
@@ -243,38 +211,6 @@ export const dspExplainById = {
   Noise --> Sum
   In[Audio in] --> Mix --> Out[Out]`,
   },
-  pullup: {
-    en: "Pull-up rewind: always records a bar loop. Touch jumps to bar-1 / drop / last cue; Y can rewind briefly then land on the cue.",
-    ja: "プルアップ／リワインドです。小節ループを常時録り、タッチで1小節目／ドロップ／直近キューへ戻します。Yで短い逆再生のあとキューへ着地します。",
-    mermaid: `flowchart LR
-  In[Live in] --> Buf[Bar buffer]
-  Touch[Touch cue] --> Jump[Cue jump]
-  Y[Y rewind] --> Rev[Short reverse]
-  Buf --> Jump
-  Buf --> Rev
-  Jump --> Mix[Dry or wet] --> Out[Out]
-  Rev --> Mix
-  In --> Mix`,
-  },
-  pumpduck: {
-    en: "Envelope-follower sidechain (prefers raw in). Duck amount controls amp gain, a tracking LPF, or a small plate (comb+allpass). Touch cycles the destination; then dry/wet.",
-    ja: "エンベロープ・フォロワー・サイドチェーンです（raw入力優先）。ダックで振幅／追従LPF／簡易プレートを制御し、タッチで行き先を切り替えます。その後ドライ／ウェットします。",
-    mermaid: `flowchart LR
-  Detect[Raw detect HPF and env] --> Duck[Duck amount]
-  In[Audio in] --> Dest[AMP FILT or PLATE]
-  Duck --> Dest
-  Dest --> Mix[Dry or wet] --> Out[Out]`,
-  },
-  revbass: {
-    en: "Hardstyle reverse bass: BLEP saw/pulse with a rising square amp. Offbeat sync starts the swell on the backbeat; free mode holds while touched.",
-    ja: "ハードスタイル・リバースベースです。BLEPソー／パルスに上昇スクエア・アンプをかけます。裏拍同期はバックビートで膨らみ、FREEはタッチ保持です。",
-    mermaid: `flowchart LR
-  Touch[Touch] --> Sync[Offbeat or free]
-  Sync --> Env[Rising amp]
-  Osc[BLEP saw pulse] --> Drive[tanh]
-  Env --> Drive --> Mix[Dry or wet] --> Out[Out]
-  In[Audio in] --> Mix`,
-  },
   revroll: {
     en: "DJM Rev Roll: touch captures a tempo slice and plays it backwards with a speed curve. Release returns to live.",
     ja: "DJM Rev Rollです。タッチでテンポ切片を掴み、速度カーブ付きで逆再生します。離すとライブに戻ります。",
@@ -282,16 +218,6 @@ export const dspExplainById = {
   In[Live in] --> Buf[Always-on buffer]
   Touch[Touch capture] --> Loop[Reverse loop]
   Buf --> Loop --> Mix[Dry or wet] --> Out[Out]
-  In --> Mix`,
-  },
-  riddimjg: {
-    en: "Riddim juggle: always records a bar loop, splits it into version slices, and crossfades when X picks another slice. Touch arms playback.",
-    ja: "リディム・ジャグルです。小節ループを常時録ってヴァージョン切片に分け、Xで別切片へクロスフェードします。タッチで再生武装です。",
-    mermaid: `flowchart LR
-  In[Live in] --> Buf[Bar buffer]
-  Touch[Touch play] --> Slice[Version slices]
-  X[X select] --> Xfade[Crossfade]
-  Buf --> Slice --> Xfade --> Mix[Dry or wet] --> Out[Out]
   In --> Mix`,
   },
   reesephr: {
@@ -316,15 +242,6 @@ export const dspExplainById = {
   Voices --> LPF[Dual recon LPF] --> Pump[Kick pump] --> Mix[Dry or wet] --> Out[Out]
   In[Audio in] --> Mix`,
   },
-  riffdice: {
-    en: "Hold-to-run conditional 16/8-step riff: scale degrees with always/half/percent trigs, slide pitch, BLEP saw through a mild tilt filter and decaying env, then dry/wet.",
-    ja: "保持中の条件付き8/16ステップ・リフです。スケール音程を常時／半分／確率トリガし、スライド付きBLEPソーを軽い傾きフィルタと減衰EGでドライ／ウェットします。",
-    mermaid: `flowchart LR
-  Hold[Pad hold] --> Seq[Conditional step seq]
-  Seq --> Saw[BLEP saw and slide]
-  Saw --> Tilt[Tilt filter] --> Env[Decay env] --> Mix[Dry or wet]
-  In[Audio in] --> Mix --> Out[Out]`,
-  },
   ringexcit: {
     en: "Input (plus a touch noise burst) excites a Karplus–Strong delay and three complex modal resonators. Structure blends string vs modal; tone/pos set damping and pickup; then dry/wet.",
     ja: "入力とタッチ・ノイズでKarplus–Strong遅延と3つのモーダル共振を励起します。構造で弦／モーダル比、トーン／位置で減衰とピックアップを決め、ドライ／ウェットします。",
@@ -337,88 +254,12 @@ export const dspExplainById = {
   Modal --> Sum
   In --> Mix --> Out[Out]`,
   },
-  rmxscene: {
-    en: "RMX-style scene: pad engages a wet morph from Build (noise + rising HPF) to Break (crush + tempo echo). Release leaves a decaying echo or a snap cut back to dry.",
-    ja: "RMX風シーンです。パッドでBuild（ノイズ＋上昇HPF）からBreak（クラッシュ＋テンポ・エコー）へモーフします。離すと減衰エコーかスナップで本編へ戻ります。",
-    mermaid: `flowchart LR
-  In[Live in] --> Build[Noise and rising HPF]
-  In --> Break[Crush and echo FB]
-  Scene[Scene morph] --> Build
-  Scene --> Break
-  Build --> Sum[Scene sum] --> Mix[Pad wet] --> Out[Out]
-  Break --> Sum
-  In --> Mix`,
-  },
   shaker: {
     en: "PhISEM shaker: shake energy drives noise into a preset bank of resonators (maraca, cabasa, and more). Note/touch adds energy; stereo out is instrument-only with no dry pass-through.",
     ja: "PhISEMシェイカーです。シェイク・エネルギーがノイズをプリセット共振器群へ駆動します。ノート／タッチでエネルギーを追加し、楽器出力のみ（ドライ通過なし）です。",
     mermaid: `flowchart LR
   Shake[Note or Touch energy] --> Noise[Collision noise]
   Noise --> Res[Resonator bank] --> Out[Stereo wet]`,
-  },
-  sliproll: {
-    en: "DJM Slip Roll: touch loops the just-captured slice while the under-track keeps writing. X recaptures length; Y is remaining dry (Helix).",
-    ja: "DJM Slip Rollです。タッチで直前スライスをループしつつ下の曲は書き進みます。Xで長さを再キャプチャ、Yは残るドライ（Helix）です。",
-    mermaid: `flowchart LR
-  In[Live in] --> Buf[Always-on buffer]
-  Touch[Touch roll] --> Cap[Capture slice]
-  X[X length] --> Cap
-  Buf --> Cap --> Loop[Forward loop]
-  Y[Y helix dry] --> Mix[Dry plus roll]
-  Loop --> Mix --> Out[Out]
-  In --> Mix`,
-  },
-  snarerush: {
-    en: "Exponential snare rush: touch starts hits that pack tighter over 2–8 bars. Each voice is a sine body plus HPF noise; release fires a last accent.",
-    ja: "指数スネア・ラッシュです。タッチで2〜8小節に密度が上がるヒットを開始します。各ボイスは正弦ボディ＋HPFノイズで、離すと最後のアクセントです。",
-    mermaid: `flowchart LR
-  Touch[Touch start] --> Clock[Exponential hits]
-  Clock --> Voice[Sine body plus HPF noise]
-  Release[Release] --> Voice
-  Voice --> Drive[tanh] --> Mix[Dry or wet] --> Out[Out]
-  In[Audio in] --> Mix`,
-  },
-  spiral: {
-    en: "Spiral pitch echo: each delay period multiplies playback ratio so pitch climbs or falls. Touch engages feedback; dry stays mixed.",
-    ja: "スパイラル・ピッチエコーです。ディレイ周期ごとに再生比を乗算してピッチが上がる／下がります。タッチで帰還ON、ドライは残します。",
-    mermaid: `flowchart LR
-  In[Live in] --> Write[Delay write]
-  Touch[Touch] --> FB[Feedback]
-  Write --> Read[Varispeed read]
-  Read --> Drift[Per-repeat pitch] --> FB --> Write
-  Read --> Mix[Dry or wet] --> Out[Out]
-  In --> Mix`,
-  },
-  shepard: {
-    en: "Infinite Shepard/Risset riser: up to 8 octave-spaced sines under a raised-cosine window while held; optional HP noise. Release dumps amplitude for a drop cue; then dry/wet.",
-    ja: "無限シェパード／リッセ上昇です。保持中に最大8本のオクターブ正弦をraised-cosine窓で重ね、任意でHPノイズを混ぜます。離すと振幅急落でドロップ合図になります。",
-    mermaid: `flowchart LR
-  Hold[Pad climb] --> Partials[Sine partials x8]
-  Partials --> Win[Raised-cosine window]
-  Noise[HP noise] --> Sum[Softclip]
-  Win --> Sum
-  Sum --> Mix[Dry or wet] --> Out[Out]
-  In[Audio in] --> Mix`,
-  },
-  speccloud: {
-    en: "512-pt FFT hop/OLA: magnitudes are grouped into log bands with randomly re-rolled gains (touch re-rolls all). IFFT overlap-add is wet-mixed with dry.",
-    ja: "512点FFTホップ／OLAです。対数帯域ごとにランダム・ゲインを再抽選し（タッチで全再抽選）、IFFT重ね合わせをドライと混合します。",
-    mermaid: `flowchart LR
-  In[Mono from stereo] --> FFT[512 FFT]
-  FFT --> Bands[Log-band random gains]
-  Touch[Reroll] --> Bands
-  Bands --> IFFT[IFFT and OLA] --> Mix[Dry or wet] --> Out[Out]
-  In --> Mix`,
-  },
-  specwarp: {
-    en: "Spectral stretch/smear: mono FFT, frequency-axis warp (Stretch), magnitude blur plus phase diffusion (Smear), IFFT OLA, then dry/wet. Pad X/Y typically map to Stretch and Smear.",
-    ja: "スペクトラル伸縮／スミアです。モノFFT後に周波数軸ワープとマグニチュードぼけ＋位相拡散をし、IFFT OLAをドライ／ウェットします。パッドXYはStretch／Smearに対応します。",
-    mermaid: `flowchart LR
-  In[Stereo to mono] --> FFT[512 FFT]
-  FFT --> Warp[Freq stretch]
-  Warp --> Smear[Mag blur and phase]
-  Smear --> IFFT[IFFT and OLA] --> Mix[Dry or wet] --> Out[Out]
-  In --> Mix`,
   },
   stepdice: {
     en: "Tempo-synced step FX dice. A bar is split into 16/8/4/2/1 steps; each step is a seeded permutation of gate, filter, crush, ring, pan, drive, stutter, reverse, or echo. X scales intensity, Y re-seeds the pattern, touch re-rolls in RUN.",
@@ -445,19 +286,6 @@ export const dspExplainById = {
   Depth[Y env depth] --> Env
   LPF --> Mix[Dry or wet] --> Out[Out]
   In --> Mix`,
-  },
-  talkform: {
-    en: "Dual bandpass formant filter on mono input. F1/F2 (or pad) sweep; DIGI/touch snaps to the nearest of five vowels (a i u e o); soft-clip dry/wet.",
-    ja: "入力モノの二重フォルマントBPです。F1/F2を掃引し、DIGI／タッチで5母音格子へ吸着します。ソフトクリップ後ドライ／ウェットします。",
-    mermaid: `flowchart LR
-  In[Audio in] --> Mono[Mono]
-  Mono --> BP1[Formant BP F1]
-  Mono --> BP2[Formant BP F2]
-  Vowel[DIGI or touch snap] --> BP1
-  Vowel --> BP2
-  BP1 --> Sum[Softclip] --> Mix[Dry or wet]
-  BP2 --> Sum
-  In --> Mix --> Out[Out]`,
   },
   tapeosc: {
     en: "Tape-style oscillator: a band-limited source is written into a circular buffer while a varispeed read head ramps start/stop. Grit blends ZOH vs linear; wear LPF and wow/flutter modulate rate.",
@@ -490,16 +318,6 @@ export const dspExplainById = {
   Loop --> Type[Transition type FX]
   In --> Type
   Type --> Mix[Wet fade] --> Out[Out]`,
-  },
-  washout: {
-    en: "Wash-out build: touch opens an exponential reverb/chorus smear plus rising HPF. Release snaps env to zero so dry returns instantly.",
-    ja: "ウォッシュアウト・ビルドです。タッチでリバーブ／コーラスのぼけと上昇HPFが指数的に開きます。離すとエンベロープがゼロになりドライへ即戻ります。",
-    mermaid: `flowchart LR
-  In[Live in] --> Delay[Modulated dual delay]
-  Touch[Touch rise] --> Env[Exponential env]
-  Delay --> HPF[Rising HPF]
-  Env --> HPF --> Mix[Dry or wet] --> Out[Out]
-  In --> Mix`,
   },
   warpsmorph: {
     en: "Cross-mod morph of diode ring, digital XOR, comparator, mini-vocoder (carrier×env), and folder. An internal sine carrier mixes in harder while the pad is held; drive then dry/wet.",
