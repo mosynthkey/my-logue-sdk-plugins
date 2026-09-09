@@ -6,7 +6,7 @@
   "targets": [
     "nts-3_kaoss"
   ],
-  "description": "Tempo-synced 2-step UK Garage kit. Hold to run. X grows ghost notes (soft snares/rims between the backbone); Y thickens hats and pushes toward Fill. Flick top-right for a one-bar Fill. Ghost notes are the groove.",
+  "description": "Tempo-synced 2-step UK Garage kit. Hold to run — pad only gates; hits lock to the host beat (4ppqn), not the tap moment. X grows ghost notes (soft snares/rims between the backbone); Y thickens hats and pushes toward Fill. Flick top-right for a one-bar Fill. Ghost notes are the groove.",
   "params": [
     {
       "name": "GHOST",
