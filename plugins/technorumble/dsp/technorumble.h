@@ -9,7 +9,7 @@
 
 #include "macros.h"
 #include "processor.h"
-#include "runtime.h"
+#include "touch_phase.h"
 #include "utils/float_math.h"
 #include <math.h>
 #include <stdint.h>
@@ -139,13 +139,13 @@ public:
 
   void touchEvent(uint8_t, uint8_t phase, uint32_t, uint32_t) override final
   {
-    if (phase == k_unit_touch_phase_began || phase == k_unit_touch_phase_moved ||
-        phase == k_unit_touch_phase_stationary)
+    if (phase == kLogueTouchBegan || phase == kLogueTouchMoved ||
+        phase == kLogueTouchStationary)
     {
       pad_held_ = true;
       return;
     }
-    if (phase == k_unit_touch_phase_ended || phase == k_unit_touch_phase_cancelled)
+    if (phase == kLogueTouchEnded || phase == kLogueTouchCancelled)
       pad_held_ = false;
   }
 
