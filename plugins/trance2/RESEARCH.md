@@ -36,6 +36,9 @@ Complexity axis (X) morphs 1 → 2 → 3. Root fixed at A1 (MIDI 33).
 | Hold pad | Gate only — steps lock to host 4ppqn |
 | X / BASS | Bassline complexity |
 | Y / DRUM | Hat density + clap-roll build; top-right flick = 1-bar Fill |
+| DETU | Bass mid dual-saw detune (±0–20 cents) |
+
+Drums are mixed ~−5 dB under the bass so the roll sits in front.
 
 ## Envelope note
 

@@ -24,9 +24,9 @@
       "detail": "Kit + bass level (Audio In always full)"
     },
     {
-      "name": "SWING",
+      "name": "DETU",
       "role": "Edit",
-      "detail": "Light 16th swing (trance stays fairly straight)"
+      "detail": "Bass mid-layer detune (dual saw ±0–20 cents)"
     },
     {
       "name": "TONE",
