@@ -260,6 +260,24 @@ export const dspExplainById = {
   Build --> Voices
   Voices --> Mix[Softclip then drum level over Audio In] --> Out[Out]`,
   },
+  trance2: {
+    en: "Hold-to-gate trance drums plus rolling bass. Hits lock to host 4ppqn. Same 909 kit as Trance. X grows bass complexity: offbeat 1/8 → rolling 16ths on the root → walk-ups near the bar end. Y thickens hats and clap rolls toward Fill. Saw mid + sine sub, short pluck, kick sidechain duck. Default ~138 BPM.",
+    ja: "ホールドはゲートのみ。ホストの4ppqnに合わせてトランス・ドラム＋ローリング・ベースを鳴らします。ドラムはTranceと同じ909系。Xはベース複雑さ（裏拍8分→16分ロール→ウォーク）、Yはハット／クラップ・ビルド。Sawミッド＋サイン・サブ、短いプラック、キック・サイドチェイン。既定〜138 BPM。",
+    mermaid: `flowchart TD
+  Host[Host 4ppqn] --> Gate{Pad held?}
+  Gate -->|yes| Spine[909 BD clap models]
+  Gate -->|yes| Hats[Y 909 ROM hats]
+  Gate -->|yes| Build[Y clap build]
+  Gate -->|yes| Bass[X rolling bass]
+  ROM[TR-909 HH ROM] --> Hats
+  Bass --> Layers[Saw mid + sine sub]
+  Layers --> Duck[Kick sidechain duck]
+  Spine --> Voices[Kick clap hats bass]
+  Hats --> Voices
+  Build --> Voices
+  Duck --> Voices
+  Voices --> Mix[Softclip then kit level over Audio In] --> Out[Out]`,
+  },
   drums: {
     en: "Hold-to-gate multi-genre drum kit. Hits lock to host 4ppqn. GENRE selects Trance / DnB / Breakbeat / UK Garage / Boom-bap / Dembow / Footwork patterns and voice feel. X densifies; Y pushes fill energy. Trap808 stays separate.",
     ja: "ホールドはゲートのみ。ホストの4ppqnに合わせてジャンル別ドラムを鳴らします。GENREで Trance / DnB / Break / UKG / Boom / Dembow / Footwork を切替。Xは密度、YはFill。Trap808は別ユニットです。",

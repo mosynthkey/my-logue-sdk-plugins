@@ -1,0 +1,42 @@
+{
+  "id": "trance2",
+  "experimental": true,
+  "name": "Trance2",
+  "type": "drum",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Trance drums plus a rolling bassline. Hold to gate — hits lock to the host beat. Classic four-on-the-floor 909 kit with offbeat opens. X grows bass complexity (offbeat 1/8 → rolling 16ths → walks). Y thickens drums toward Fill. Flick top-right for a one-bar Fill. Default ~138 BPM.",
+  "params": [
+    {
+      "name": "BASS",
+      "role": "X",
+      "detail": "Bassline complexity: offbeat eighths → rolling 16ths → root walks"
+    },
+    {
+      "name": "DRUM",
+      "role": "Y",
+      "detail": "Drum complexity: hat density and clap-roll build toward Fill"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Kit + bass level (Audio In always full)"
+    },
+    {
+      "name": "SWING",
+      "role": "Edit",
+      "detail": "Light 16th swing (trance stays fairly straight)"
+    },
+    {
+      "name": "TONE",
+      "role": "Edit",
+      "detail": "Kick / clap / bass filter colour"
+    },
+    {
+      "name": "DEC",
+      "role": "Edit",
+      "detail": "Shared body / hat / bass decay"
+    }
+  ]
+}
