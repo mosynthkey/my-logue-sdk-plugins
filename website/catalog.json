@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-11T12:59:43.841137+00:00",
+  "generatedAt": "2026-09-11T13:49:18.178932+00:00",
   "plugins": [
     {
       "id": "airfm",
@@ -234,6 +234,52 @@
           "file": "./units/hypersaw-microkorg2.mk2unit",
           "size": 9940,
           "wasm": null
+        }
+      ]
+    },
+    {
+      "id": "kopunch",
+      "experimental": true,
+      "name": "KoPunch",
+      "type": "fx",
+      "targets": [
+        "nts-3_kaoss"
+      ],
+      "description": "KO II Punch-In FX inspired performance pad for NTS-3. Continuously captures AUDIO IN (get_raw_input on firmware 1.4+). Hold the pad to engage; release to bypass. X = mode (PRND, SWAP, GRAN, RPT, TAPE, FLFO, LPF, HPF, SEND, TREM, OCTD, DEC). Y = pressure / intensity. Depth = wet. COLOR = filter resonance / send character. HOLD: GATE or LATCH. Not affiliated with teenage engineering.",
+      "params": [
+        {
+          "name": "MODE",
+          "role": "X",
+          "detail": "PRND pitch random, SWAP slice swap, GRAN granulizer, RPT beat repeat, TAPE tape stop, FLFO filter LFO, LPF, HPF, SEND delay throw, TREM tremolo, OCTD octave down, DEC decimator"
+        },
+        {
+          "name": "PRESS",
+          "role": "Y",
+          "detail": "Pressure intensity (cutoff, speed, grain size, crush, etc.)"
+        },
+        {
+          "name": "MIX",
+          "role": "Depth",
+          "detail": "Dry/wet while the punch-in effect is engaged"
+        },
+        {
+          "name": "COLOR",
+          "role": "Edit",
+          "detail": "Filter resonance, send feedback/tone, or grain density"
+        },
+        {
+          "name": "HOLD",
+          "role": "Edit",
+          "detail": "GATE = hold to engage. LATCH = stays after release; switch back to GATE to stop"
+        }
+      ],
+      "builds": [
+        {
+          "target": "nts-3_kaoss",
+          "module": "genericfx",
+          "file": "./units/kopunch-nts-3_kaoss.nts3unit",
+          "size": 12832,
+          "wasm": "./sim/kopunch/nts-3_kaoss/kopunch.html"
         }
       ]
     },
