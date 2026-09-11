@@ -413,9 +413,9 @@
           "detail": "Kit + bass level (Audio In always full)"
         },
         {
-          "name": "SWING",
+          "name": "DETU",
           "role": "Edit",
-          "detail": "Light 16th swing (trance stays fairly straight)"
+          "detail": "Bass mid-layer detune (dual saw \u00b10\u201320 cents)"
         },
         {
           "name": "TONE",
@@ -433,7 +433,7 @@
           "target": "nts-3_kaoss",
           "module": "genericfx",
           "file": "./units/trance2-nts-3_kaoss.nts3unit",
-          "size": 24384,
+          "size": 24588,
           "wasm": "./sim/trance2/nts-3_kaoss/trance2.html"
         }
       ]
