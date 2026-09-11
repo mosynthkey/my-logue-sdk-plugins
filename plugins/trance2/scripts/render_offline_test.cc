@@ -46,7 +46,7 @@ static void setup(Trance2 &kit, int32_t bass, int32_t drum)
   kit.setParameter(Trance2::MIX, 1000);
   kit.setParameter(Trance2::BASS, bass);
   kit.setParameter(Trance2::DRUM, drum);
-  kit.setParameter(Trance2::SWING, 200);
+  kit.setParameter(Trance2::DETU, 260);
   kit.setParameter(Trance2::TONE, 460);
   kit.setParameter(Trance2::DEC, 460);
   kit.setTempo(138.f);

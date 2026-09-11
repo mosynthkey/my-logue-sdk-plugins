@@ -40,7 +40,7 @@ public:
     BASS = 0U,
     DRUM,
     MIX,
-    SWING,
+    DETU,
     TONE,
     DEC,
     NUM_PARAMS
@@ -59,8 +59,8 @@ public:
     case MIX:
       mix_ = fx::clip01(value / 1000.f);
       break;
-    case SWING:
-      swing_norm_ = param_10bit_to_f32(value);
+    case DETU:
+      detune_norm_ = param_10bit_to_f32(value);
       break;
     case TONE:
       tone_norm_ = param_10bit_to_f32(value);
@@ -202,6 +202,7 @@ private:
     clap_room_band_ = 0.f;
     bass_midi_ = kRootMidi;
     bass_saw_phase_ = 0.f;
+    bass_saw2_phase_ = 0.f;
     bass_sub_phase_ = 0.f;
     bass_lp_ = 0.f;
     lfsr_ = 0x7FFFFFFFu;
@@ -217,11 +218,8 @@ private:
     return getSampleRate() * 60.f / (bpm_ * 4.f);
   }
 
-  float swingDelayFraction() const
-  {
-    const float swing = 0.1f + swing_norm_ * 0.2f;
-    return swing * 0.1f;
-  }
+  // Trance stays fairly straight — fixed light 16th swing.
+  float swingDelayFraction() const { return 0.012f; }
 
   void emitStep(uint32_t step)
   {
@@ -593,12 +591,18 @@ private:
                           ? fasterexpf(-bass_age_ / amp_tau) * bass_vel_
                           : 0.f;
 
-    const float mid_inc = fx::noteToInc(bass_midi_, getSampleRate());
+    // DETU: dual saw ±cents (0–20¢) around the mid layer; sub stays centered.
+    const float detune_semi = detune_norm_ * 0.20f;
+    const float mid_inc_lo = fx::noteToInc(bass_midi_ - detune_semi, getSampleRate());
+    const float mid_inc_hi = fx::noteToInc(bass_midi_ + detune_semi, getSampleRate());
     const float sub_inc = fx::noteToInc(bass_midi_ - 12.f, getSampleRate());
-    bass_saw_phase_ = fx::wrap01(bass_saw_phase_ + mid_inc);
+    bass_saw_phase_ = fx::wrap01(bass_saw_phase_ + mid_inc_lo);
+    bass_saw2_phase_ = fx::wrap01(bass_saw2_phase_ + mid_inc_hi);
     bass_sub_phase_ = fx::wrap01(bass_sub_phase_ + sub_inc);
 
-    const float saw = fx::blepSaw(bass_saw_phase_, mid_inc);
+    const float saw_lo = fx::blepSaw(bass_saw_phase_, mid_inc_lo);
+    const float saw_hi = fx::blepSaw(bass_saw2_phase_, mid_inc_hi);
+    const float saw = 0.5f * (saw_lo + saw_hi);
     const float sub = fastersinfullf(bass_sub_phase_ * kTwoPi);
 
     // Filter envelope: subtle downward sweep on each note.
@@ -635,13 +639,15 @@ private:
     for (uint32_t voiceIndex = 0; voiceIndex < kHatVoices; ++voiceIndex)
       hats += renderHat(hats_[voiceIndex]);
 
-    return fx::softclip(kick + clap + hats + bass);
+    // Keep drums under the bass so the roll sits in front.
+    constexpr float kDrumLevel = 0.55f;
+    return fx::softclip((kick + clap + hats) * kDrumLevel + bass);
   }
 
   float bpm_ = 138.f;
   float bass_norm_ = 0.55f;
   float drum_norm_ = 0.35f;
-  float swing_norm_ = 0.2f;
+  float detune_norm_ = 0.25f;
   float tone_norm_ = 0.45f;
   float decay_norm_ = 0.45f;
   float mix_ = 1.f;
@@ -662,6 +668,7 @@ private:
   float clap_room_band_ = 0.f;
   float bass_midi_ = kRootMidi;
   float bass_saw_phase_ = 0.f;
+  float bass_saw2_phase_ = 0.f;
   float bass_sub_phase_ = 0.f;
   float bass_lp_ = 0.f;
   float duck_gain_ = 1.f;
