@@ -152,10 +152,24 @@ Safer patterns for amp envelopes on NTS-3:
   better `exp` approx (`fastexpf` / table), and always probe decay length
   on the host before flashing.
 
-### 3. Quick triage checklist
+### 3. MIDI note → Hz must not use `fasterpow2f`
+
+`fasterpow2f` is the same Mineiro family as `fasterexpf`: `fasterpow2f(0) ≈ 0.971`
+(not 1.0). Using it in `440 * 2^((note-69)/12)` makes A4 ≈ 427 Hz (~−50 cents)
+and warps intra-octave intervals (semitones from C4 range ~76–117¢ instead of
+100¢). Octaves stay exact because the float-bit trick scales by 2 per integer
+octave — so the bug sounds like “not equal temperament,” not a global detune.
+
+Use `fastpow2f` (or a LUT / Taylor) for pitch. `fx::noteToHz` / `noteToInc` in
+`plugins/common/fx_dsp.h` already do this; do not reintroduce `fasterpow2f`
+there or in local copies (e.g. Kaocid `noteToPhaseInc`).
+
+### 4. Quick triage checklist
 
 1. `nm -u` / `readelf -r` → any `sinf`/`expf`/… UND? → link/libm problem.
 2. No UND, but body under ~20 ms on a host offline render → envelope /
    `fasterexpf` misuse (HSnare class), not the loader.
-3. Kaocid-style: also confirm touch clock (prefer internal sample clock over
+3. Melodic synth sounds out of 12-TET / A440 → check for `fasterpow2f` in
+   note→Hz paths; prefer `fastpow2f`.
+4. Kaocid-style: also confirm touch clock (prefer internal sample clock over
    relying only on host `tempo4ppqnTick` if ticks are sparse).

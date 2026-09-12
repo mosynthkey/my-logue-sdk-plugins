@@ -317,7 +317,8 @@ private:
   static float noteToPhaseInc(float note)
   {
     const float semitones = note - 69.f;
-    return (440.f / getSampleRate()) * fasterpow2f(semitones * (1.f / 12.f));
+    // fastpow2f (not fasterpow2f): fasterpow2f biases near 0 and breaks 12-TET.
+    return (440.f / getSampleRate()) * fastpow2f(semitones * (1.f / 12.f));
   }
 
   void resetVoice()

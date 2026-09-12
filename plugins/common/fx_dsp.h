@@ -52,7 +52,9 @@ inline float onePoleCoeff(float hz, float sample_rate)
 
 inline float noteToHz(float midi_note)
 {
-  return 440.f * fasterpow2f((midi_note - 69.f) * (1.f / 12.f));
+  // Use fastpow2f, not fasterpow2f: Mineiro's fasterpow2f(0) ≈ 0.971, so
+  // A4 becomes ~427 Hz and intra-octave intervals warp (not 12-TET).
+  return 440.f * fastpow2f((midi_note - 69.f) * (1.f / 12.f));
 }
 
 inline float noteToInc(float midi_note, float sample_rate)
