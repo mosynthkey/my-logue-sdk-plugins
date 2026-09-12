@@ -6,7 +6,7 @@
   "targets": [
     "nts-3_kaoss"
   ],
-  "description": "SuperSaw lead for the XY pad. X = scale-quantized pitch across ~5 octaves with portamento; Y = strong vibrato. Edit Unison / Detune / Spread / Scale / Key.",
+  "description": "SuperSaw lead for the XY pad. X = scale-quantized pitch across ~5 octaves; Y = strong vibrato; Depth = portamento time. Edit Unison / Detune / Spread / Scale / Key.",
   "params": [
     {
       "name": "PITCH",
@@ -19,9 +19,9 @@
       "detail": "Vibrato depth"
     },
     {
-      "name": "MIX",
+      "name": "PORTA",
       "role": "Depth",
-      "detail": "Dry/wet"
+      "detail": "Portamento / glide time"
     },
     {
       "name": "SCALE",

@@ -56,7 +56,7 @@ const __unit_header genericfx_unit_header_t unit_header = {
         .params = {
             {0, 1023, 0, 360, k_unit_param_type_none, 0, 0, 0, {"PITCH"}},
             {0, 1023, 0, 360, k_unit_param_type_none, 0, 0, 0, {"VIBR"}},
-            {0, 1000, 0, 1000, k_unit_param_type_percent, 1, 1, 0, {"MIX"}},
+            {0, 1023, 0, 310, k_unit_param_type_none, 0, 0, 0, {"PORTA"}},
             {0, 9, 0, 0, k_unit_param_type_strings, 0, 0, 0, {"SCALE"}},
             {24, 60, 36, 36, k_unit_param_type_midi_note, 0, 0, 0, {"KEY"}},
             {0, 4, 0, 2, k_unit_param_type_strings, 0, 0, 0, {"UNI"}},
@@ -66,7 +66,7 @@ const __unit_header genericfx_unit_header_t unit_header = {
     .default_mappings = {
         {k_genericfx_param_assign_x, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1023, 360},
         {k_genericfx_param_assign_y, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1023, 360},
-        {k_genericfx_param_assign_depth, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1000, 1000},
+        {k_genericfx_param_assign_depth, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1023, 310},
         {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 9, 0},
         {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 24, 60, 36},
         {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 4, 2},
