@@ -1,0 +1,42 @@
+{
+  "id": "labipath",
+  "experimental": true,
+  "name": "LabiPath",
+  "type": "synth",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Labyrinth-inspired generative West-Coast voice for NTS-3. Dual corruptible 8-step sequencers drive sine/triangle oscillators into a wavefolder with FM. Hold to run; X = Corrupt (pitch then rhythm mutation), Y = Fold amount.",
+  "params": [
+    {
+      "name": "CORR",
+      "role": "X",
+      "detail": "Sequence corruption: pitch mutate then bit-flip"
+    },
+    {
+      "name": "FOLD",
+      "role": "Y",
+      "detail": "Wavefolder drive / brightness"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Synth level over Audio In"
+    },
+    {
+      "name": "ROOT",
+      "role": "Edit",
+      "detail": "Quantizer root / base pitch"
+    },
+    {
+      "name": "FM",
+      "role": "Edit",
+      "detail": "Mod-oscillator FM depth into the carrier"
+    },
+    {
+      "name": "DEC",
+      "role": "Edit",
+      "detail": "Envelope decay after each generative hit"
+    }
+  ]
+}

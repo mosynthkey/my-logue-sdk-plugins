@@ -1,0 +1,42 @@
+{
+  "id": "dfamperc",
+  "experimental": true,
+  "name": "DfamPerc",
+  "type": "drum",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "DFAM-inspired mutant percussion for NTS-3. Dual oscillators (sync/FM), noise, and a snappy age-based envelope through a resonant LPF, sequenced over 8 pitch/velocity steps. Hold to run; X = noise/FM grit, Y = decay punch.",
+  "params": [
+    {
+      "name": "GRIT",
+      "role": "X",
+      "detail": "Noise amount and audio-rate FM/sync grit"
+    },
+    {
+      "name": "DEC",
+      "role": "Y",
+      "detail": "Envelope decay (short = clicky, long = tom)"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Drum level over Audio In"
+    },
+    {
+      "name": "TUNE",
+      "role": "Edit",
+      "detail": "Base oscillator pitch"
+    },
+    {
+      "name": "RES",
+      "role": "Edit",
+      "detail": "Filter resonance / boom"
+    },
+    {
+      "name": "PENV",
+      "role": "Edit",
+      "detail": "Pitch envelope depth for kick/tom sweeps"
+    }
+  ]
+}
