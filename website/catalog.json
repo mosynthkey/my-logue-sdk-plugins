@@ -102,7 +102,7 @@
           "target": "nts-3_kaoss",
           "module": "genericfx",
           "file": "./units/drums-nts-3_kaoss.nts3unit",
-          "size": 15840,
+          "size": 17132,
           "wasm": "./sim/drums/nts-3_kaoss/drums.html"
         }
       ]
