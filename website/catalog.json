@@ -1,6 +1,51 @@
 {
-  "generatedAt": "2026-09-12T00:51:19.252195+00:00",
+  "generatedAt": "2026-09-11T13:49:18.178932+00:00",
   "plugins": [
+    {
+      "id": "airfm",
+      "name": "airFM",
+      "type": "fm",
+      "targets": [
+        "nts-3_kaoss"
+      ],
+      "description": "FM sound-effect synth inspired by Alesis airSynth.",
+      "params": [
+        {
+          "name": "INDEX",
+          "role": "A",
+          "detail": "FM index (rad)"
+        },
+        {
+          "name": "YMAX",
+          "role": "B",
+          "detail": "Modulator log range top (Hz)"
+        },
+        {
+          "name": "DRIVE",
+          "role": "Edit",
+          "detail": "tanh drive"
+        },
+        {
+          "name": "HPF",
+          "role": "Edit",
+          "detail": "Output high-pass cutoff (20\u20132000 Hz)"
+        },
+        {
+          "name": "LEVEL",
+          "role": "Level",
+          "detail": "Output level while touching"
+        }
+      ],
+      "builds": [
+        {
+          "target": "nts-3_kaoss",
+          "module": "genericfx",
+          "file": "./units/airfm-nts-3_kaoss.nts3unit",
+          "size": 15136,
+          "wasm": "./sim/airfm/nts-3_kaoss/airfm.html"
+        }
+      ]
+    },
     {
       "id": "drums",
       "experimental": true,
@@ -57,10 +102,444 @@
           "target": "nts-3_kaoss",
           "module": "genericfx",
           "file": "./units/drums-nts-3_kaoss.nts3unit",
-          "size": 17132,
+          "size": 15840,
           "wasm": "./sim/drums/nts-3_kaoss/drums.html"
         }
       ]
+    },
+    {
+      "id": "fbackosc",
+      "experimental": true,
+      "name": "FbOsc",
+      "type": "osc",
+      "targets": [
+        "nts-1_mkii",
+        "microkorg2"
+      ],
+      "description": "JP-8080-inspired Feedback oscillator: band-limited saw through a key-tracked resonant comb filter.",
+      "params": [
+        {
+          "name": "HARM",
+          "role": "A",
+          "detail": "Harmonic spacing of the comb resonator"
+        },
+        {
+          "name": "FEED",
+          "role": "B",
+          "detail": "Feedback amount / resonance level"
+        }
+      ],
+      "builds": [
+        {
+          "target": "microkorg2",
+          "module": "osc",
+          "file": "./units/fbackosc-microkorg2.mk2unit",
+          "size": 8304,
+          "wasm": null
+        }
+      ]
+    },
+    {
+      "id": "grainpad",
+      "experimental": true,
+      "name": "GrainPad",
+      "type": "fx",
+      "targets": [
+        "nts-3_kaoss"
+      ],
+      "description": "Live-capture granular pad for NTS-3. Touch freezes up to 3 s of AUDIO IN into a slow grain cloud (100\u2013320 ms grains). X/FEEL: sparse \u2194 dense. Y = octave mix. ENV = grain attack/release. SYNC / SPRD / HPF / REVS. MIX = dry/wet.",
+      "params": [
+        {
+          "name": "FEEL",
+          "role": "X",
+          "detail": "Left: long sparse stitches. Right: dense overlapping wash"
+        },
+        {
+          "name": "OCT",
+          "role": "Y",
+          "detail": "Mixture of -1 / unison / +1 octave grains"
+        },
+        {
+          "name": "MIX",
+          "role": "Edit",
+          "detail": "0 = dry only, max = granular only"
+        },
+        {
+          "name": "ENV",
+          "role": "Edit",
+          "detail": "Grain attack/release length (short/snappy \u2194 long/soft)"
+        },
+        {
+          "name": "SYNC",
+          "role": "Edit",
+          "detail": "Base trigger grid: 1/32, 1/16, 1/8, 1/4, 1/2"
+        },
+        {
+          "name": "SPRD",
+          "role": "Edit",
+          "detail": "Random stereo width (0 = mono, max = hard L/R)"
+        },
+        {
+          "name": "HPF",
+          "role": "Edit",
+          "detail": "High-pass on the granular wet path (~60 Hz\u201310 kHz)"
+        },
+        {
+          "name": "REVS",
+          "role": "Edit",
+          "detail": "Probability that a grain plays in reverse"
+        }
+      ],
+      "builds": [
+        {
+          "target": "nts-3_kaoss",
+          "module": "genericfx",
+          "file": "./units/grainpad-nts-3_kaoss.nts3unit",
+          "size": 11444,
+          "wasm": null
+        }
+      ]
+    },
+    {
+      "id": "hypersaw",
+      "experimental": true,
+      "name": "HyperSaw",
+      "type": "osc",
+      "targets": [
+        "nts-1_mkii",
+        "microkorg2"
+      ],
+      "description": "Virus TI-inspired 9-voice detuned saw stack with Density, Spread, HyperSub, and stereo width.",
+      "params": [
+        {
+          "name": "DENS",
+          "role": "A",
+          "detail": "Active saw count (1-9) with crossfade"
+        },
+        {
+          "name": "SPRD",
+          "role": "B",
+          "detail": "Detune spread (Virus-style curve)"
+        },
+        {
+          "name": "SUB",
+          "role": "Edit",
+          "detail": "HyperSub square mix (1 octave down)"
+        },
+        {
+          "name": "WIDTH",
+          "role": "Edit",
+          "detail": "Stereo spread of detuned voices"
+        }
+      ],
+      "builds": [
+        {
+          "target": "microkorg2",
+          "module": "osc",
+          "file": "./units/hypersaw-microkorg2.mk2unit",
+          "size": 9940,
+          "wasm": null
+        }
+      ]
+    },
+    {
+      "id": "kopunch",
+      "experimental": true,
+      "name": "KoPunch",
+      "type": "fx",
+      "targets": [
+        "nts-3_kaoss"
+      ],
+      "description": "KO II Punch-In FX inspired performance pad for NTS-3. Continuously captures AUDIO IN (get_raw_input on firmware 1.4+). Hold the pad to engage; release to bypass. X = mode (PRND, SWAP, GRAN, RPT, TAPE, FLFO, LPF, HPF, SEND, TREM, OCTD, DEC). Y = pressure / intensity. Depth = wet. COLOR = filter resonance / send character. HOLD: GATE or LATCH. Not affiliated with teenage engineering.",
+      "params": [
+        {
+          "name": "MODE",
+          "role": "X",
+          "detail": "PRND pitch random, SWAP slice swap, GRAN granulizer, RPT beat repeat, TAPE tape stop, FLFO filter LFO, LPF, HPF, SEND delay throw, TREM tremolo, OCTD octave down, DEC decimator"
+        },
+        {
+          "name": "PRESS",
+          "role": "Y",
+          "detail": "Pressure intensity (cutoff, speed, grain size, crush, etc.)"
+        },
+        {
+          "name": "MIX",
+          "role": "Depth",
+          "detail": "Dry/wet while the punch-in effect is engaged"
+        },
+        {
+          "name": "COLOR",
+          "role": "Edit",
+          "detail": "Filter resonance, send feedback/tone, or grain density"
+        },
+        {
+          "name": "HOLD",
+          "role": "Edit",
+          "detail": "GATE = hold to engage. LATCH = stays after release; switch back to GATE to stop"
+        }
+      ],
+      "builds": [
+        {
+          "target": "nts-3_kaoss",
+          "module": "genericfx",
+          "file": "./units/kopunch-nts-3_kaoss.nts3unit",
+          "size": 12832,
+          "wasm": "./sim/kopunch/nts-3_kaoss/kopunch.html"
+        }
+      ]
+    },
+    {
+      "id": "passort",
+      "experimental": true,
+      "name": "Passort",
+      "type": "fx",
+      "targets": [
+        "nts-3_kaoss"
+      ],
+      "description": "Performance Assort for NTS-3. The effect locks from where you first touch the pad, then finger motion drives that effect. Top-left = HPF (right cutoff, down resonance). Top-right = LPF (left cutoff, down resonance). Center = tape stop. Bottom-left = dotted-8th delay (up depth, right feedback HPF). Bottom-right = beat-sync step roll (up speed, left buffer length). Depth = overall wet. Untouched = bypass.",
+      "params": [
+        {
+          "name": "MIX",
+          "role": "Depth",
+          "detail": "Overall dry/wet while an effect region is engaged"
+        },
+        {
+          "name": "TAPE",
+          "role": "Edit",
+          "detail": "Tape-stop spindown length in beats"
+        },
+        {
+          "name": "FDBK",
+          "role": "Edit",
+          "detail": "Delay feedback amount for the dotted-8th delay region"
+        },
+        {
+          "name": "GLUE",
+          "role": "Edit",
+          "detail": "Step-roll loop crossfade / glue"
+        }
+      ],
+      "builds": [
+        {
+          "target": "nts-3_kaoss",
+          "module": "genericfx",
+          "file": "./units/passort-nts-3_kaoss.nts3unit",
+          "size": 10108,
+          "wasm": "./sim/passort/nts-3_kaoss/passort.html"
+        }
+      ]
+    },
+    {
+      "id": "regrain",
+      "experimental": true,
+      "name": "ReGrain",
+      "type": "fx",
+      "targets": [
+        "nts-3_kaoss"
+      ],
+      "description": "Deep wet reverb continuously feeds an SDRAM capture buffer; touch freezes it into a granular cloud. X/FEEL = density, Y/SIZE = reverb depth. ENV / SYNC / SPRD / TONE / REVS. MIX = dry/wet.",
+      "params": [
+        {
+          "name": "FEEL",
+          "role": "X",
+          "detail": "Grain density: sparse stitches \u2194 dense overlapping cloud"
+        },
+        {
+          "name": "SIZE",
+          "role": "Y",
+          "detail": "Reverb tank depth / decay (feeds the grain source)"
+        },
+        {
+          "name": "MIX",
+          "role": "Edit",
+          "detail": "0 = dry only, max = granular reverb cloud only"
+        },
+        {
+          "name": "ENV",
+          "role": "Edit",
+          "detail": "Grain attack/release length"
+        },
+        {
+          "name": "SYNC",
+          "role": "Edit",
+          "detail": "Base trigger grid: 1/32 \u2026 1/2"
+        },
+        {
+          "name": "SPRD",
+          "role": "Edit",
+          "detail": "Random stereo width of grains"
+        },
+        {
+          "name": "TONE",
+          "role": "Edit",
+          "detail": "Reverb damping (dark \u2194 bright)"
+        },
+        {
+          "name": "REVS",
+          "role": "Edit",
+          "detail": "Reverse-grain probability"
+        }
+      ],
+      "builds": [
+        {
+          "target": "nts-3_kaoss",
+          "module": "genericfx",
+          "file": "./units/regrain-nts-3_kaoss.nts3unit",
+          "size": 12144,
+          "wasm": null
+        }
+      ]
+    },
+    {
+      "id": "shaker",
+      "name": "Shaker",
+      "type": "shaker",
+      "targets": [
+        "nts-1_mkii",
+        "nts-3_kaoss"
+      ],
+      "description": "A port of the PhISEM shaker. Play various percussion sounds from the XY pad or keyboard.\nStill being fine-tuned; the official release is coming soon.",
+      "params": [
+        {
+          "name": "TYPE",
+          "role": "A",
+          "detail": "Instrument preset"
+        },
+        {
+          "name": "DENS",
+          "role": "B",
+          "detail": "Object density scale"
+        },
+        {
+          "name": "DECAY",
+          "role": "Edit",
+          "detail": "Shake energy decay"
+        },
+        {
+          "name": "MIX",
+          "role": "NTS-3 Mix",
+          "detail": "Wet level (NTS-3 only; dry oscillator is muted)"
+        }
+      ],
+      "builds": [
+        {
+          "target": "nts-1_mkii",
+          "module": "osc",
+          "file": "./units/shaker-nts-1_mkii.nts1mkiiunit",
+          "size": 19180,
+          "wasm": "./sim/shaker/nts-1_mkii/shaker.html"
+        },
+        {
+          "target": "nts-3_kaoss",
+          "module": "genericfx",
+          "file": "./units/shaker-nts-3_kaoss.nts3unit",
+          "size": 18648,
+          "wasm": "./sim/shaker/nts-3_kaoss/shaker.html"
+        }
+      ]
+    },
+    {
+      "id": "trance2",
+      "experimental": true,
+      "name": "Trance2",
+      "type": "drum",
+      "targets": [
+        "nts-3_kaoss"
+      ],
+      "description": "Trance drums plus a rolling bassline. Hold to gate \u2014 hits lock to the host beat. Classic four-on-the-floor 909 kit with offbeat opens. X grows bass complexity (offbeat 1/8 \u2192 rolling 16ths \u2192 walks). Y thickens drums toward Fill. Flick top-right for a one-bar Fill. Default ~138 BPM.",
+      "params": [
+        {
+          "name": "BASS",
+          "role": "X",
+          "detail": "Bassline complexity: offbeat eighths \u2192 rolling 16ths \u2192 root walks"
+        },
+        {
+          "name": "DRUM",
+          "role": "Y",
+          "detail": "Drum complexity: hat density and clap-roll build toward Fill"
+        },
+        {
+          "name": "MIX",
+          "role": "Depth",
+          "detail": "Kit + bass level (Audio In always full)"
+        },
+        {
+          "name": "DETU",
+          "role": "Edit",
+          "detail": "Bass mid-layer detune (dual saw \u00b10\u201320 cents)"
+        },
+        {
+          "name": "TONE",
+          "role": "Edit",
+          "detail": "Kick / clap / bass filter colour"
+        },
+        {
+          "name": "DEC",
+          "role": "Edit",
+          "detail": "Shared body / hat / bass decay"
+        }
+      ],
+      "builds": [
+        {
+          "target": "nts-3_kaoss",
+          "module": "genericfx",
+          "file": "./units/trance2-nts-3_kaoss.nts3unit",
+          "size": 24588,
+          "wasm": "./sim/trance2/nts-3_kaoss/trance2.html"
+        }
+      ]
+    },
+    {
+      "id": "ukgarage",
+      "experimental": true,
+      "name": "UKGarage",
+      "type": "drum",
+      "targets": [
+        "nts-3_kaoss"
+      ],
+      "description": "Tempo-synced 2-step UK Garage kit. Hold to run \u2014 pad only gates; hits lock to the host beat (4ppqn), not the tap moment. X grows ghost notes (soft snares/rims between the backbone); Y thickens hats and pushes toward Fill. Flick top-right for a one-bar Fill. Ghost notes are the groove.",
+      "params": [
+        {
+          "name": "GHOST",
+          "role": "X",
+          "detail": "Ghost-note / hand density (soft snares and rims between main hits)"
+        },
+        {
+          "name": "FILL",
+          "role": "Y",
+          "detail": "Hat density and fill energy (rolls, extra kicks)"
+        },
+        {
+          "name": "MIX",
+          "role": "Depth",
+          "detail": "Drum level (Audio In always full)"
+        },
+        {
+          "name": "SWING",
+          "role": "Edit",
+          "detail": "16th swing (UKG shuffle)"
+        },
+        {
+          "name": "TONE",
+          "role": "Edit",
+          "detail": "Kick / snare pitch colour"
+        },
+        {
+          "name": "DEC",
+          "role": "Edit",
+          "detail": "Shared body / hat decay"
+        }
+      ],
+      "builds": [
+        {
+          "target": "nts-3_kaoss",
+          "module": "genericfx",
+          "file": "./units/ukgarage-nts-3_kaoss.nts3unit",
+          "size": 9312,
+          "wasm": "./sim/ukgarage/nts-3_kaoss/ukgarage.html"
+        }
+      ]
     }
-  ]
+  ],
+  "generated_at": "2026-09-09T20:50:32Z"
 }
