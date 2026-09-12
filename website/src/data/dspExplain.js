@@ -83,6 +83,47 @@ export const dspExplainById = {
   LPF --> Drive[tanh] --> Mix[Dry or wet] --> Out[Out]
   In[Audio in] --> Mix`,
   },
+  subharm: {
+    en: "Polyrhythmic chord voice: two 4-step sequencers clocked by layered integer rhythm divisions drive two VCOs plus four subharmonics into a soft LPF. Pad hold runs the clock; X densifies rhythms, Y raises subs.",
+    ja: "ポリリズム・コード声部です。整数分割のリズム層が2つの4ステップ・シーケンサを駆動し、2VCO＋4サブをソフトLPFへ。パッドホールドで走行、Xはリズム密度、Yはサブ量です。",
+    mermaid: `flowchart LR
+  Pad[Pad hold] --> Clock[16th grid]
+  POLY[X poly] --> Divs[Rhythm divisions]
+  Clock --> Divs --> Seq[Dual 4-step seq]
+  Seq --> VCO[2 VCO plus 4 subs]
+  SUBS[Y subs] --> VCO
+  VCO --> LPF[Soft LPF] --> Mix[Dry or wet] --> Out[Out]
+  In[Audio in] --> Mix`,
+  },
+  labipath: {
+    en: "Generative West-Coast voice: dual corruptible sequencers (polymeter lengths) drive a sine carrier and triangle mod through FM and a soft wavefolder. X = Corrupt, Y = Fold.",
+    ja: "生成的ウェストコースト声部です。Corrupt可能な二重シーケンサがサイン・キャリアと三角モジュレータをFMとウェーブフォルダへ。XはCorrupt、YはFoldです。",
+    mermaid: `flowchart LR
+  Pad[Pad hold] --> Seq[Dual generative seq]
+  CORR[X corrupt] --> Seq
+  Seq --> Car[Sine carrier]
+  Seq --> Mod[Triangle mod]
+  FM[FM] --> Car
+  Mod --> Car
+  Car --> Fold[Wavefolder]
+  FOLD[Y fold] --> Fold
+  Fold --> Mix[Dry or wet] --> Out[Out]
+  In[Audio in] --> Mix`,
+  },
+  dfamperc: {
+    en: "Mutant percussion: dual osc with sync/FM grit plus noise through a resonant LPF and age-based snappy envelope, stepped by an 8-step pitch/velocity pattern. X = grit, Y = decay.",
+    ja: "ミュータント・パーカッションです。シンク／FMグリット付きデュアルOSCとノイズをレゾナントLPFと年齢ベースのスナッピーEGで整形し、8ステップで走行。Xはグリット、Yはディケイです。",
+    mermaid: `flowchart LR
+  Pad[Pad hold] --> Seq[8-step pitch vel]
+  Seq --> Osc[Dual osc sync FM]
+  GRIT[X grit] --> Noise[Noise]
+  Osc --> Sum[Mix]
+  Noise --> Sum
+  Sum --> LPF[Resonant LPF]
+  DEC[Y decay] --> Env[Age amp env]
+  Env --> LPF --> Mix[Dry or wet] --> Out[Out]
+  In[Audio in] --> Mix`,
+  },
   eucgate: {
     en: "Tempo Euclidean/probability gate on the input. Closed steps mute; duty sets the open fraction. Touch fills (opens every step). Mix blends gated vs ungated level.",
     ja: "テンポ上のユークリッド／確率ゲートです。閉じたステップはミュートし、デューティで開時間を決めます。タッチで全ステップ開放。Mixでゲート量を調整します。",

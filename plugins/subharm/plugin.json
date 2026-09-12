@@ -1,0 +1,42 @@
+{
+  "id": "subharm",
+  "experimental": true,
+  "name": "SubHarm",
+  "type": "synth",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Subharmonicon-inspired polyrhythmic chord voice for NTS-3. Hold the pad to run two 4-step sequencers clocked by layered rhythm divisions; six tones (2 VCOs + 4 integer subs) feed a soft ladder-ish LPF. X = polyrhythm density, Y = subharmonic mix.",
+  "params": [
+    {
+      "name": "POLY",
+      "role": "X",
+      "detail": "How many rhythm divisions clock the sequencers"
+    },
+    {
+      "name": "SUBS",
+      "role": "Y",
+      "detail": "Level of the four subharmonic oscillators"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Synth level over Audio In"
+    },
+    {
+      "name": "ROOT",
+      "role": "Edit",
+      "detail": "Root note for the chord engine"
+    },
+    {
+      "name": "CUT",
+      "role": "Edit",
+      "detail": "Ladder-style low-pass cutoff"
+    },
+    {
+      "name": "DEC",
+      "role": "Edit",
+      "detail": "Amp envelope decay after each step"
+    }
+  ]
+}
