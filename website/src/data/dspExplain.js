@@ -279,17 +279,21 @@ export const dspExplainById = {
   Voices --> Mix[Softclip then kit level over Audio In] --> Out[Out]`,
   },
   drums: {
-    en: "Hold-to-gate multi-genre drum kit. Hits lock to host 4ppqn. GENRE selects Trance / DnB / Breakbeat / UK Garage / Boom-bap / Dembow / Footwork patterns and voice feel. X densifies; Y pushes fill energy. Trap808 stays separate.",
-    ja: "ホールドはゲートのみ。ホストの4ppqnに合わせてジャンル別ドラムを鳴らします。GENREで Trance / DnB / Break / UKG / Boom / Dembow / Footwork を切替。Xは密度、YはFill。Trap808は別ユニットです。",
+    en: "Hold-to-gate multi-genre drum kit. Hits lock to host 4ppqn. GENRE selects the pattern; KIT picks the synthetic voice feel (AUTO follows GENRE). X densifies; Y pushes fill energy; top-right fires a one-bar snare-roll Fill. Trap808 stays separate.",
+    ja: "ホールドはゲートのみ。ホストの4ppqnに合わせてジャンル別ドラムを鳴らします。GENREはパターン、KITは音色（AUTOはGENRE追従）。Xは密度、YはFillエネルギー、右上で1小節のスネア連打Fill。Trap808は別ユニットです。",
     mermaid: `flowchart TD
   Host[Host 4ppqn] --> Gate{Pad held?}
   Genre[GENRE] --> Pattern[Genre pattern]
+  Kit[KIT] --> Feel[Voice feel]
   Gate -->|yes| Pattern
   Gate -->|yes| Dens[X densify]
   Gate -->|yes| Fill[Y fill energy]
+  Gate -->|yes| Corner[Top-right snare Fill]
   Pattern --> Voices[Kick snare hats]
+  Feel --> Voices
   Dens --> Voices
   Fill --> Voices
+  Corner --> Voices
   Voices --> Mix[Softclip then drum level over Audio In] --> Out[Out]`,
   },
   hclap: {
