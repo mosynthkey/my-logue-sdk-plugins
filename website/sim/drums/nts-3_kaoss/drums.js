@@ -21,7 +21,6 @@ var Module = globalThis.Module || (typeof Module != 'undefined' ? Module : {});
 var ENVIRONMENT_IS_WASM_WORKER = globalThis.name == 'em-ww';
 
 var ENVIRONMENT_IS_AUDIO_WORKLET = !!globalThis.AudioWorkletGlobalScope;
-
 // Audio worklets behave as wasm workers.
 if (ENVIRONMENT_IS_AUDIO_WORKLET) ENVIRONMENT_IS_WASM_WORKER = true;
 
@@ -38,10 +37,10 @@ var ENVIRONMENT_IS_SHELL = !ENVIRONMENT_IS_WEB && !ENVIRONMENT_IS_NODE && !ENVIR
 
 if (ENVIRONMENT_IS_NODE) {
 
-  var worker_threads = require('node:worker_threads');
-  globalThis.Worker = worker_threads.Worker;
+  var worker_threads = require('worker_threads');
+  global.Worker = worker_threads.Worker;
   ENVIRONMENT_IS_WORKER = !worker_threads.isMainThread;
-  ENVIRONMENT_IS_WASM_WORKER = ENVIRONMENT_IS_WORKER && worker_threads.workerData == 'em-ww'
+  ENVIRONMENT_IS_WASM_WORKER = ENVIRONMENT_IS_WORKER && worker_threads['workerData'] == 'em-ww'
 }
 
 // --pre-jses are emitted after the Module integration code, so that they can
@@ -81,7 +80,7 @@ if (ENVIRONMENT_IS_NODE) {
 
   // These modules will usually be used on Node.js. Load them eagerly to avoid
   // the complexity of lazy-loading.
-  var fs = require('node:fs');
+  var fs = require('fs');
 
   scriptDirectory = __dirname + '/';
 
@@ -183,7 +182,7 @@ if (ENVIRONMENT_IS_WORKER) {
 var defaultPrint = console.log.bind(console);
 var defaultPrintErr = console.error.bind(console);
 if (ENVIRONMENT_IS_NODE) {
-  var utils = require('node:util');
+  var utils = require('util');
   var stringify = (a) => typeof a == 'object' ? utils.inspect(a) : a;
   defaultPrint = (...args) => fs.writeSync(1, args.map(stringify).join(' ') + '\n');
   defaultPrintErr = (...args) => fs.writeSync(2, args.map(stringify).join(' ') + '\n');
@@ -220,7 +219,7 @@ var wasmModule;
 var ABORT = false;
 
 // set by exit() and abort().  Passed to 'onExit' handler.
-// NOTE: This is also used as the process return code in shell environments
+// NOTE: This is also used as the process return code code in shell environments
 // but only when noExitRuntime is false.
 var EXITSTATUS;
 
@@ -248,25 +247,17 @@ var isFileURI = (filename) => filename.startsWith('file://');
 // include: runtime_stack_check.js
 // end include: runtime_stack_check.js
 // include: runtime_exceptions.js
-// Base Emscripten EH error class
-class EmscriptenEH {}
-
-class EmscriptenSjLj extends EmscriptenEH {}
-
 // end include: runtime_exceptions.js
 // include: runtime_debug.js
 // end include: runtime_debug.js
 if (ENVIRONMENT_IS_NODE && (ENVIRONMENT_IS_WASM_WORKER)) {
   // Create as web-worker-like an environment as we can.
-  globalThis.self = globalThis;
-  var parentPort = worker_threads.parentPort;
-  // Deno and Bun already have `postMessage` defined on the global scope and
-  // deliver messages to `globalThis.onmessage`, so we must not duplicate that
-  // behavior here if `postMessage` is already present.
-  if (!globalThis.postMessage) {
-    parentPort.on('message', (msg) => globalThis.onmessage?.({ data: msg }));
-    globalThis.postMessage = (msg) => parentPort.postMessage(msg);
-  }
+  var parentPort = worker_threads['parentPort'];
+  parentPort.on('message', (msg) => global.onmessage?.({ data: msg }));
+  Object.assign(globalThis, {
+    self: global,
+    postMessage: (msg) => parentPort['postMessage'](msg),
+  });
   // Node.js Workers do not pass postMessage()s and uncaught exception events to the parent
   // thread necessarily in the same order where they were generated in sequential program order.
   // See https://github.com/nodejs/node/issues/59617
@@ -285,7 +276,7 @@ if (ENVIRONMENT_IS_NODE && (ENVIRONMENT_IS_WASM_WORKER)) {
 var wwParams;
 
 /**
- * Called once the initial message has been received from the creating thread.
+ * Called once the intiial message has been recieved from the creating thread.
  * The `props` object is property bag sent via postMessage to create the worker.
  *
  * This function is called both in normal wasm workers and in audio worklets.
@@ -299,7 +290,7 @@ function startWasmWorker(props) {
   run();
   // Drop now unneeded references to from the Module object in this Worker,
   // these are not needed anymore.
-  props.wasm = props.wasmMemory = 0;
+  props.wasm = props.memMemory = 0;
 }
 
 if (ENVIRONMENT_IS_WASM_WORKER && !ENVIRONMENT_IS_AUDIO_WORKLET) {
@@ -375,7 +366,7 @@ function createWasmAudioWorkletProcessor(audioParams) {
       // Prepare the output views; see createOutputViews(). The 'STACK_ALIGN'
       // deduction stops the STACK_OVERFLOW_CHECK failing (since the stack will
       // be full if we allocate all the available space) leaving room for a
-      // single AudioSampleFrame as a minimum. There's an arbitrary maximum of
+      // single AudioSampleFrame as a minumum. There's an arbitrary maximum of
       // 64 frames, for the case where a multi-MB stack is passed.
       this.outputViews = new Array(Math.min(((wwParams.stackSize - 16) / this.bytesPerChannel) | 0, /*sensible limit*/ 64));
       this.createOutputViews();
@@ -525,8 +516,8 @@ function createWasmAudioWorkletProcessor(audioParams) {
 // that has a MessagePort over to the AudioWorklet, then polyfill that by
 // a hacky AudioWorkletProcessor that provides the MessagePort.
 // Firefox added support in https://hg-edge.mozilla.org/integration/autoland/rev/ab38a1796126f2b3fc06475ffc5a625059af59c1
-// Chrome ticket: https://crbug.com/446920095
-// Safari ticket: https://webkit.org/b/299386
+// Chrome ticket: https://issues.chromium.org/issues/446920095
+// Safari ticket: https://bugs.webkit.org/show_bug.cgi?id=299386
 /**
  * @suppress {duplicate, checkTypes}
  */
@@ -591,6 +582,31 @@ port.onmessage = async (msg) => {
 } // ENVIRONMENT_IS_AUDIO_WORKLET
 // end include: audio_worklet.js
 // Memory management
+var
+/** @type {!Int8Array} */
+  HEAP8,
+/** @type {!Uint8Array} */
+  HEAPU8,
+/** @type {!Int16Array} */
+  HEAP16,
+/** @type {!Uint16Array} */
+  HEAPU16,
+/** @type {!Int32Array} */
+  HEAP32,
+/** @type {!Uint32Array} */
+  HEAPU32,
+/** @type {!Float32Array} */
+  HEAPF32,
+/** @type {!Float64Array} */
+  HEAPF64;
+
+// BigInt64Array type is not correctly defined in closure
+var
+/** not-@type {!BigInt64Array} */
+  HEAP64,
+/* BigUint64Array type is not correctly defined in closure
+/** not-@type {!BigUint64Array} */
+  HEAPU64;
 
 var runtimeInitialized = false;
 
@@ -613,6 +629,8 @@ function updateMemoryViews() {
 // In non-standalone/normal mode, we create the memory here.
 // include: runtime_init_memory.js
 // Create the wasm memory. (Note: this only applies if IMPORTED_MEMORY is defined)
+
+var wasmMemory;
 
 // check for full engine support (use string 'subarray' to avoid closure compiler confusion)
 
@@ -685,13 +703,11 @@ function postRun() {
   // End ATPOSTRUNS hooks
 }
 
-/**
- * @param {string|number=} what
- */
+/** @param {string|number=} what */
 function abort(what) {
   Module['onAbort']?.(what);
 
-  what = `Aborted(${what})`;
+  what = 'Aborted(' + what + ')';
   // TODO(sbc): Should we remove printing and leave it up to whoever
   // catches the exception?
   err(what);
@@ -725,7 +741,7 @@ function abort(what) {
 var wasmBinaryFile;
 
 function findWasmBinary() {
-  return locateFile('drums.wasm');
+    return locateFile('drums.wasm');
 }
 
 function getBinarySync(file) {
@@ -735,7 +751,7 @@ function getBinarySync(file) {
   if (readBinary) {
     return readBinary(file);
   }
-  // Throwing a plain string here, even though it not normally advisable since
+  // Throwing a plain string here, even though it not normally adviables since
   // this gets turning into an `abort` in instantiateArrayBuffer.
   throw 'both async and sync fetching of the wasm failed';
 }
@@ -798,11 +814,10 @@ async function instantiateAsync(binary, binaryFile, imports) {
 function getWasmImports() {
   assignWasmImports();
   // prepare imports
-  var imports = {
+  return {
     'env': wasmImports,
     'wasi_snapshot_preview1': wasmImports,
-  };
-  return imports;
+  }
 }
 
 // Create the wasm instance.
@@ -814,6 +829,8 @@ async function createWasm() {
   /** @param {WebAssembly.Module=} module*/
   function receiveInstance(instance, module) {
     wasmExports = instance.exports;
+
+    
 
     assignWasmExports(wasmExports);
 
@@ -848,7 +865,7 @@ async function createWasm() {
   }
 
   if ((ENVIRONMENT_IS_WASM_WORKER)) {
-    // Instantiate from the module that was received via postMessage from
+    // Instantiate from the module that was recieved via postMessage from
     // the main thread. We can just use sync instantiation in the worker.
     var instance = new WebAssembly.Instance(wasmModule, getWasmImports());
     return receiveInstance(instance, wasmModule);
@@ -872,36 +889,6 @@ async function createWasm() {
         this.status = status;
       }
     }
-
-  /** @type {!Int16Array} */
-  var HEAP16;
-
-  /** @type {!Int32Array} */
-  var HEAP32;
-
-  /** not-@type {!BigInt64Array} */
-  var HEAP64;
-
-  /** @type {!Int8Array} */
-  var HEAP8;
-
-  /** @type {!Float32Array} */
-  var HEAPF32;
-
-  /** @type {!Float64Array} */
-  var HEAPF64;
-
-  /** @type {!Uint16Array} */
-  var HEAPU16;
-
-  /** @type {!Uint32Array} */
-  var HEAPU32;
-
-  /** not-@type {!BigUint64Array} */
-  var HEAPU64;
-
-  /** @type {!Uint8Array} */
-  var HEAPU8;
 
   var _wasmWorkerDelayedMessageQueue = [];
   
@@ -928,6 +915,7 @@ async function createWasm() {
       }
       quit_(code, new ExitStatus(code));
     };
+  /** @suppress {duplicate } */
   /** @param {boolean|number=} implicit */
   var exitJS = (status, implicit) => {
       EXITSTATUS = status;
@@ -951,11 +939,10 @@ async function createWasm() {
         return;
       }
       try {
-        return func();
+        func();
+        maybeExit();
       } catch (e) {
         handleException(e);
-      } finally {
-        maybeExit();
       }
     };
   
@@ -988,7 +975,7 @@ async function createWasm() {
       noExitRuntime = 1;
   
       // Run the C side Worker initialization for stack and TLS.
-      __emscripten_wasm_worker_initialize(wwParams.wwID, wwParams.stackLowestAddress, wwParams.stackSize);
+      __emscripten_wasm_worker_initialize(wwParams.stackLowestAddress, wwParams.stackSize);
   
       // Embind must initialize itself on all threads, as it generates support JS.
       __embind_initialize_bindings();
@@ -1047,9 +1034,9 @@ async function createWasm() {
 
   
     /**
-   * @param {number} ptr
-   * @param {string} type
-   */
+     * @param {number} ptr
+     * @param {string} type
+     */
   function getValue(ptr, type = 'i8') {
     if (type.endsWith('*')) type = '*';
     switch (type) {
@@ -1071,10 +1058,10 @@ async function createWasm() {
 
   
     /**
-   * @param {number} ptr
-   * @param {number} value
-   * @param {string} type
-   */
+     * @param {number} ptr
+     * @param {number} value
+     * @param {string} type
+     */
   function setValue(ptr, value, type = 'i8') {
     if (type.endsWith('*')) type = '*';
     switch (type) {
@@ -1094,8 +1081,6 @@ async function createWasm() {
 
   var stackSave = () => _emscripten_stack_get_current();
 
-  var wasmMemory;
-
   var UTF8Decoder = globalThis.TextDecoder && new TextDecoder();
   
   var findStringEnd = (heapOrArray, idx, maxBytesToRead, ignoreNul) => {
@@ -1110,15 +1095,15 @@ async function createWasm() {
     };
   
     /**
-   * Given a pointer 'idx' to a null-terminated UTF8-encoded string in the given
-   * array that contains uint8 values, returns a copy of that string as a
-   * Javascript String object.
-   * heapOrArray is either a regular array, or a JavaScript typed array view.
-   * @param {number=} idx
-   * @param {number=} maxBytesToRead
-   * @param {boolean=} ignoreNul - If true, the function will not stop on a NUL character.
-   * @return {string}
-   */
+     * Given a pointer 'idx' to a null-terminated UTF8-encoded string in the given
+     * array that contains uint8 values, returns a copy of that string as a
+     * Javascript String object.
+     * heapOrArray is either a regular array, or a JavaScript typed array view.
+     * @param {number=} idx
+     * @param {number=} maxBytesToRead
+     * @param {boolean=} ignoreNul - If true, the function will not stop on a NUL character.
+     * @return {string}
+     */
   var UTF8ArrayToString = (heapOrArray, idx = 0, maxBytesToRead, ignoreNul) => {
   
       var endPtr = findStringEnd(heapOrArray, idx, maxBytesToRead, ignoreNul);
@@ -1155,18 +1140,18 @@ async function createWasm() {
     };
   
     /**
-   * Given a pointer 'ptr' to a null-terminated UTF8-encoded string in the
-   * emscripten HEAP, returns a copy of that string as a Javascript String object.
-   *
-   * @param {number} ptr
-   * @param {number=} maxBytesToRead - An optional length that specifies the
-   *   maximum number of bytes to read. You can omit this parameter to scan the
-   *   string until the first 0 byte. If maxBytesToRead is passed, and the string
-   *   at [ptr, ptr+maxBytesToReadr[ contains a null byte in the middle, then the
-   *   string will cut short at that byte index.
-   * @param {boolean=} ignoreNul - If true, the function will not stop on a NUL character.
-   * @return {string}
-   */
+     * Given a pointer 'ptr' to a null-terminated UTF8-encoded string in the
+     * emscripten HEAP, returns a copy of that string as a Javascript String object.
+     *
+     * @param {number} ptr
+     * @param {number=} maxBytesToRead - An optional length that specifies the
+     *   maximum number of bytes to read. You can omit this parameter to scan the
+     *   string until the first 0 byte. If maxBytesToRead is passed, and the string
+     *   at [ptr, ptr+maxBytesToReadr[ contains a null byte in the middle, then the
+     *   string will cut short at that byte index.
+     * @param {boolean=} ignoreNul - If true, the function will not stop on a NUL character.
+     * @return {string}
+     */
   var UTF8ToString = (ptr, maxBytesToRead, ignoreNul) => {
       return ptr ? UTF8ArrayToString(HEAPU8, ptr, maxBytesToRead, ignoreNul) : '';
     };
@@ -1230,21 +1215,16 @@ async function createWasm() {
       }
     }
   
+  var exceptionLast = 0;
+  
   var uncaughtExceptionCount = 0;
   var ___cxa_throw = (ptr, type, destructor) => {
       var info = new ExceptionInfo(ptr);
       // Initialize ExceptionInfo content after it was allocated in __cxa_allocate_exception.
       info.init(type, destructor);
+      exceptionLast = ptr;
       uncaughtExceptionCount++;
-      abort()
-    };
-
-  var ___do_set_thread_state = (tb) => {
-      ___set_thread_state(
-        /*thread_ptr=*/0,
-        /*is_main_thread=*/!ENVIRONMENT_IS_WORKER,
-        /*is_runtime_thread=*/!ENVIRONMENT_IS_WASM_WORKER,
-        /*supports_wait=*/ENVIRONMENT_IS_WORKER && !ENVIRONMENT_IS_AUDIO_WORKLET);
+      throw exceptionLast;
     };
 
   var __abort_js = () =>
@@ -1293,7 +1273,7 @@ async function createWasm() {
       var typeConverters = new Array(dependentTypes.length);
       var unregisteredTypes = [];
       var registered = 0;
-      for (let [i, dt] of dependentTypes.entries()) {
+      dependentTypes.forEach((dt, i) => {
         if (registeredTypes.hasOwnProperty(dt)) {
           typeConverters[i] = registeredTypes[dt];
         } else {
@@ -1309,7 +1289,7 @@ async function createWasm() {
             }
           });
         }
-      }
+      });
       if (0 === unregisteredTypes.length) {
         onComplete(typeConverters);
       }
@@ -1325,23 +1305,25 @@ async function createWasm() {
                 concat(fieldRecords.map((field) => field.setterArgumentType));
       whenDependentTypesAreResolved([structType], fieldTypes, (fieldTypes) => {
         var fields = {};
-        for (var [i, field] of fieldRecords.entries()) {
-          const getterReturnType = fieldTypes[i];
-          const getter = field.getter;
-          const getterContext = field.getterContext;
-          const setterArgumentType = fieldTypes[i + fieldRecords.length];
-          const setter = field.setter;
-          const setterContext = field.setterContext;
-          fields[field.fieldName] = {
+        fieldRecords.forEach((field, i) => {
+          var fieldName = field.fieldName;
+          var getterReturnType = fieldTypes[i];
+          var optional = fieldTypes[i].optional;
+          var getter = field.getter;
+          var getterContext = field.getterContext;
+          var setterArgumentType = fieldTypes[i + fieldRecords.length];
+          var setter = field.setter;
+          var setterContext = field.setterContext;
+          fields[fieldName] = {
             read: (ptr) => getterReturnType.fromWireType(getter(getterContext, ptr)),
             write: (ptr, o) => {
               var destructors = [];
               setter(setterContext, ptr, setterArgumentType.toWireType(destructors, o));
               runDestructors(destructors);
             },
-            optional: getterReturnType.optional,
+            optional,
           };
-        }
+        });
   
         return [{
           name: reg.name,
@@ -1855,7 +1837,7 @@ async function createWasm() {
             break;
   
           default:
-            throwBindingError('Unsupported sharing policy');
+            throwBindingError('Unsupporting sharing policy');
         }
       }
       return ptr;
@@ -2032,13 +2014,13 @@ async function createWasm() {
       });
     };
   /** @constructor
-    @param {*=} pointeeType,
-    @param {*=} sharingPolicy,
-    @param {*=} rawGetPointee,
-    @param {*=} rawConstructor,
-    @param {*=} rawShare,
-    @param {*=} rawDestructor,
-     */
+      @param {*=} pointeeType,
+      @param {*=} sharingPolicy,
+      @param {*=} rawGetPointee,
+      @param {*=} rawConstructor,
+      @param {*=} rawShare,
+      @param {*=} rawDestructor,
+       */
   function RegisteredPointer(
       name,
       registeredClass,
@@ -2374,7 +2356,7 @@ async function createWasm() {
       var returns = !argTypes[0].isVoid;
   
       var expectedArgCount = argCount - 2;
-      // Build the arguments that will be passed into the closure around the invoker
+      // Builld the arguments that will be passed into the closure around the invoker
       // function.
       var retType = argTypes[0];
       var instType = argTypes[1];
@@ -2518,7 +2500,6 @@ async function createWasm() {
   var emval_handles = [0,1,,1,null,1,true,1,false,1];
   var __emval_decref = (handle) => {
       if (handle > 9 && 0 === --emval_handles[handle + 1]) {
-        var value = emval_handles[handle];
         emval_handles[handle] = undefined;
         emval_freelist.push(handle);
       }
@@ -2583,81 +2564,24 @@ async function createWasm() {
     };
   
   
-  
-  function getEnumValueType(rawValueType) {
-      // This must match the values of enum_value_type in wire.h
-      return rawValueType === 0 ? 'object' : (rawValueType === 1 ? 'number' : 'string');
-    }
   /** @suppress {globalThis} */
-  var __embind_register_enum = (rawType, name, size, isSigned, rawValueType) => {
+  var __embind_register_enum = (rawType, name, size, isSigned) => {
       name = AsciiToString(name);
-      const valueType = getEnumValueType(rawValueType);
   
-      switch (valueType) {
-        case 'object': {
-          function ctor() {}
-          ctor.values = {};
+      function ctor() {}
+      ctor.values = {};
   
-          registerType(rawType, {
-            name,
-            constructor: ctor,
-            valueType,
-            fromWireType: function(c) {
-              return this.constructor.values[c];
-            },
-            toWireType: (destructors, c) => c.value,
-            readValueFromPointer: enumReadValueFromPointer(name, size, isSigned),
-            destructorFunction: null,
-          });
-  
-          exposePublicSymbol(name, ctor);
-          break;
-        }
-        case 'number': {
-          var keysMap = {};
-  
-          registerType(rawType, {
-            name: name,
-            keysMap,
-            valueType,
-            fromWireType: (c) => c,
-            toWireType: (destructors, c) => c,
-            readValueFromPointer: enumReadValueFromPointer(name, size, isSigned),
-            destructorFunction: null,
-          });
-  
-          exposePublicSymbol(name, keysMap);
-          // Just exposes a simple dict. argCount is meaningless here,
-          delete Module[name].argCount;
-          break;
-        }
-        case 'string': {
-          var valuesMap = {};
-          var reverseMap = {};
-          var keysMap = {};
-  
-          registerType(rawType, {
-            name: name,
-            valuesMap,
-            reverseMap,
-            keysMap,
-            valueType,
-            fromWireType: function(c) {
-              return this.reverseMap[c];
-            },
-            toWireType: function(destructors, c) {
-              return this.valuesMap[c];
-            },
-            readValueFromPointer: enumReadValueFromPointer(name, size, isSigned),
-            destructorFunction: null,
-          });
-  
-          exposePublicSymbol(name, keysMap);
-          // Just exposes a simple dict. argCount is meaningless here,
-          delete Module[name].argCount;
-          break;
-        }
-      }
+      registerType(rawType, {
+        name,
+        constructor: ctor,
+        fromWireType: function(c) {
+          return this.constructor.values[c];
+        },
+        toWireType: (destructors, c) => c.value,
+        readValueFromPointer: enumReadValueFromPointer(name, size, isSigned),
+        destructorFunction: null,
+      });
+      exposePublicSymbol(name, ctor);
     };
 
   
@@ -2675,28 +2599,14 @@ async function createWasm() {
       var enumType = requireRegisteredType(rawEnumType, 'enum');
       name = AsciiToString(name);
   
-      switch (enumType.valueType) {
-        case 'object': {
-          var Enum = enumType.constructor;
-          var Value = Object.create(enumType.constructor.prototype, {
-            value: {value: enumValue},
-            constructor: {value: createNamedFunction(`${enumType.name}_${name}`, function() {})},
-          });
-          Enum.values[enumValue] = Value;
-          Enum[name] = Value;
-          break;
-        }
-        case 'number': {
-          enumType.keysMap[name] = enumValue;
-          break;
-        }
-        case 'string': {
-          enumType.valuesMap[name] = enumValue;
-          enumType.reverseMap[enumValue] = name;
-          enumType.keysMap[name] = name;
-          break;
-        }
-      }
+      var Enum = enumType.constructor;
+  
+      var Value = Object.create(enumType.constructor.prototype, {
+        value: {value: enumValue},
+        constructor: {value: createNamedFunction(`${enumType.name}_${name}`, function() {})},
+      });
+      Enum.values[enumValue] = Value;
+      Enum[name] = Value;
     };
 
   var floatReadValueFromPointer = (name, width) => {
@@ -2779,44 +2689,6 @@ async function createWasm() {
         },
         readValueFromPointer: integerReadValueFromPointer(name, size, minRange !== 0),
         destructorFunction: null, // This type does not need a destructor
-      });
-    };
-
-  
-  var installIndexedIterator = (proto, sizeMethodName, getMethodName) => {
-      const makeIterator = (size, getValue) => {
-        let index = 0;
-        return {
-          next() {
-            if (index >= size) {
-              return { done: true };
-            }
-            const current = index;
-            index++;
-            const value = getValue(current);
-            return { value, done: false };
-          },
-          [Symbol.iterator]() {
-            return this;
-          },
-        };
-      };
-  
-      if (!proto[Symbol.iterator]) {
-        proto[Symbol.iterator] = function() {
-          const size = this[sizeMethodName]();
-          return makeIterator(size, (i) => this[getMethodName](i));
-        };
-      }
-    };
-  
-  var __embind_register_iterable = (rawClassType, rawElementType, sizeMethodName, getMethodName) => {
-      sizeMethodName = AsciiToString(sizeMethodName);
-      getMethodName = AsciiToString(getMethodName);
-      whenDependentTypesAreResolved([], [rawClassType, rawElementType], (types) => {
-        const classType = types[0];
-        installIndexedIterator(classType.registeredClass.instancePrototype, sizeMethodName, getMethodName);
-        return [];
       });
     };
 
@@ -3018,7 +2890,7 @@ async function createWasm() {
   
       // When using conditional TextDecoder, skip it for short strings as the overhead of the native call is not worth it.
       if (endIdx - idx > 16 && UTF16Decoder)
-        return UTF16Decoder.decode(HEAPU16.slice(idx, endIdx));
+        return UTF16Decoder.decode(HEAPU16.buffer instanceof ArrayBuffer ? HEAPU16.subarray(idx, endIdx) : HEAPU16.slice(idx, endIdx));
   
       // Fallback: decode without UTF16Decoder
       var str = '';
@@ -3207,78 +3079,6 @@ async function createWasm() {
       });
     };
 
-  
-  var _emAudioDispatchProcessorCallback = (e) => {
-      var data = e.data;
-      // '_wsc' is short for 'wasm call', trying to use an identifier name that
-      // will never conflict with user code. This is used to call both the 3-param
-      // call (handle, true, userData) and the variable argument post functions.
-      var wasmCall = data['_wsc'];
-      wasmCall && getWasmTableEntry(wasmCall)(...data.args);
-    };
-  
-  var stackAlloc = (sz) => __emscripten_stack_alloc(sz);
-  
-  
-  
-  var __emscripten_create_audio_worklet = (wwID, contextHandle, stackLowestAddress, stackSize, callback, userData) => {
-  
-      var audioContext = emAudio[contextHandle];
-      var audioWorklet = audioContext.audioWorklet;
-  
-      var audioWorkletCreationFailed = () => {
-        getWasmTableEntry(callback)(contextHandle, 0/*EM_FALSE*/, userData);
-      };
-  
-      // Does browser not support AudioWorklets?
-      if (!audioWorklet) {
-        return audioWorkletCreationFailed();
-      }
-  
-      audioWorklet.addModule(
-      locateFile('drums.js')
-  ).then(() => {
-  
-        // If this browser does not support the up-to-date AudioWorklet standard
-        // that has a MessagePort over to the AudioWorklet, then polyfill that by
-        // instantiating a dummy AudioWorkletNode to get a MessagePort over.
-        // Firefox added support in https://hg-edge.mozilla.org/integration/autoland/rev/ab38a1796126f2b3fc06475ffc5a625059af59c1
-        // Chrome ticket: https://crbug.com/446920095
-        // Safari ticket: https://webkit.org/b/299386
-        if (!audioWorklet.port) {
-          audioWorklet.port = {
-            postMessage: (msg) => {
-              if (msg['_boot']) {
-                audioWorklet.bootstrapMessage = new AudioWorkletNode(audioContext, 'em-bootstrap', {
-                  processorOptions: msg
-                });
-                audioWorklet.bootstrapMessage.port.onmessage = (msg) => {
-                  audioWorklet.port.onmessage(msg);
-                }
-              } else {
-                audioWorklet.bootstrapMessage.port.postMessage(msg);
-              }
-            }
-          }
-        }
-  
-        audioWorklet.port.postMessage({
-          // This is the bootstrap message to the Audio Worklet.
-          '_boot': 1,
-          // Assign the loaded AudioWorkletGlobalScope a Wasm Worker ID so that
-          // it can utilized its own TLS slots, and it is recognized to not be
-          // the main browser thread.
-          wwID,
-          wasm: wasmModule,
-          wasmMemory,
-          stackLowestAddress, // sb = stack base
-          stackSize,          // sz = stack size
-        });
-        audioWorklet.port.onmessage = _emAudioDispatchProcessorCallback;
-        getWasmTableEntry(callback)(contextHandle, 1/*EM_TRUE*/, userData);
-      }).catch(audioWorkletCreationFailed);
-    };
-
   var emval_methodCallers = [];
   var emval_addMethodCaller = (caller) => {
       var id = emval_methodCallers.length;
@@ -3354,8 +3154,8 @@ async function createWasm() {
         functionBody = `return emval_returnValue(toReturnWire, destructorsRef, ${functionBody})`;
       }
       functionBody = `return function (handle, methodName, destructorsRef, args) {
-${functionBody}
-}`;
+  ${functionBody}
+  }`;
   
       var invokerFunction = new Function(Object.keys(captures), functionBody)(...Object.values(captures));
       var functionName = `methodCaller<(${argTypes.map(t => t.name)}) => ${retType.name}>`;
@@ -3408,37 +3208,36 @@ ${functionBody}
       return runEmAsmFunction(code, sigPtr, argbuf);
     };
 
-  var emAudio = {
+  var EmAudio = {
   };
   
-  var emAudioCounter = 0;
+  var EmAudioCounter = 0;
   var emscriptenRegisterAudioObject = (object) => {
-      emAudio[++emAudioCounter] = object;
-      return emAudioCounter;
+      EmAudio[++EmAudioCounter] = object;
+      return EmAudioCounter;
     };
   
-  var emscriptenGetAudioObject = (objectHandle) => emAudio[objectHandle];
+  var emscriptenGetAudioObject = (objectHandle) => EmAudio[objectHandle];
   
   var _emscripten_create_audio_context = (options) => {
       // Safari added unprefixed AudioContext support in Safari 14.5 on iOS: https://caniuse.com/audio-api
       var ctx = window.AudioContext || window.webkitAudioContext;
   
-      // Converts AUDIO_CONTEXT_RENDER_SIZE_* into AudioContextRenderSizeCategory
-      // enums, otherwise returns a positive int value.
-      function readRenderSizeHint(val) {
-        return (val < 0) ? 'hardware' : (val || 'default');
-      }
       var opts = options ? {
         latencyHint: UTF8ToString(HEAPU32[((options)>>2)]) || undefined,
-        sampleRate: HEAPU32[(((options)+(4))>>2)] || undefined,
-        renderSizeHint: readRenderSizeHint(HEAP32[(((options)+(8))>>2)])
+        sampleRate: HEAPU32[(((options)+(4))>>2)] || undefined
       } : undefined;
   
       return ctx && emscriptenRegisterAudioObject(new ctx(opts));
     };
 
   var emscriptenGetContextQuantumSize = (contextHandle) => {
-      return emAudio[contextHandle]['renderQuantumSize'] || 128;
+      // TODO: in a future release this will be something like:
+      //   return EmAudio[contextHandle].renderQuantumSize || 128;
+      // It comes two caveats: it needs the hint when generating the context adding to
+      // emscripten_create_audio_context(), and altering the quantum requires a secure
+      // context and fallback implementing. Until then we simply use the 1.0 API value:
+      return 128;
     };
   
   var _emscripten_create_wasm_audio_worklet_node = (contextHandle, name, options, callback, userData) => {
@@ -3456,9 +3255,6 @@ ${functionBody}
         numberOfInputs: HEAP32[((options)>>2)],
         numberOfOutputs: optionsOutputs,
         outputChannelCount: readChannelCountArray(HEAPU32[(((options)+(8))>>2)], optionsOutputs),
-        channelCount: HEAPU32[(((options)+(12))>>2)] || undefined,
-        channelCountMode: [/*'max'*/,'clamped-max','explicit'][HEAP32[(((options)+(16))>>2)]],
-        channelInterpretation: [/*'speakers'*/,'discrete'][HEAP32[(((options)+(20))>>2)]],
         processorOptions: {
           callback,
           userData,
@@ -3466,7 +3262,7 @@ ${functionBody}
         }
       } : undefined;
   
-      return emscriptenRegisterAudioObject(new AudioWorkletNode(emAudio[contextHandle], UTF8ToString(name), opts));
+      return emscriptenRegisterAudioObject(new AudioWorkletNode(EmAudio[contextHandle], UTF8ToString(name), opts));
     };
 
   var _emscripten_create_wasm_audio_worklet_processor_async = (contextHandle, options, callback, userData) => {
@@ -3488,7 +3284,7 @@ ${functionBody}
         audioParamDescriptors += 16;
       }
   
-      emAudio[contextHandle].audioWorklet.port.postMessage({
+      EmAudio[contextHandle].audioWorklet['port'].postMessage({
         // Deliberately mangled and short names used here ('_wpn', the 'Worklet
         // Processor Name' used as a 'key' to verify the message type so as to
         // not get accidentally mixed with user submitted messages, the remainder
@@ -3511,7 +3307,7 @@ ${functionBody}
       // (https://github.com/WebAudio/web-audio-api/issues/2527), so if building
       // with
       // Audio Worklets enabled, do a dynamic check for its presence.
-      if (globalThis.performance?.now) {
+      if (globalThis.performance && performance.now) {
         _emscripten_get_now = () => performance.now();
       } else {
         _emscripten_get_now = Date.now;
@@ -3526,6 +3322,80 @@ ${functionBody}
       // With CAN_ADDRESS_2GB or MEMORY64, pointers are already unsigned.
       requestedSize >>>= 0;
       abortOnCannotGrowMemory(requestedSize);
+    };
+
+  var _wasmWorkersID = 1;
+  
+  
+  var _EmAudioDispatchProcessorCallback = (e) => {
+      var data = e.data;
+      // '_wsc' is short for 'wasm call', trying to use an identifier name that
+      // will never conflict with user code. This is used to call both the 3-param
+      // call (handle, true, userData) and the variable argument post functions.
+      var wasmCall = data['_wsc'];
+      wasmCall && getWasmTableEntry(wasmCall)(...data.args);
+    };
+  
+  var stackAlloc = (sz) => __emscripten_stack_alloc(sz);
+  
+  
+  
+  var _emscripten_start_wasm_audio_worklet_thread_async = (contextHandle, stackLowestAddress, stackSize, callback, userData) => {
+  
+      var audioContext = EmAudio[contextHandle];
+      var audioWorklet = audioContext.audioWorklet;
+  
+      var audioWorkletCreationFailed = () => {
+        getWasmTableEntry(callback)(contextHandle, 0/*EM_FALSE*/, userData);
+      };
+  
+      // Does browser not support AudioWorklets?
+      if (!audioWorklet) {
+        return audioWorkletCreationFailed();
+      }
+  
+      audioWorklet.addModule(
+      locateFile('drums.js')
+  ).then(() => {
+  
+        // If this browser does not support the up-to-date AudioWorklet standard
+        // that has a MessagePort over to the AudioWorklet, then polyfill that by
+        // instantiating a dummy AudioWorkletNode to get a MessagePort over.
+        // Firefox added support in https://hg-edge.mozilla.org/integration/autoland/rev/ab38a1796126f2b3fc06475ffc5a625059af59c1
+        // Chrome ticket: https://issues.chromium.org/issues/446920095
+        // Safari ticket: https://bugs.webkit.org/show_bug.cgi?id=299386
+        if (!audioWorklet['port']) {
+          audioWorklet['port'] = {
+            postMessage: (msg) => {
+              if (msg['_boot']) {
+                audioWorklet.bootstrapMessage = new AudioWorkletNode(audioContext, 'em-bootstrap', {
+                  processorOptions: msg
+                });
+                audioWorklet.bootstrapMessage['port'].onmessage = (msg) => {
+                  audioWorklet['port'].onmessage(msg);
+                }
+              } else {
+                audioWorklet.bootstrapMessage['port'].postMessage(msg);
+              }
+            }
+          }
+        }
+  
+        audioWorklet['port'].postMessage({
+          // This is the bootstrap message to the Audio Worklet.
+          '_boot': 1,
+          // Assign the loaded AudioWorkletGlobalScope a Wasm Worker ID so that
+          // it can utilized its own TLS slots, and it is recognized to not be
+          // the main browser thread.
+          wwID: _wasmWorkersID++,
+          wasm: wasmModule,
+          wasmMemory,
+          stackLowestAddress, // sb = stack base
+          stackSize,          // sz = stack size
+        });
+        audioWorklet['port'].onmessage = _EmAudioDispatchProcessorCallback;
+        getWasmTableEntry(callback)(contextHandle, 1/*EM_TRUE*/, userData);
+      }).catch(audioWorkletCreationFailed);
     };
 
 
@@ -3568,7 +3438,7 @@ if (Module['wasmBinary']) wasmBinary = Module['wasmBinary'];
 // end include: postlibrary.js
 
 var ASM_CONSTS = {
-  21276: ($0, $1) => { var ready = (typeof Module !== "undefined" && Module.onAudioReady) ? Module.onAudioReady : setupWebAudioAndUI; ready(emscriptenGetAudioObject($0), emscriptenGetAudioObject($1)); }
+  21528: ($0, $1) => { var ready = (typeof Module !== "undefined" && Module.onAudioReady) ? Module.onAudioReady : setupWebAudioAndUI; ready(emscriptenGetAudioObject($0), emscriptenGetAudioObject($1)); }
 };
 
 // Imports from the Wasm binary.
@@ -3599,36 +3469,11 @@ var ___getTypeName,
   _osc_rand,
   _osc_white,
   __Z12osc_api_initv,
-  ___set_thread_state,
   _free,
   __emscripten_stack_restore,
   __emscripten_stack_alloc,
   _emscripten_stack_get_current,
   __emscripten_wasm_worker_initialize,
-  _unit_header,
-  __indirect_function_table,
-  _bitres_lut_f,
-  _log_lut_f,
-  _midi_to_hz_lut_f,
-  _pow2_lut_f,
-  _cubicsat_lut_f,
-  _schetzen_lut_f,
-  _sqrtm2log_lut_f,
-  _tanh_lut_f,
-  _tanpi_lut_f,
-  _wavesA,
-  _wavesB,
-  _wavesC,
-  _wavesD,
-  _wavesE,
-  _wavesF,
-  _wt_sine_lut_f,
-  _wt_saw_notes,
-  _wt_saw_lut_f,
-  _wt_sqr_notes,
-  _wt_sqr_lut_f,
-  _wt_par_notes,
-  _wt_par_lut_f,
   wasmTable;
 
 
@@ -3660,37 +3505,37 @@ function assignWasmExports(wasmExports) {
   _osc_rand = Module['_osc_rand'] = wasmExports['osc_rand'];
   _osc_white = Module['_osc_white'] = wasmExports['osc_white'];
   __Z12osc_api_initv = Module['__Z12osc_api_initv'] = wasmExports['_Z12osc_api_initv'];
-  ___set_thread_state = wasmExports['__set_thread_state'];
   _free = wasmExports['free'];
   __emscripten_stack_restore = wasmExports['_emscripten_stack_restore'];
   __emscripten_stack_alloc = wasmExports['_emscripten_stack_alloc'];
   _emscripten_stack_get_current = wasmExports['emscripten_stack_get_current'];
   __emscripten_wasm_worker_initialize = wasmExports['_emscripten_wasm_worker_initialize'];
-  _unit_header = Module['_unit_header'] = wasmExports['unit_header'].value;
-  __indirect_function_table = wasmTable = wasmExports['__indirect_function_table'];
-  _bitres_lut_f = Module['_bitres_lut_f'] = wasmExports['bitres_lut_f'].value;
-  _log_lut_f = Module['_log_lut_f'] = wasmExports['log_lut_f'].value;
-  _midi_to_hz_lut_f = Module['_midi_to_hz_lut_f'] = wasmExports['midi_to_hz_lut_f'].value;
-  _pow2_lut_f = Module['_pow2_lut_f'] = wasmExports['pow2_lut_f'].value;
-  _cubicsat_lut_f = Module['_cubicsat_lut_f'] = wasmExports['cubicsat_lut_f'].value;
-  _schetzen_lut_f = Module['_schetzen_lut_f'] = wasmExports['schetzen_lut_f'].value;
-  _sqrtm2log_lut_f = Module['_sqrtm2log_lut_f'] = wasmExports['sqrtm2log_lut_f'].value;
-  _tanh_lut_f = Module['_tanh_lut_f'] = wasmExports['tanh_lut_f'].value;
-  _tanpi_lut_f = Module['_tanpi_lut_f'] = wasmExports['tanpi_lut_f'].value;
-  _wavesA = Module['_wavesA'] = wasmExports['wavesA'].value;
-  _wavesB = Module['_wavesB'] = wasmExports['wavesB'].value;
-  _wavesC = Module['_wavesC'] = wasmExports['wavesC'].value;
-  _wavesD = Module['_wavesD'] = wasmExports['wavesD'].value;
-  _wavesE = Module['_wavesE'] = wasmExports['wavesE'].value;
-  _wavesF = Module['_wavesF'] = wasmExports['wavesF'].value;
-  _wt_sine_lut_f = Module['_wt_sine_lut_f'] = wasmExports['wt_sine_lut_f'].value;
-  _wt_saw_notes = Module['_wt_saw_notes'] = wasmExports['wt_saw_notes'].value;
-  _wt_saw_lut_f = Module['_wt_saw_lut_f'] = wasmExports['wt_saw_lut_f'].value;
-  _wt_sqr_notes = Module['_wt_sqr_notes'] = wasmExports['wt_sqr_notes'].value;
-  _wt_sqr_lut_f = Module['_wt_sqr_lut_f'] = wasmExports['wt_sqr_lut_f'].value;
-  _wt_par_notes = Module['_wt_par_notes'] = wasmExports['wt_par_notes'].value;
-  _wt_par_lut_f = Module['_wt_par_lut_f'] = wasmExports['wt_par_lut_f'].value;
+  wasmTable = wasmExports['__indirect_function_table'];
 }
+
+var _unit_header = Module['_unit_header'] = 21710;
+var _bitres_lut_f = Module['_bitres_lut_f'] = 22088;
+var _log_lut_f = Module['_log_lut_f'] = 22604;
+var _midi_to_hz_lut_f = Module['_midi_to_hz_lut_f'] = 6804;
+var _pow2_lut_f = Module['_pow2_lut_f'] = 23632;
+var _cubicsat_lut_f = Module['_cubicsat_lut_f'] = 24660;
+var _schetzen_lut_f = Module['_schetzen_lut_f'] = 25176;
+var _sqrtm2log_lut_f = Module['_sqrtm2log_lut_f'] = 25692;
+var _tanh_lut_f = Module['_tanh_lut_f'] = 7412;
+var _tanpi_lut_f = Module['_tanpi_lut_f'] = 11512;
+var _wavesA = Module['_wavesA'] = 35492;
+var _wavesB = Module['_wavesB'] = 43812;
+var _wavesC = Module['_wavesC'] = 51100;
+var _wavesD = Module['_wavesD'] = 57864;
+var _wavesE = Module['_wavesE'] = 65656;
+var _wavesF = Module['_wavesF'] = 73972;
+var _wt_sine_lut_f = Module['_wt_sine_lut_f'] = 74036;
+var _wt_saw_notes = Module['_wt_saw_notes'] = 74552;
+var _wt_saw_lut_f = Module['_wt_saw_lut_f'] = 74560;
+var _wt_sqr_notes = Module['_wt_sqr_notes'] = 78172;
+var _wt_sqr_lut_f = Module['_wt_sqr_lut_f'] = 78180;
+var _wt_par_notes = Module['_wt_par_notes'] = 81792;
+var _wt_par_lut_f = Module['_wt_par_lut_f'] = 81800;
 
   var wasmImports;
   function assignWasmImports() {
@@ -3699,8 +3544,6 @@ function assignWasmExports(wasmExports) {
     __assert_fail: ___assert_fail,
     /** @export */
     __cxa_throw: ___cxa_throw,
-    /** @export */
-    __do_set_thread_state: ___do_set_thread_state,
     /** @export */
     _abort_js: __abort_js,
     /** @export */
@@ -3728,8 +3571,6 @@ function assignWasmExports(wasmExports) {
     /** @export */
     _embind_register_integer: __embind_register_integer,
     /** @export */
-    _embind_register_iterable: __embind_register_iterable,
-    /** @export */
     _embind_register_memory_view: __embind_register_memory_view,
     /** @export */
     _embind_register_optional: __embind_register_optional,
@@ -3743,8 +3584,6 @@ function assignWasmExports(wasmExports) {
     _embind_register_value_object_field: __embind_register_value_object_field,
     /** @export */
     _embind_register_void: __embind_register_void,
-    /** @export */
-    _emscripten_create_audio_worklet: __emscripten_create_audio_worklet,
     /** @export */
     _emval_create_invoker: __emval_create_invoker,
     /** @export */
@@ -3765,6 +3604,8 @@ function assignWasmExports(wasmExports) {
     emscripten_get_now: _emscripten_get_now,
     /** @export */
     emscripten_resize_heap: _emscripten_resize_heap,
+    /** @export */
+    emscripten_start_wasm_audio_worklet_thread_async: _emscripten_start_wasm_audio_worklet_thread_async,
     /** @export */
     memory: wasmMemory
   };

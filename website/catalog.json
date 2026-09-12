@@ -54,7 +54,7 @@
       "targets": [
         "nts-3_kaoss"
       ],
-      "description": "Tempo-synced multi-genre drum kit. Hold to gate \u2014 hits lock to the host beat. GENRE selects Trance / DnB / Breakbeat / UK Garage / Boom-bap / Dembow / Footwork patterns. X densifies ghosts/hats/stutters; Y pushes fill energy. Flick top-right for a one-bar Fill. Trap808 stays a separate specialised unit.",
+      "description": "Tempo-synced multi-genre drum kit. Hold to gate \u2014 hits lock to the host beat. GENRE selects the pattern; KIT picks the synthetic voice feel (AUTO follows GENRE). X densifies ghosts/hats/stutters; Y pushes fill energy. Flick or slide into top-right for a clear one-bar snare-roll Fill. Kits stay code tables (no sample banks). Trap808 stays a separate specialised unit.",
       "params": [
         {
           "name": "DENS",
@@ -64,7 +64,7 @@
         {
           "name": "FILL",
           "role": "Y",
-          "detail": "Fill / break / build energy toward a one-bar Fill"
+          "detail": "Fill / break / build energy (top-right = one-bar snare roll)"
         },
         {
           "name": "MIX",
@@ -74,7 +74,12 @@
         {
           "name": "GENRE",
           "role": "Edit",
-          "detail": "TRNC / DNB / BRK / UKG / BOOM / DEM / FOOT"
+          "detail": "Pattern: TRNC / DNB / BRK / UKG / BOOM / DEM / FOOT"
+        },
+        {
+          "name": "KIT",
+          "role": "Edit",
+          "detail": "Voice feel: AUTO (follow GENRE) or TRNC / DNB / BRK / UKG / BOOM / DEM / FOOT"
         },
         {
           "name": "SWING",
@@ -97,7 +102,7 @@
           "target": "nts-3_kaoss",
           "module": "genericfx",
           "file": "./units/drums-nts-3_kaoss.nts3unit",
-          "size": 15840,
+          "size": 17132,
           "wasm": "./sim/drums/nts-3_kaoss/drums.html"
         }
       ]

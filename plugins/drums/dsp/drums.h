@@ -4,9 +4,11 @@
  * File: drums.h
  *
  * Tempo-synced multi-genre drum kit for NTS-3.
- * Hold to run. GENRE selects pattern/voice feel.
- * X = density, Y = fill energy. Top-right flick = one-bar Fill.
+ * Hold to run. GENRE selects the pattern; KIT selects the voice feel
+ * (AUTO follows GENRE). X = density, Y = fill energy.
+ * Top-right flick = one-bar snare-roll Fill.
  * Hits lock to host 4ppqn. Trap808 stays a separate specialised unit.
+ * Kits stay synthetic VoiceFeel tables — no sample banks (capacity).
  */
 
 #include "fx_dsp.h"
@@ -30,6 +32,7 @@ public:
     FILL,
     MIX,
     GENRE,
+    KIT,
     SWING,
     TONE,
     DEC,
@@ -46,6 +49,20 @@ public:
     GENRE_DEMBOW,
     GENRE_FOOT,
     NUM_GENRES
+  };
+
+  // AUTO follows GENRE; other values pick a VoiceFeel independently.
+  enum Kit : int32_t
+  {
+    KIT_AUTO = 0,
+    KIT_TRANCE,
+    KIT_DNB,
+    KIT_BREAK,
+    KIT_UKG,
+    KIT_BOOM,
+    KIT_DEMBOW,
+    KIT_FOOT,
+    NUM_KITS
   };
 
   void setParameter(uint8_t index, int32_t value) override final
@@ -71,6 +88,9 @@ public:
       }
       break;
     }
+    case KIT:
+      kit_ = (value < 0) ? 0 : ((value >= NUM_KITS) ? (NUM_KITS - 1) : value);
+      break;
     case SWING:
       swing_norm_ = param_10bit_to_f32(value);
       break;
@@ -88,14 +108,18 @@ public:
   const char *getParameterStrValue(uint8_t index, int32_t value) const override final
   {
     static const char *genre_names[NUM_GENRES] = {"TRNC", "DNB", "BRK", "UKG", "BOOM", "DEM", "FOOT"};
+    static const char *kit_names[NUM_KITS] = {"AUTO", "TRNC", "DNB", "BRK", "UKG", "BOOM", "DEM", "FOOT"};
     if (index == GENRE && value >= 0 && value < NUM_GENRES)
       return genre_names[value];
+    if (index == KIT && value >= 0 && value < NUM_KITS)
+      return kit_names[value];
     return nullptr;
   }
 
   void init(float *) override final
   {
     genre_ = GENRE_TRANCE;
+    kit_ = KIT_AUTO;
     applyGenreDefaults();
     dens_norm_ = 0.44f;
     fill_norm_ = 0.27f;
@@ -105,6 +129,7 @@ public:
     mix_ = 1.f;
     running_ = false;
     use_host_clock_ = false;
+    fill_corner_latched_ = false;
     fill_timer_ = 0U;
     tick_counter_ = 0U;
     internal_tick_phase_ = 0.f;
@@ -118,6 +143,7 @@ public:
   {
     running_ = false;
     fill_timer_ = 0U;
+    fill_corner_latched_ = false;
     swing_samples_left_ = 0;
     resetVoices();
   }
@@ -139,6 +165,7 @@ public:
     if (phase == k_unit_touch_phase_ended || phase == k_unit_touch_phase_cancelled)
     {
       running_ = false;
+      fill_corner_latched_ = false;
       swing_samples_left_ = 0;
       return;
     }
@@ -147,8 +174,11 @@ public:
         phase == k_unit_touch_phase_stationary)
     {
       running_ = true;
-      if (phase == k_unit_touch_phase_began && x > 760U && y > 760U)
+      const bool in_fill_corner = (x > 760U && y > 760U);
+      // Began in corner, or slide into corner while held → one-bar snare Fill.
+      if (in_fill_corner && (phase == k_unit_touch_phase_began || !fill_corner_latched_))
         fill_timer_ = kSteps;
+      fill_corner_latched_ = in_fill_corner;
     }
   }
 
@@ -185,6 +215,9 @@ public:
   uint32_t debugMainTriggers() const { return main_triggers_; }
   uint32_t debugTickCounter() const { return tick_counter_; }
   int32_t debugGenre() const { return genre_; }
+  int32_t debugKit() const { return kit_; }
+  int32_t debugActiveKit() const { return activeKitIndex(); }
+  uint32_t debugFillTimer() const { return fill_timer_; }
   void debugResetCounters()
   {
     ghost_triggers_ = 0U;
@@ -192,6 +225,7 @@ public:
   }
   void debugForceRun() { running_ = true; }
   void debugTriggerStep(uint32_t step) { triggerStep(step); }
+  void debugEmitStep(uint32_t step) { emitStep(step); }
 
 private:
   enum HitKind : uint8_t
@@ -316,9 +350,14 @@ private:
 
   void emitStep(uint32_t step)
   {
-    triggerStep(step);
+    // Corner Fill is a dedicated one-bar snare roll (not just Y energy).
     if (fill_timer_ > 0U)
+    {
+      triggerCornerFill(step);
       --fill_timer_;
+      return;
+    }
+    triggerStep(step);
   }
 
   void handleTick(uint32_t counter)
@@ -408,7 +447,92 @@ private:
     }
   }
 
-  bool fillActive() const { return fill_timer_ > 0U || fill_norm_ > 0.9f; }
+  bool fillActive() const { return fill_norm_ > 0.9f; }
+
+  // Top-right one-bar Fill: clear accelerating snare roll with kick anchors.
+  void triggerCornerFill(uint32_t step)
+  {
+    float kick_hz0 = 50.f;
+    float kick_hz1 = 30.f;
+    float snare_hz0 = 180.f;
+    float snare_hz1 = 80.f;
+    float jitter = 0.16f;
+    switch (activeKitIndex())
+    {
+    case GENRE_DNB:
+      kick_hz0 = 48.f;
+      kick_hz1 = 32.f;
+      snare_hz0 = 170.f;
+      snare_hz1 = 90.f;
+      jitter = 0.17f;
+      break;
+    case GENRE_BREAK:
+      kick_hz0 = 50.f;
+      kick_hz1 = 35.f;
+      snare_hz0 = 175.f;
+      snare_hz1 = 95.f;
+      jitter = 0.19f;
+      break;
+    case GENRE_UKG:
+      kick_hz0 = 48.f;
+      kick_hz1 = 36.f;
+      snare_hz0 = 165.f;
+      snare_hz1 = 90.f;
+      jitter = 0.18f;
+      break;
+    case GENRE_BOOM:
+      kick_hz0 = 42.f;
+      kick_hz1 = 28.f;
+      snare_hz0 = 155.f;
+      snare_hz1 = 80.f;
+      jitter = 0.2f;
+      break;
+    case GENRE_DEMBOW:
+      kick_hz0 = 46.f;
+      kick_hz1 = 30.f;
+      snare_hz0 = 190.f;
+      snare_hz1 = 70.f;
+      jitter = 0.15f;
+      break;
+    case GENRE_FOOT:
+      kick_hz0 = 55.f;
+      kick_hz1 = 40.f;
+      snare_hz0 = 200.f;
+      snare_hz1 = 100.f;
+      jitter = 0.19f;
+      break;
+    case GENRE_TRANCE:
+    default:
+      break;
+    }
+
+    const auto kick = [&](float velocity) {
+      fire(kKick, velocity, kick_hz0, kick_hz1, snare_hz0, snare_hz1, jitter);
+    };
+    const auto snare = [&](float velocity) {
+      fire(kSnare, velocity, kick_hz0, kick_hz1, snare_hz0, snare_hz1, jitter);
+    };
+    const auto hatC = [&](float velocity) {
+      fire(kHatClosed, velocity, kick_hz0, kick_hz1, snare_hz0, snare_hz1, jitter);
+    };
+    const auto hatO = [&](float velocity) {
+      fire(kHatOpen, velocity, kick_hz0, kick_hz1, snare_hz0, snare_hz1, jitter);
+    };
+
+    // Keep downbeat kicks so the bar still feels anchored.
+    if ((step % 4U) == 0U)
+      kick(1.f);
+    else if ((step % 2U) == 0U && fx::randomFloat(rng_) < 0.3f)
+      kick(0.45f);
+
+    // Snare on every 16th — rising velocity through the bar (= audible roll).
+    const float roll = static_cast<float>(step) / static_cast<float>(kSteps - 1U);
+    snare(fx::clip01(0.42f + roll * 0.5f + fx::randomFloat(rng_) * 0.12f));
+
+    hatC(((step % 2U) == 0U) ? 0.55f : 0.32f);
+    if ((step % 4U) == 2U)
+      hatO(0.4f + roll * 0.25f);
+  }
 
   void triggerTrance(uint32_t step)
   {
@@ -596,7 +720,7 @@ private:
 
   void triggerUkg(uint32_t step)
   {
-    const bool fill_active = fill_timer_ > 0U || fill_norm_ > 0.88f;
+    const bool fill_active = fill_norm_ > 0.88f;
     const float dens = dens_norm_;
     const float fill = fill_norm_;
     const auto kick = [&](float v) { fire(kKick, v, 48.f, 36.f, 165.f, 90.f, 0.18f); };
@@ -858,9 +982,16 @@ private:
     }
   }
 
+  int32_t activeKitIndex() const
+  {
+    if (kit_ <= KIT_AUTO || kit_ >= NUM_KITS)
+      return genre_;
+    return kit_ - 1; // KIT_TRANCE..KIT_FOOT → GENRE_TRANCE..GENRE_FOOT
+  }
+
   VoiceFeel voiceFeel() const
   {
-    // Tuned from each genre kit's renderVoices.
+    // Compact synthetic kits (no PCM) — pick via KIT, not locked to GENRE.
     static const VoiceFeel kFeels[NUM_GENRES] = {
         // TRANCE — clappy snare, long open hats
         {0.05f, 0.09f, 0.04f, 0.07f, 0.018f, 0.025f, 0.012f, 0.02f, 0.09f, 0.14f, 36.f, 0.0028f, 1.4f,
@@ -884,7 +1015,10 @@ private:
         {0.028f, 0.05f, 0.022f, 0.04f, 0.014f, 0.02f, 0.01f, 0.015f, 0.045f, 0.07f, 42.f, 0.0035f, 1.25f,
          0.2f, 0.8f, 1.05f, 0.35f, 0.f, 1.7f, 0.45f, 0.34f, 0.5f},
     };
-    return kFeels[genre_];
+    const int32_t kit_index = activeKitIndex();
+    const int32_t safe_index =
+        (kit_index < 0) ? 0 : ((kit_index >= NUM_GENRES) ? (NUM_GENRES - 1) : kit_index);
+    return kFeels[safe_index];
   }
 
   float renderVoices()
@@ -936,6 +1070,7 @@ private:
   }
 
   int32_t genre_ = GENRE_TRANCE;
+  int32_t kit_ = KIT_AUTO;
   float bpm_ = 138.f;
   float dens_norm_ = 0.44f;
   float fill_norm_ = 0.27f;
@@ -970,4 +1105,5 @@ private:
   int32_t swing_samples_left_ = 0;
   bool running_ = false;
   bool use_host_clock_ = false;
+  bool fill_corner_latched_ = false;
 };
