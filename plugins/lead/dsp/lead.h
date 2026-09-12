@@ -4,7 +4,8 @@
  * File: lead.h
  *
  * SuperSaw lead for NTS-3. X selects a scale degree across ~5 octaves with
- * portamento; Y sets vibrato depth. Unison / Detune / Spread are edit knobs.
+ * portamento; Y sets vibrato depth. Depth sets glide time. Unison / Detune /
+ * Spread / Scale / Key are edit knobs.
  */
 
 #include "fx_dsp.h"
@@ -18,7 +19,8 @@ class Lead : public Processor
 public:
   static constexpr uint32_t kMaxVoices = 9U;
   static constexpr float kPitchSpanOctaves = 5.f;
-  static constexpr float kPortaSeconds = 0.15f;
+  static constexpr float kPortaMinSeconds = 0.002f;
+  static constexpr float kPortaMaxSeconds = 1.6f;
   static constexpr float kVibratoHz = 5.6f;
   static constexpr float kVibratoMaxSemis = 0.95f;
   static constexpr float kDetuneMaxCents = 42.f;
@@ -29,7 +31,7 @@ public:
   {
     PITCH = 0U,
     VIBR,
-    MIX,
+    PORTA,
     SCALE,
     KEY,
     UNI,
@@ -63,9 +65,13 @@ public:
     case VIBR:
       vibr_norm_ = param_10bit_to_f32(value);
       break;
-    case MIX:
-      mix_ = fx::clip01(value / 1000.f);
+    case PORTA:
+    {
+      const float norm = param_10bit_to_f32(value);
+      // Squared map keeps short glides editable, long glides available at the top.
+      porta_seconds_ = kPortaMinSeconds + norm * norm * (kPortaMaxSeconds - kPortaMinSeconds);
       break;
+    }
     case SCALE:
       scale_id_ = static_cast<uint8_t>(fx::clip(static_cast<float>(value), 0.f, static_cast<float>(SCALE_COUNT - 1)));
       break;
@@ -160,7 +166,7 @@ public:
   {
     (void)raw;
     const float sample_rate = getSampleRate();
-    const float porta_coeff = portaCoeff(sample_rate);
+    const float porta_coeff = portaCoeff(porta_seconds_, sample_rate);
     const float amp_atk = ampCoeff(0.012f, sample_rate);
     const float amp_rel = ampCoeff(0.09f, sample_rate);
     const float vib_inc = kVibratoHz / sample_rate;
@@ -198,10 +204,11 @@ public:
       const float amp_coeff = pad_held_ ? amp_atk : amp_rel;
       amp_ += ((pad_held_ ? 1.f : 0.f) - amp_) * amp_coeff;
 
+      // Self-contained synth: always fully wet (Depth is portamento time).
       const float wet_left = fx::softclip(left * voice_gain * amp_ * 1.05f);
       const float wet_right = fx::softclip(right * voice_gain * amp_ * 1.05f);
-      out[0] = fx::mix(in[0], wet_left, mix_);
-      out[1] = fx::mix(in[1], wet_right, mix_);
+      out[0] = wet_left;
+      out[1] = wet_right;
       in += 2;
       out += 2;
     }
@@ -212,13 +219,15 @@ private:
   {
     const float clamped = fx::clip(seconds, 0.004f, 0.5f);
     const float x = -1.f / (clamped * sample_rate);
-    return fx::clip(1.f + x, 0.f, 1.f);
+    // One-pole lerp alpha ≈ 1 - e^x ≈ -x for small |x|.
+    return fx::clip(-x, 0.f, 1.f);
   }
 
-  static float portaCoeff(float sample_rate)
+  static float portaCoeff(float seconds, float sample_rate)
   {
-    const float x = -1.f / (kPortaSeconds * sample_rate);
-    return fx::clip(1.f + x, 0.f, 1.f);
+    const float clamped = fx::clip(seconds, kPortaMinSeconds, kPortaMaxSeconds);
+    const float x = -1.f / (clamped * sample_rate);
+    return fx::clip(-x, 0.f, 1.f);
   }
 
   static uint32_t scaleLength(uint8_t scale_id)
@@ -321,7 +330,7 @@ private:
   float vibr_norm_ = 0.35f;
   float detune_norm_ = 0.55f;
   float spread_norm_ = 0.7f;
-  float mix_ = 1.f;
+  float porta_seconds_ = 0.15f;
   uint32_t rng_ = 1U;
   int8_t key_note_ = 36;
   uint8_t scale_id_ = SCALE_IONIAN;
