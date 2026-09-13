@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
 """Extract a seamless 16-bit DJ horn loop plus pitch-envelope metadata.
 
-The sustained horn tone drifts slowly in pitch and brightness, so a loop cut
-straight out of the recording restarts on material that no longer matches what
-preceded it and that step is heard as a click once per loop. Two things keep the
-wrap inaudible here:
+The sustained horn tone drifts slowly in pitch, loudness, and brightness, so a
+loop cut straight out of the recording restarts on material that no longer
+matches what preceded it. That step is heard as a click or a volume jump once
+per loop. The extractor keeps the wrap inaudible by:
 
-* the loop length is picked so the material one loop later still lines up with
+* cutting a short slice of early sustain (long enough to keep the tone, short
+  enough that pitch/timbre have not drifted far);
+* picking the loop length so the material one loop later still lines up with
   the loop start, both in phase and in level;
-* the last stretch of the loop is folded back into its head as a crossfade, so
-  the wrap lands in the middle of a gradual blend instead of on a hard edge.
+* ramping gain across the cut so the tail matches the head before the seam is
+  baked;
+* folding the last stretch of the loop back into its head as a crossfade;
+* dividing out any remaining slow loudness contour so the baked loop does not
+  pump at the loop rate.
 
 Because the crossfade is baked into the PCM, playback stays a plain wrapping
 read - no per-sample crossfade work on the MCU.
@@ -219,6 +224,41 @@ def match_score(samples: list[float], start: int, length: int, window: int, stri
     return correlation * level_match
 
 
+def brightness_ratio(samples: list[float]) -> float:
+    """Highpass energy over broadband energy; used to reject timbre steps at the wrap."""
+    if len(samples) < 4:
+        return 0.0
+    highpass = [samples[index] - samples[index - 1] for index in range(1, len(samples))]
+    base = rms(samples)
+    return rms(highpass) / base if base > 1e-9 else 0.0
+
+
+def loop_candidate_score(samples: list[float], start: int, length: int, crossfade: int) -> float:
+    """Rank a loop cut: phase/level match first, then reject loudness and brightness steps."""
+    match = match_score(samples, start, length, crossfade)
+    if match < 0.0:
+        return match
+
+    window = max(8, crossfade // 2)
+    head = samples[start : start + window]
+    tail = samples[start + length - window : start + length]
+    head_rms = rms(head)
+    tail_rms = rms(tail)
+    level_penalty = 0.0
+    if head_rms > 1e-9 and tail_rms > 1e-9:
+        level_penalty = abs(20.0 * math.log10(tail_rms / head_rms))
+
+    head_bright = brightness_ratio(head)
+    tail_bright = brightness_ratio(tail)
+    bright_penalty = 0.0
+    if head_bright > 1e-9 and tail_bright > 1e-9:
+        bright_penalty = abs(20.0 * math.log10(tail_bright / head_bright))
+
+    # Prefer the shortest cut among near-equal matches so timbre has less room to drift.
+    duration_penalty = length / 48000.0
+    return match - 0.08 * level_penalty - 0.05 * bright_penalty - 0.15 * duration_penalty
+
+
 def find_loop(
     samples: list[float],
     region: tuple[int, int],
@@ -230,7 +270,7 @@ def find_loop(
     """Pick the loop start and length whose head and tail match best."""
     region_start, region_end = region
     period_samples = max(8, int(round(period)))
-    start_step = period_samples * 4
+    start_step = period_samples * 2
     last_start = region_end - int(min_cycles * period) - crossfade
     starts = list(range(region_start, max(region_start + 1, last_start), start_step))
 
@@ -242,6 +282,8 @@ def find_loop(
             for length in range(center - period_samples, center + period_samples + 1):
                 if start + length + crossfade > len(samples):
                     continue
+                if start + length > region_end:
+                    continue
                 score = match_score(samples, start, length, coarse_window, stride=2)
                 candidates.append((score, start, length))
 
@@ -250,9 +292,52 @@ def find_loop(
 
     candidates.sort(reverse=True)
     best = max(
-        ((match_score(samples, start, length, crossfade), start, length) for _, start, length in candidates[:64]),
+        (
+            (loop_candidate_score(samples, start, length, crossfade), start, length)
+            for _, start, length in candidates[:96]
+        ),
     )
-    return best[1], best[2], best[0]
+    return best[1], best[2], match_score(samples, best[1], best[2], crossfade)
+
+
+def compensate_level_trend(
+    samples: list[float],
+    start: int,
+    length: int,
+    crossfade: int,
+    period: float,
+) -> tuple[list[float], float]:
+    """Copy the cut and apply a smooth gain ramp so the tail matches the head.
+
+    The source horn's sustain is not level-flat. Left alone, that decay (or swell)
+    becomes a once-per-loop volume jump at the wrap. A smoothstep gain from 1 at
+    the head to head_rms/tail_rms at the end removes the slow trend before the
+    crossfade is baked; the same end gain is applied to the post-loop material
+    that will be folded into the head.
+    """
+    window = max(8, int(round(period * 4.0)))
+    window = min(window, length // 3, crossfade)
+    if window < 8:
+        return list(samples), 0.0
+
+    head_rms = rms(samples[start : start + window])
+    tail_rms = rms(samples[start + length - window : start + length])
+    if head_rms < 1e-9 or tail_rms < 1e-9:
+        return list(samples), 0.0
+
+    gain_end = head_rms / tail_rms
+    buffered = list(samples)
+    last_index = length - 1
+    for sample_index in range(length):
+        phase = sample_index / float(last_index) if last_index > 0 else 0.0
+        weight = phase * phase * (3.0 - 2.0 * phase)
+        gain = 1.0 + (gain_end - 1.0) * weight
+        buffered[start + sample_index] *= gain
+    for fade_index in range(crossfade):
+        if start + length + fade_index >= len(buffered):
+            break
+        buffered[start + length + fade_index] *= gain_end
+    return buffered, 20.0 * math.log10(gain_end)
 
 
 def bake_crossfade(samples: list[float], start: int, length: int, crossfade: int) -> list[float]:
@@ -405,35 +490,60 @@ def extract_dj_loop(
     tau: float,
     crossfade_cycles: float,
     min_seconds: float,
+    max_seconds: float,
+    loop_start: int | None = None,
+    loop_length: int | None = None,
 ) -> dict:
     samples = load_mono_wav(path, sample_rate)
     track = pitch_track(samples, sample_rate)
     region_start, region_end, settled_hz = stable_region(track, len(samples))
+    # Prefer early sustain: later material has drifted in level and brightness, so a
+    # wrap back to the head reads as a volume/timbre jump even after crossfading.
+    early_limit = region_start + int(0.55 * sample_rate)
+    search_end = min(region_end, early_limit)
     print(
-        f"  region {region_start}:{region_end} ({(region_end - region_start) / sample_rate * 1000:.0f} ms) "
-        f"settled={settled_hz:.1f} Hz"
+        f"  region {region_start}:{search_end} ({(search_end - region_start) / sample_rate * 1000:.0f} ms) "
+        f"(stable to {region_end}, settled={settled_hz:.1f} Hz)"
     )
 
     # The tone drifts a little across the sustain, so take the median of several probes.
     probes = sorted(
-        refine_period(samples, region_start + (region_end - region_start) * step // 8, sample_rate)
+        refine_period(samples, region_start + (search_end - region_start) * step // 8, sample_rate)
         for step in range(1, 7)
     )
     period = probes[len(probes) // 2]
     crossfade = int(round(crossfade_cycles * period))
     print(f"  period={period:.3f} samples ({sample_rate / period:.2f} Hz) crossfade={crossfade} samples")
 
-    min_cycles = max(8, int(math.ceil(min_seconds * sample_rate / period)))
-    max_cycles = max(min_cycles, int(math.floor((max_samples - crossfade) / period)))
-    loop_start, loop_length, match = find_loop(
-        samples, (region_start, region_end), period, crossfade, min_cycles, max_cycles
-    )
-    print(
-        f"  loop start={loop_start} ({loop_start / sample_rate * 1000:.0f} ms) "
-        f"length={loop_length} cycles={loop_length / period:.2f} match={match:.3f}"
-    )
+    if loop_start is not None and loop_length is not None:
+        if loop_start < 0 or loop_start + loop_length + crossfade > len(samples):
+            raise SystemExit(
+                f"pinned loop {loop_start}+{loop_length} does not fit the source "
+                f"({len(samples)} samples, crossfade={crossfade})"
+            )
+        match = match_score(samples, loop_start, loop_length, crossfade)
+        print(
+            f"  loop start={loop_start} ({loop_start / sample_rate * 1000:.0f} ms) "
+            f"length={loop_length} cycles={loop_length / period:.2f} match={match:.3f} (pinned)"
+        )
+    else:
+        min_cycles = max(8, int(math.ceil(min_seconds * sample_rate / period)))
+        max_by_bytes = max(min_cycles, int(math.floor((max_samples - crossfade) / period)))
+        max_by_time = max(min_cycles, int(math.floor(max_seconds * sample_rate / period)))
+        max_cycles = min(max_by_bytes, max_by_time)
+        loop_start, loop_length, match = find_loop(
+            samples, (region_start, search_end), period, crossfade, min_cycles, max_cycles
+        )
+        print(
+            f"  loop start={loop_start} ({loop_start / sample_rate * 1000:.0f} ms) "
+            f"length={loop_length} cycles={loop_length / period:.2f} match={match:.3f}"
+        )
 
-    loop = bake_crossfade(samples, loop_start, loop_length, crossfade)
+    leveled, trend_db = compensate_level_trend(
+        samples, loop_start, loop_length, crossfade, period
+    )
+    print(f"  level trend compensate: {trend_db:+.2f} dB (tail -> head)")
+    loop = bake_crossfade(leveled, loop_start, loop_length, crossfade)
     window = max(8, int(round(period * 2.0)))
     radius = max(2, int(round(period * 4.0)))
     level_before = level_excursion_db(circular_smooth(circular_rms(loop, window), radius))
@@ -445,6 +555,7 @@ def extract_dj_loop(
     )
     report = seam_report(loop, period)
     report["level_swell_db"] = level_after
+    report["trend_compensate_db"] = trend_db
     pcm = to_pcm16(loop)
 
     attack_hz = track[0][1] if track else settled_hz
@@ -532,14 +643,39 @@ def main() -> int:
         default=12.0,
         help="loop crossfade length in fundamental periods",
     )
-    parser.add_argument("--min-seconds", type=float, default=0.40, help="shortest acceptable loop")
+    parser.add_argument(
+        "--min-seconds",
+        type=float,
+        default=0.12,
+        help="shortest acceptable loop (keep short so timbre does not drift)",
+    )
+    parser.add_argument(
+        "--max-seconds",
+        type=float,
+        default=0.14,
+        help="longest acceptable loop inside the early-sustain search window",
+    )
     parser.add_argument("--start-ratio", type=float, default=1.448008, help="0 = derive from the attack")
     parser.add_argument("--pitch-tau", type=float, default=0.12, help="pitch envelope time constant")
+    parser.add_argument(
+        "--loop-start",
+        type=int,
+        default=18568,
+        help="pinned loop start in samples at --rate (shipping cut: aligned late sustain)",
+    )
+    parser.add_argument(
+        "--loop-length",
+        type=int,
+        default=3020,
+        help="pinned loop length in samples at --rate (0 = auto-search)",
+    )
     parser.add_argument("--out", type=pathlib.Path, required=True)
     parser.add_argument("wav", type=pathlib.Path)
     args = parser.parse_args()
 
     max_samples = max(64, args.max_bytes // 2)
+    pinned_start = args.loop_start if args.loop_length > 0 else None
+    pinned_length = args.loop_length if args.loop_length > 0 else None
     horn = extract_dj_loop(
         args.wav,
         args.rate,
@@ -548,6 +684,9 @@ def main() -> int:
         tau=args.pitch_tau,
         crossfade_cycles=args.crossfade_cycles,
         min_seconds=args.min_seconds,
+        max_seconds=args.max_seconds,
+        loop_start=pinned_start,
+        loop_length=pinned_length,
     )
     duration_ms = 1000.0 * horn["length"] / args.rate
     report = horn["report"]
@@ -559,7 +698,8 @@ def main() -> int:
     print(
         f"  seam: sample jump={report['sample_jump']:.5f} "
         f"excess over loop interior={report['seam_excess_db']:+.2f} dB "
-        f"level swell={report['level_swell_db']:.2f} dB"
+        f"level swell={report['level_swell_db']:.2f} dB "
+        f"trend={report.get('trend_compensate_db', 0.0):+.2f} dB"
     )
     write_header(args.out, [horn], args.rate)
     print(f"Wrote {args.out} ({horn['length'] * 2} bytes PCM16)")

@@ -1,7 +1,7 @@
 # Sample sources
 
 Embedded data is a single 16-bit PCM loop at 24 kHz. The settled DJ-horn tone is stored
-as a long seamless loop; the opening pitch drop is a pitch envelope.
+as a short seamless loop; the opening pitch drop is a pitch envelope.
 
 | Horn | File | License | Source | Playback |
 | --- | --- | --- | --- | --- |
@@ -15,7 +15,8 @@ curl -L -o plugins/airhorn/assets/dj-airhorn.wav \
 # sha256 66dc09de689ff2302590c4c75bb5a9de292d5003ceacedb57a1f17524e0510fb
 ```
 
-Regenerate `dsp/airhorn_pcm.h` after swapping the source WAV:
+Regenerate `dsp/airhorn_pcm.h` after swapping the source WAV (defaults pin the shipping
+aligned-late cut at 24 kHz: start=18568, length=3020):
 
 ```bash
 python3 plugins/airhorn/scripts/embed_pcm.py \
@@ -23,48 +24,40 @@ python3 plugins/airhorn/scripts/embed_pcm.py \
   plugins/airhorn/assets/dj-airhorn.wav
 ```
 
+Pass `--loop-length 0` to re-run the automatic search instead of the pinned cut.
+
 ## Loop conditioning
 
-The recorded horn drifts about 10 cents flat and loses roughly 3 dB of high end over
-the sustain, so a loop cut straight out of it restarts on brighter material than it
-ended on. That step is what was audible as a click once per loop. `embed_pcm.py`
-answers it by picking a loop length whose head and tail still line up (currently
-`match=0.87`) and by folding the last 12 fundamental periods back into the loop head
-as a crossfade, which is why nothing crossfades at playback time.
+The recorded horn drifts about 10 cents flat, loses high end, and slowly changes
+loudness over the sustain. A long cut restarts on brighter / louder material than it
+ended on, which is heard as a once-per-loop click or volume jump. `embed_pcm.py`
+answers that by:
 
-The same sustain also has a slow loudness swell of about 1.3 dB peak-to-peak. Locked
-into a 434 ms loop that swell repeats at ~2.3 Hz and reads as an amp LFO, so after the
-crossfade the extractor divides out a short circular RMS envelope (2-period window,
-4-period Hann smooth). That drops the residual swell to about 0.07 dB in the PCM and
-about 0.7 dB once rendered through the engine.
+1. Cutting a short slice (~126 ms / ~38 cycles) from late early-sustain, where the
+   tone is settled but has not yet started the release fade.
+2. Ranking auto-search candidates by phase match, head/tail level agreement, and
+   brightness agreement (optional; shipping uses the pinned cut above).
+3. Applying a smoothstep gain ramp so the cut's tail matches the head before the
+   seam is baked (`level trend compensate`).
+4. Folding the last 12 fundamental periods back into the loop head as a crossfade.
+5. Dividing out any remaining slow loudness contour with a circular RMS flatten.
 
-Regeneration prints the resulting seam figures; a healthy loop lands below 0 dB on the
-seam excess and well under 0.5 dB on the level swell:
+Regeneration prints the resulting seam figures; a healthy loop lands near or below
+0 dB on the seam excess and well under 0.5 dB on the level swell:
 
 ```
-period=79.550 samples (301.70 Hz) crossfade=955 samples
-loop start=18640 (777 ms) length=10418 cycles=130.96 match=0.870
-level flatten: swell 1.29 dB -> 0.07 dB (removed 1.22 dB)
-seam: sample jump=0.04058 excess over loop interior=-4.23 dB level swell=0.07 dB
+period=79.359 samples (302.42 Hz) crossfade=952 samples
+loop start=18568 (774 ms) length=3020 cycles=38.05 match=0.901 (pinned)
+level trend compensate: -0.18 dB (tail -> head)
+level flatten: swell 0.52 dB -> 0.06 dB (removed 0.46 dB)
+seam: sample jump=0.05937 excess over loop interior=+0.03 dB level swell=0.06 dB
 ```
 
 `scripts/fade_experiment.py` renders the loop through a model of the engine and scores
-the wrap with spectral flux, the usual click detector. The loop this replaced measured
-+3.1 dB there (the wrap was the loudest spectral event in the render); the current one
-measures around -10 dB, i.e. below the tone's own movement.
-
-### Runtime dual-player crossfade
-
-A ping-pong pair that crossfades near every loop boundary is the usual sampler fix when
-the PCM still has a hard seam. Here the seam is already baked into the loop head, so a
-second player would crossfade the raw tail into material that already contains that
-tail. That re-introduces level pumping instead of removing it.
+the wrap with spectral flux. Keep the single wrapping player at playback time; fix
+seams and slow swell in `embed_pcm.py` instead of adding a runtime dual-player
+crossfade (that re-introduces level pumping on the baked loop).
 
 ```bash
 python3 plugins/airhorn/scripts/fade_experiment.py --compare-loop-modes
 ```
-
-On the shipping baked loop this reports about **0.37 dB** short-window RMS swell for
-`single_wrap` versus about **2.9 dB** for `dual_crossfade`, while the wrap seam score
-also gets worse. Keep the single wrapping player at playback time; fix seams and slow
-swell in `embed_pcm.py` instead.
