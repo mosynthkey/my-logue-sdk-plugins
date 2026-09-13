@@ -187,7 +187,7 @@ onUnmounted(() => {
         @click="drawer = !drawer"
       />
       <v-app-bar-title class="text-uppercase font-weight-bold">
-        My Logue SDK Plugins
+        My Logue SDK Units
       </v-app-bar-title>
       <v-spacer />
       <v-btn
