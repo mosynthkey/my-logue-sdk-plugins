@@ -60,6 +60,10 @@ const props = defineProps({
     type: Array,
     required: true,
   },
+  showChrome152Hint: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits(["close", "send", "update:slot"]);
@@ -116,6 +120,14 @@ const statusColor = computed(() => {
             variant="tonal"
             class="mb-4"
             :text="deviceStatusText"
+          />
+
+          <v-alert
+            v-if="showChrome152Hint && deviceStatusKind === 'error'"
+            type="warning"
+            variant="tonal"
+            class="mb-4"
+            :text="t('chrome152Hint')"
           />
 
           <v-row dense>

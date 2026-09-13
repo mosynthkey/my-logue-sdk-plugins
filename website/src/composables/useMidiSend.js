@@ -30,6 +30,15 @@ function portSuffix(name) {
   return "";
 }
 
+function isChrome152() {
+  const userAgent = navigator.userAgent;
+  if (/Edg\/|OPR\//.test(userAgent)) {
+    return false;
+  }
+  const chromeMatch = userAgent.match(/Chrome\/(\d+)/);
+  return chromeMatch ? Number(chromeMatch[1]) === 152 : false;
+}
+
 function slotOptionLabel(slotIndex, status) {
   if (!status) {
     return `Slot ${slotIndex}`;
@@ -93,9 +102,12 @@ export function useMidiSend() {
   const inlinePlugin = ref(null);
   const inlineSlotsByTarget = ref({});
   const inlineSlotsLoading = ref({});
-  const inlineStatusText = ref("");
-  const inlineStatusKind = ref("idle");
   const sending = ref(false);
+  const transferModalOpen = ref(false);
+  const snackbarOpen = ref(false);
+  const snackbarName = ref("");
+  const snackbarSlot = ref(0);
+  const showChrome152Hint = ref(false);
 
   const nts3Connected = computed(() => connectedTargets.value["nts-3_kaoss"]);
 
@@ -117,9 +129,18 @@ export function useMidiSend() {
     deviceStatusKind.value = kind;
   }
 
-  function setInlineStatus(text, kind = "idle") {
-    inlineStatusText.value = text;
-    inlineStatusKind.value = kind;
+  function showTransferSuccess(pluginName, slotIndex) {
+    snackbarName.value = pluginName;
+    snackbarSlot.value = slotIndex;
+    snackbarOpen.value = true;
+  }
+
+  function markTransferFailure() {
+    showChrome152Hint.value = isChrome152();
+  }
+
+  function clearTransferFailureHint() {
+    showChrome152Hint.value = false;
   }
 
   function formatDeviceStatus(identity, output) {
@@ -233,7 +254,7 @@ export function useMidiSend() {
       currentSlotModule.value = module;
     }
 
-    slotLabel.value = `${module} slot`;
+    slotLabel.value = pendingTarget.value === "nts-3_kaoss" ? "NTS-3 Slot" : `${module} slot`;
     const maxSlot = (MODULE_SLOTS[module] || 16) - 1;
     const nextSlot = Number.isFinite(previous) ? Math.min(Math.max(previous, 0), maxSlot) : 1;
     slot.value = nextSlot;
@@ -501,6 +522,7 @@ export function useMidiSend() {
     currentSlotModule.value = "";
     applySlotModule(moduleFor(plugin, target));
     sendDisabled.value = true;
+    clearTransferFailureHint();
 
     if (!webMidiSupported.value) {
       setDeviceStatus("Use Chrome or Edge for MIDI", "warn");
@@ -522,6 +544,16 @@ export function useMidiSend() {
     pendingPlugin.value = null;
     deviceInquiryToken += 1;
     slotInquiryToken += 1;
+    clearTransferFailureHint();
+  }
+
+  function closeTransferModal() {
+    if (sending.value) {
+      return;
+    }
+    transferModalOpen.value = false;
+    document.body.classList.remove("modal-open");
+    clearTransferFailureHint();
   }
 
   async function fetchUnit(plugin, target) {
@@ -542,19 +574,14 @@ export function useMidiSend() {
     return bytes;
   }
 
-  async function transferUnit(plugin, target, slotIndex, { useModalStatus }) {
-    const setStatus = (text, kind) => {
-      if (useModalStatus) {
-        setDeviceStatus(text, kind);
-      } else {
-        setInlineStatus(text, kind);
-      }
-    };
+  async function transferUnit(plugin, target, slotIndex) {
+    clearTransferFailureHint();
 
     if (!midiAccess.value) {
       const connected = await connectMidi();
       if (!connected) {
-        setStatus("MIDI permission denied", "error");
+        setDeviceStatus("MIDI permission denied", "error");
+        markTransferFailure();
         return false;
       }
     }
@@ -567,7 +594,8 @@ export function useMidiSend() {
       selectedInputId.value = input.id;
     }
     if (!output || !input) {
-      setStatus(`Connect ${deviceForTarget(target).shortLabel} over USB.`, "error");
+      setDeviceStatus(`Connect ${deviceForTarget(target).shortLabel} over USB.`, "error");
+      markTransferFailure();
       return false;
     }
 
@@ -577,27 +605,27 @@ export function useMidiSend() {
 
     sending.value = true;
     sendDisabled.value = true;
-    setStatus("Sending…", "busy");
+    setDeviceStatus("Sending…", "busy");
 
     try {
       const device = deviceForTarget(target);
       try {
         const identity = await detectDevice(output, input);
         if (identity.deviceId !== device.id) {
-          setStatus(`This port is ${identity.shortLabel}, not ${device.shortLabel}.`, "error");
+          setDeviceStatus(`This port is ${identity.shortLabel}, not ${device.shortLabel}.`, "error");
           log(`Expected ${device.shortLabel}, got ${identity.label}`, "error");
+          markTransferFailure();
           return false;
         }
         if (identity.midiChannel != null) {
           channel.value = identity.midiChannel;
         }
         log(`Device identified: ${identity.label}${identity.midiChannel != null ? ` · ch ${identity.midiChannel}` : ""}`);
-        if (useModalStatus) {
-          setDeviceStatus(formatDeviceStatus(identity, output), "ok");
-        }
+        setDeviceStatus(formatDeviceStatus(identity, output), "ok");
       } catch (error) {
-        setStatus(`No ${device.shortLabel} device found. Check USB connection.`, "error");
+        setDeviceStatus(`No ${device.shortLabel} device found. Check USB connection.`, "error");
         log(`Device inquiry failed: ${error.message}`, "error");
+        markTransferFailure();
         return false;
       }
 
@@ -631,21 +659,22 @@ export function useMidiSend() {
             log(`Sending ${packetCount} SysEx packet(s) to ${module} slot ${slotIndex}`);
           }
           if (phase === "packet") {
-            setStatus(`Sent packet ${packetIndex} / ${packetCount}`, "busy");
+            setDeviceStatus(`Sent packet ${packetIndex} / ${packetCount}`, "busy");
           }
         },
       });
 
-      setStatus(`${plugin.name} → ${module} ${slotIndex}`, "ok");
+      setDeviceStatus(`${plugin.name} → ${module} ${slotIndex}`, "ok");
       log(LOAD_HINT[module] || "Load it on the device.", "ok");
       await inquireSlotOccupancy(module, target);
-      if (!useModalStatus && inlinePlugin.value) {
+      if (inlinePlugin.value) {
         await syncInlineSlots(inlinePlugin.value);
       }
       return true;
     } catch (error) {
-      setStatus("Transfer failed", "error");
+      setDeviceStatus("Transfer failed", "error");
       log(error.message, "error");
+      markTransferFailure();
       return false;
     } finally {
       sending.value = false;
@@ -659,7 +688,11 @@ export function useMidiSend() {
     if (!plugin) {
       return;
     }
-    await transferUnit(plugin, target, slot.value, { useModalStatus: true });
+    const ok = await transferUnit(plugin, target, slot.value);
+    if (ok) {
+      showTransferSuccess(plugin.name, slot.value);
+      closeSendModal();
+    }
   }
 
   async function sendToSlot(plugin, target, slotIndex) {
@@ -669,7 +702,17 @@ export function useMidiSend() {
     pendingPlugin.value = plugin;
     pendingTarget.value = target;
     clearLog();
-    await transferUnit(plugin, target, slotIndex, { useModalStatus: false });
+    setDeviceStatus("Sending…", "busy");
+    transferModalOpen.value = true;
+    document.body.classList.add("modal-open");
+
+    const ok = await transferUnit(plugin, target, slotIndex);
+    if (ok) {
+      transferModalOpen.value = false;
+      document.body.classList.remove("modal-open");
+      showTransferSuccess(plugin.name, slotIndex);
+      clearTransferFailureHint();
+    }
   }
 
   function onMidiSettingChange() {
@@ -700,9 +743,13 @@ export function useMidiSend() {
     connectedTargets,
     inlineSlotsByTarget,
     inlineSlotsLoading,
-    inlineStatusText,
-    inlineStatusKind,
     sending,
+    transferModalOpen,
+    closeTransferModal,
+    snackbarOpen,
+    snackbarName,
+    snackbarSlot,
+    showChrome152Hint,
     syncInlineSlots,
     startPresenceWatch,
   };

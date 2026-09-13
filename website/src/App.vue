@@ -5,6 +5,7 @@ import PluginDetail from "./components/PluginDetail.vue";
 import PluginSidebar from "./components/PluginSidebar.vue";
 import ProgramEditorModal from "./components/ProgramEditorModal.vue";
 import SendModal from "./components/SendModal.vue";
+import TransferStatusModal from "./components/TransferStatusModal.vue";
 import { useCatalog } from "./composables/useCatalog.js";
 import { provideI18n } from "./composables/useI18n.js";
 import { useMidiSend } from "./composables/useMidiSend.js";
@@ -51,9 +52,13 @@ const {
   connectedTargets,
   inlineSlotsByTarget,
   inlineSlotsLoading,
-  inlineStatusText,
-  inlineStatusKind,
   sending,
+  transferModalOpen,
+  closeTransferModal,
+  snackbarOpen,
+  snackbarName,
+  snackbarSlot,
+  showChrome152Hint,
   syncInlineSlots,
   startPresenceWatch,
 } = useMidiSend();
@@ -148,6 +153,10 @@ function onKeyDown(event) {
     closeDspExplainModal();
     return;
   }
+  if (transferModalOpen.value) {
+    closeTransferModal();
+    return;
+  }
   if (isOpen.value) {
     closeSendModal();
   }
@@ -215,8 +224,6 @@ onUnmounted(() => {
           :connected-targets="connectedTargets"
           :inline-slots-by-target="inlineSlotsByTarget"
           :inline-slots-loading="inlineSlotsLoading"
-          :inline-status-text="inlineStatusText"
-          :inline-status-kind="inlineStatusKind"
           :sending="sending"
           @select-target="(target) => selectTarget(activePlugin.id, target)"
           @send="openSendModal"
@@ -255,9 +262,22 @@ onUnmounted(() => {
       :slot="slot"
       :slot-label="slotLabel"
       :slot-options="slotOptions"
+      :show-chrome152-hint="showChrome152Hint"
       @close="closeSendModal"
       @send="sendPlugin"
       @update:slot="slot = $event"
+    />
+
+    <TransferStatusModal
+      :is-open="transferModalOpen"
+      :plugin="pendingPlugin"
+      :target="pendingTarget"
+      :status-text="deviceStatusText"
+      :status-kind="deviceStatusKind"
+      :log-lines="logLines"
+      :sending="sending"
+      :show-chrome152-hint="showChrome152Hint"
+      @close="closeTransferModal"
     />
 
     <DspExplainModal
@@ -277,5 +297,14 @@ onUnmounted(() => {
       @update-slot="updateActiveSlot"
       @update-param="updateParam"
     />
+
+    <v-snackbar
+      v-model="snackbarOpen"
+      color="success"
+      timeout="4000"
+      location="bottom"
+    >
+      {{ t("transferSuccess", { name: snackbarName, slot: snackbarSlot }) }}
+    </v-snackbar>
   </v-app>
 </template>

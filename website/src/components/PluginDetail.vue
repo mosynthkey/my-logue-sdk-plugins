@@ -5,7 +5,6 @@ import { useI18n } from "../composables/useI18n.js";
 import {
   buildForTarget,
   downloadableBuilds,
-  moduleFor,
   sendableBuilds,
   targetName,
   unitFileName,
@@ -31,14 +30,6 @@ const props = defineProps({
   inlineSlotsLoading: {
     type: Object,
     default: () => ({}),
-  },
-  inlineStatusText: {
-    type: String,
-    default: "",
-  },
-  inlineStatusKind: {
-    type: String,
-    default: "idle",
   },
   sending: {
     type: Boolean,
@@ -67,14 +58,6 @@ const targetItems = computed(() => {
     value: target,
     title: targetName(target),
   }));
-});
-
-const inlineStatusColor = computed(() => {
-  if (props.inlineStatusKind === "ok") return "success";
-  if (props.inlineStatusKind === "error") return "error";
-  if (props.inlineStatusKind === "warn") return "warning";
-  if (props.inlineStatusKind === "busy") return "info";
-  return "secondary";
 });
 
 watch(
@@ -110,8 +93,8 @@ function showInlineSlots(target) {
     && (isSlotsLoading(target) || slotsFor(target).length > 0);
 }
 
-function moduleLabel(target) {
-  return moduleFor(props.plugin, target);
+function slotSelectLabel(target) {
+  return target === "nts-3_kaoss" ? t("nts3Slot") : t("slot");
 }
 
 function sendSelectedSlot(target) {
@@ -167,15 +150,6 @@ function sendSelectedSlot(target) {
       >
         <h2 class="text-title-medium mb-3">{{ t("sendToDevice") }}</h2>
 
-        <v-alert
-          v-if="inlineStatusText"
-          :color="inlineStatusColor"
-          variant="tonal"
-          density="compact"
-          class="mb-3"
-          :text="inlineStatusText"
-        />
-
         <div class="d-flex flex-column ga-4">
           <div
             v-for="build in sends"
@@ -184,9 +158,6 @@ function sendSelectedSlot(target) {
             <template v-if="showInlineSlots(build.target)">
               <div class="d-flex align-center flex-wrap ga-2 mb-2">
                 <span class="text-label-large">{{ targetName(build.target) }}</span>
-                <span class="text-body-small text-medium-emphasis">
-                  {{ t("sendSlotHint", { module: moduleLabel(build.target) }) }}
-                </span>
                 <v-progress-circular
                   v-if="isSlotsLoading(build.target)"
                   indeterminate
@@ -200,7 +171,7 @@ function sendSelectedSlot(target) {
                   :items="slotsFor(build.target)"
                   item-title="label"
                   item-value="value"
-                  :label="t('slot')"
+                  :label="slotSelectLabel(build.target)"
                   density="compact"
                   hide-details
                   :disabled="sending || isSlotsLoading(build.target)"
