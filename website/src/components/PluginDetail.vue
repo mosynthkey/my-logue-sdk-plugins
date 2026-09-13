@@ -156,15 +156,6 @@ function sendSelectedSlot(target) {
             :key="`send-${build.target}`"
           >
             <template v-if="showInlineSlots(build.target)">
-              <div class="d-flex align-center flex-wrap ga-2 mb-2">
-                <span class="text-label-large">{{ targetName(build.target) }}</span>
-                <v-progress-circular
-                  v-if="isSlotsLoading(build.target)"
-                  indeterminate
-                  size="16"
-                  width="2"
-                />
-              </div>
               <div class="d-flex align-center flex-wrap ga-2">
                 <v-select
                   v-model="selectedSlotByTarget[build.target]"
@@ -185,6 +176,12 @@ function sendSelectedSlot(target) {
                 >
                   {{ t("sendToSlot") }}
                 </v-btn>
+                <v-progress-circular
+                  v-if="isSlotsLoading(build.target)"
+                  indeterminate
+                  size="16"
+                  width="2"
+                />
               </div>
             </template>
             <v-btn
