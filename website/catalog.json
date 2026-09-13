@@ -41,7 +41,7 @@
           "target": "nts-3_kaoss",
           "module": "genericfx",
           "file": "./units/airfm-nts-3_kaoss.nts3unit",
-          "size": 15136,
+          "size": 15200,
           "wasm": "./sim/airfm/nts-3_kaoss/airfm.html"
         }
       ]
