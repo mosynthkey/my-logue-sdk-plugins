@@ -11,14 +11,19 @@
       "description": "FM sound-effect synth inspired by Alesis airSynth.",
       "params": [
         {
-          "name": "INDEX",
-          "role": "A",
-          "detail": "FM index (rad)"
+          "name": "CARR",
+          "role": "X",
+          "detail": "Carrier frequency (log 40\u20138000 Hz)"
         },
         {
-          "name": "YMAX",
-          "role": "B",
-          "detail": "Modulator frequency at pad Y top (Hz; bottom is fixed 55 Hz)"
+          "name": "MOD",
+          "role": "Y",
+          "detail": "Modulator frequency (log 55\u2013800 Hz)"
+        },
+        {
+          "name": "INDEX",
+          "role": "Edit",
+          "detail": "FM index (rad)"
         },
         {
           "name": "DRIVE",
@@ -41,7 +46,7 @@
           "target": "nts-3_kaoss",
           "module": "genericfx",
           "file": "./units/airfm-nts-3_kaoss.nts3unit",
-          "size": 15200,
+          "size": 15228,
           "wasm": "./sim/airfm/nts-3_kaoss/airfm.html"
         }
       ]

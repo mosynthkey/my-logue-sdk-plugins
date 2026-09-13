@@ -4,7 +4,7 @@
  * File: airfm.h
  *
  * Two-operator phase-modulation FM inspired by Alesis airSynth Program 3 "FM".
- * NTS-3 genericfx oscillator: pad XY controls carrier/modulator frequency, touch gates output.
+ * NTS-3 genericfx: pad X = carrier Hz, Y = modulator Hz; touch gates output.
  * Dry input always passes; DRYWET (0–512) scales the FM wet level added in parallel.
  *
  */
@@ -18,10 +18,11 @@ class AirFM : public Processor
 {
 public:
   static constexpr float kTwoPi = 6.283185307179586f;
-  static constexpr float kTouchNorm = 1.f / 1023.f;
+  static constexpr float kParamNorm = 1.f / 1023.f;
   static constexpr float kF1BaseHz = 40.f;
   static constexpr float kF1Ratio = 200.f;
   static constexpr float kF2MinHz = 55.f;
+  static constexpr float kF2MaxHz = 800.f;
   static constexpr float kLpfHz = 7500.f;
   static constexpr float kFadeTimeSec = 0.01f;
   static constexpr float kFeedback = 0.f;
@@ -31,8 +32,9 @@ public:
 
   enum
   {
-    INDEX = 0U,
-    YMAX,
+    CARR = 0U,
+    MOD,
+    INDEX,
     DRIVE,
     HPF,
     DRYWET,
@@ -43,12 +45,24 @@ public:
   {
     switch (index)
     {
+    case CARR:
+      carr_norm_ = static_cast<float>(value) * kParamNorm;
+      if (carr_norm_ < 0.f)
+        carr_norm_ = 0.f;
+      if (carr_norm_ > 1.f)
+        carr_norm_ = 1.f;
+      updateFrequencies();
+      break;
+    case MOD:
+      mod_norm_ = static_cast<float>(value) * kParamNorm;
+      if (mod_norm_ < 0.f)
+        mod_norm_ = 0.f;
+      if (mod_norm_ > 1.f)
+        mod_norm_ = 1.f;
+      updateFrequencies();
+      break;
     case INDEX:
       index_rad_ = value * 0.01f;
-      break;
-    case YMAX:
-      ymax_hz_ = static_cast<float>(value);
-      updateFrequencies();
       break;
     case DRIVE:
       drive_ = value * 0.01f;
@@ -79,13 +93,12 @@ public:
 
   void init(float *) override final
   {
+    carr_norm_ = 0.5f;
+    mod_norm_ = 0.5f;
     index_rad_ = 4.f;
-    ymax_hz_ = 550.f;
     drive_ = 1.08f;
     hpf_hz_ = 20.f;
     drywet_ = 1.f;
-    pad_x_ = 0.5f;
-    pad_y_ = 0.5f;
     amp_env_ = 0.f;
     amp_env_step_ = 0.f;
     clearSignalState();
@@ -103,13 +116,12 @@ public:
   void touchEvent(uint8_t id, uint8_t phase, uint32_t x, uint32_t y) override final
   {
     (void)id;
+    (void)x;
+    (void)y;
 
     if (phase == k_unit_touch_phase_began || phase == k_unit_touch_phase_moved ||
         phase == k_unit_touch_phase_stationary)
     {
-      pad_x_ = static_cast<float>(x) * kTouchNorm;
-      pad_y_ = static_cast<float>(y) * kTouchNorm;
-      updateFrequencies();
       amp_env_ = 1.f;
       amp_env_step_ = 0.f;
       return;
@@ -186,8 +198,8 @@ private:
 
   void updateFrequencies()
   {
-    f1_hz_ = kF1BaseHz * powf(kF1Ratio, pad_x_);
-    f2_hz_ = kF2MinHz * powf(ymax_hz_ / kF2MinHz, pad_y_);
+    f1_hz_ = kF1BaseHz * powf(kF1Ratio, carr_norm_);
+    f2_hz_ = kF2MinHz * powf(kF2MaxHz / kF2MinHz, mod_norm_);
   }
 
   void startReleaseFade()
@@ -236,11 +248,10 @@ private:
 
   float f1_hz_ = 440.f;
   float f2_hz_ = 193.f;
-  float pad_x_ = 0.5f;
-  float pad_y_ = 0.5f;
+  float carr_norm_ = 0.5f;
+  float mod_norm_ = 0.5f;
 
   float index_rad_ = 4.f;
-  float ymax_hz_ = 550.f;
   float drive_ = 1.08f;
   float hpf_hz_ = 20.f;
   float drywet_ = 1.f;
