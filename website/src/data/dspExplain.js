@@ -1,15 +1,18 @@
 /** DSP architecture notes and Mermaid block diagrams per plugin id. */
 export const dspExplainById = {
   airfm: {
-    en: "Two-operator phase-modulation FM. Pad X/Y set carrier and modulator frequencies; touch gates a short amp envelope. The carrier is drive-shaped (tanh), then high-pass and fixed low-pass filtered before stereo out.",
-    ja: "2オペレーターの位相変調FMです。パッドXYでキャリア／モジュレータ周波数を決め、タッチで短いアンプエンベロープを開きます。tanhドライブのあとHPFと固定LPFを通してステレオ出力します。",
+    en: "Two-operator phase-modulation FM. Pad X/Y set carrier and modulator frequencies; touch gates a short amp envelope. The carrier is drive-shaped (tanh), then high-pass and fixed low-pass filtered. Dry audio input always passes; DRYWET scales the FM wet level added in parallel.",
+    ja: "2オペレーターの位相変調FMです。パッドXYでキャリア／モジュレータ周波数を決め、タッチで短いアンプエンベロープを開きます。tanhドライブのあとHPFと固定LPFを通し、入力は常にバイパスしつつDRYWETでFMウェットを加算します。",
     mermaid: `flowchart LR
   XY[Pad XY freqs] --> Mod[Modulator sine]
   Mod --> Car[Carrier PM sine]
   Touch[Touch gate] --> Env[Amp env]
   Car --> Drive[tanh drive]
   Env --> Drive
-  Drive --> HPF[HPF] --> LPF[LPF] --> Out[Stereo out]`,
+  Drive --> HPF[HPF] --> LPF[LPF]
+  DRYWET[DRYWET] --> LPF
+  In[Audio in] --> Mix[Sum]
+  LPF --> Mix --> Out[Stereo out]`,
   },
   airhorn: {
     en: "Polyphonic fixed-pitch air-horn sample player. Note or touch triggers voices that Hermite-read a looping PCM with an opening pitch envelope, attack, and natural or release fade. FX targets can blend dry/wet.",

@@ -5,6 +5,7 @@
  *
  * Two-operator phase-modulation FM inspired by Alesis airSynth Program 3 "FM".
  * NTS-3 genericfx oscillator: pad XY controls carrier/modulator frequency, touch gates output.
+ * Dry input always passes; DRYWET (0–512) scales the FM wet level added in parallel.
  *
  */
 
@@ -33,7 +34,7 @@ public:
     YMAX,
     DRIVE,
     HPF,
-    LEVEL,
+    DRYWET,
     NUM_PARAMS
   };
 
@@ -55,8 +56,13 @@ public:
       hpf_hz_ = static_cast<float>(value);
       updateFilterCoeffs();
       break;
-    case LEVEL:
-      level_ = value * 0.01f;
+    case DRYWET:
+      // 0–512: wet level for FM; dry input always passes.
+      drywet_ = static_cast<float>(value) * (1.f / 512.f);
+      if (drywet_ < 0.f)
+        drywet_ = 0.f;
+      if (drywet_ > 1.f)
+        drywet_ = 1.f;
       break;
     default:
       break;
@@ -76,7 +82,7 @@ public:
     ymax_hz_ = 550.f;
     drive_ = 1.08f;
     hpf_hz_ = 20.f;
-    level_ = 0.28f;
+    drywet_ = 1.f;
     pad_x_ = 0.5f;
     pad_y_ = 0.5f;
     amp_env_ = 0.f;
@@ -116,8 +122,6 @@ public:
 
   void process(const float *__restrict in, float *__restrict out, uint32_t frames) override final
   {
-    (void)in;
-
     const float sample_rate = getSampleRate();
     const float carrier_inc_scale = kTwoPi / sample_rate;
     const float mod_inc_scale = carrier_inc_scale;
@@ -129,7 +133,7 @@ public:
 
       const float carrier = sinf(ph_c_ + index_rad_ * mod);
       const float shaped = tanhf(drive_ * carrier);
-      const float amp = level_ * amp_env_;
+      const float amp = drywet_ * amp_env_;
       const float voice = amp * shaped;
 
       const float blocked = voice - dc_prev_in_ + hpf_a_ * dc_prev_out_;
@@ -145,9 +149,10 @@ public:
       wrapPhase(ph_c_);
       wrapPhase(ph_m_);
 
-      const float output_sample = lpf_state_;
-      out[0] = output_sample;
-      out[1] = output_sample;
+      const float wet = lpf_state_;
+      out[0] = in[0] + wet;
+      out[1] = in[1] + wet;
+      in += 2;
       out += 2;
     }
   }
@@ -237,7 +242,7 @@ private:
   float ymax_hz_ = 550.f;
   float drive_ = 1.08f;
   float hpf_hz_ = 20.f;
-  float level_ = 0.28f;
+  float drywet_ = 1.f;
 
   float amp_env_ = 0.f;
   float amp_env_step_ = 0.f;

@@ -31,9 +31,9 @@
           "detail": "Output high-pass cutoff (20\u20132000 Hz)"
         },
         {
-          "name": "LEVEL",
-          "role": "Level",
-          "detail": "Output level while touching"
+          "name": "DRYWET",
+          "role": "Depth",
+          "detail": "FM wet level (0\u2013512); dry input always passes"
         }
       ],
       "builds": [
