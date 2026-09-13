@@ -25,6 +25,7 @@ public:
   static constexpr float kLpfHz = 7500.f;
   static constexpr float kFadeTimeSec = 0.01f;
   static constexpr float kFeedback = 0.f;
+  static constexpr float kOutputGain = 0.8f;
 
   uint32_t getBufferSize() const override final { return 0; }
 
@@ -133,7 +134,7 @@ public:
 
       const float carrier = sinf(ph_c_ + index_rad_ * mod);
       const float shaped = tanhf(drive_ * carrier);
-      const float amp = drywet_ * amp_env_;
+      const float amp = drywet_ * amp_env_ * kOutputGain;
       const float voice = amp * shaped;
 
       const float blocked = voice - dc_prev_in_ + hpf_a_ * dc_prev_out_;

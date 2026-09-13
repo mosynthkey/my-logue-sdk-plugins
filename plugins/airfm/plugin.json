@@ -2,13 +2,35 @@
   "id": "airfm",
   "name": "airFM",
   "type": "fm",
-  "targets": ["nts-3_kaoss"],
+  "targets": [
+    "nts-3_kaoss"
+  ],
   "description": "FM sound-effect synth inspired by Alesis airSynth.",
   "params": [
-    { "name": "INDEX", "role": "A", "detail": "FM index (rad)" },
-    { "name": "YMAX", "role": "B", "detail": "Modulator log range top (Hz)" },
-    { "name": "DRIVE", "role": "Edit", "detail": "tanh drive" },
-    { "name": "HPF", "role": "Edit", "detail": "Output high-pass cutoff (20–2000 Hz)" },
-    { "name": "DRYWET", "role": "Depth", "detail": "FM wet level (0–512); dry input always passes" }
+    {
+      "name": "INDEX",
+      "role": "A",
+      "detail": "FM index (rad)"
+    },
+    {
+      "name": "YMAX",
+      "role": "B",
+      "detail": "Modulator frequency at pad Y top (Hz; bottom is fixed 55 Hz)"
+    },
+    {
+      "name": "DRIVE",
+      "role": "Edit",
+      "detail": "tanh drive"
+    },
+    {
+      "name": "HPF",
+      "role": "Edit",
+      "detail": "Output high-pass cutoff (20\u20132000 Hz)"
+    },
+    {
+      "name": "DRYWET",
+      "role": "Depth",
+      "detail": "FM wet level (0\u2013512); dry input always passes"
+    }
   ]
 }

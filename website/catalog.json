@@ -18,7 +18,7 @@
         {
           "name": "YMAX",
           "role": "B",
-          "detail": "Modulator log range top (Hz)"
+          "detail": "Modulator frequency at pad Y top (Hz; bottom is fixed 55 Hz)"
         },
         {
           "name": "DRIVE",

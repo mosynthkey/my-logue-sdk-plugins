@@ -15,6 +15,7 @@ import { useSiteQuery } from "./composables/useSiteQuery.js";
 const { catalog, loadError, loading } = useCatalog();
 const { t } = provideI18n();
 const siteQuery = useSiteQuery();
+const { showExperimental } = siteQuery;
 const {
   selectedPluginId,
   selectedCategory,
@@ -181,7 +182,7 @@ onUnmounted(() => {
       </v-app-bar-title>
       <v-spacer />
       <v-btn
-        v-if="siteQuery.showExperimental && nts3Connected"
+        v-if="showExperimental && nts3Connected"
         color="primary"
         variant="flat"
         prepend-icon="mdi-tune-vertical"
