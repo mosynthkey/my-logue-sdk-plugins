@@ -22,7 +22,7 @@ public:
   static constexpr float kF1BaseHz = 40.f;
   static constexpr float kF1Ratio = 200.f;
   static constexpr float kF2MinHz = 55.f;
-  static constexpr float kF2MaxHz = 800.f;
+  static constexpr float kF2MaxHz = 550.f; // matches former YMAX default
   static constexpr float kLpfHz = 7500.f;
   static constexpr float kFadeTimeSec = 0.01f;
   static constexpr float kFeedback = 0.f;
@@ -116,12 +116,15 @@ public:
   void touchEvent(uint8_t id, uint8_t phase, uint32_t x, uint32_t y) override final
   {
     (void)id;
-    (void)x;
-    (void)y;
 
     if (phase == k_unit_touch_phase_began || phase == k_unit_touch_phase_moved ||
         phase == k_unit_touch_phase_stationary)
     {
+      // Keep the pre-rename path: pad XY drives frequencies directly.
+      // Host X/Y → CARR/MOD mapping still updates the same norms for labels/edit.
+      carr_norm_ = static_cast<float>(x) * kParamNorm;
+      mod_norm_ = static_cast<float>(y) * kParamNorm;
+      updateFrequencies();
       amp_env_ = 1.f;
       amp_env_step_ = 0.f;
       return;

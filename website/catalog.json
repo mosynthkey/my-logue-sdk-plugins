@@ -18,7 +18,7 @@
         {
           "name": "MOD",
           "role": "Y",
-          "detail": "Modulator frequency (log 55\u2013800 Hz)"
+          "detail": "Modulator frequency (log 55\u2013550 Hz)"
         },
         {
           "name": "INDEX",
@@ -46,7 +46,7 @@
           "target": "nts-3_kaoss",
           "module": "genericfx",
           "file": "./units/airfm-nts-3_kaoss.nts3unit",
-          "size": 15228,
+          "size": 15276,
           "wasm": "./sim/airfm/nts-3_kaoss/airfm.html"
         }
       ]
