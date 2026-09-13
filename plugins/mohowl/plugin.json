@@ -1,5 +1,6 @@
 {
   "id": "mohowl",
+  "experimental": true,
   "name": "MoHowl",
   "type": "synth",
   "targets": ["nts-3_kaoss"],

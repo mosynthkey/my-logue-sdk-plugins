@@ -181,7 +181,7 @@ onUnmounted(() => {
       </v-app-bar-title>
       <v-spacer />
       <v-btn
-        v-if="nts3Connected"
+        v-if="siteQuery.showExperimental && nts3Connected"
         color="primary"
         variant="flat"
         prepend-icon="mdi-tune-vertical"

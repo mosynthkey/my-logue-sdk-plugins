@@ -453,6 +453,7 @@
     },
     {
       "id": "shaker",
+      "experimental": true,
       "name": "Shaker",
       "type": "shaker",
       "targets": [

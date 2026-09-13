@@ -1,5 +1,6 @@
 {
   "id": "kaocid",
+  "experimental": true,
   "name": "Kaocid",
   "type": "synth",
   "targets": ["nts-3_kaoss"],
