@@ -4,7 +4,7 @@
  * File: airhorn_mk2.h
  *
  * microKORG2 multi-voice AirHorn oscillator adapter.
- * PitchMode Fixed: measured sample pitch. Key: keyboard tracks concert pitch
+ * PitchMode Fixed: native sample pitch. Key: keyboard tracks concert pitch
  * from kAirhornRootMidi.
  */
 

@@ -50,7 +50,7 @@ int main()
   for (uint32_t sampleIndex = 0; sampleIndex < 48000U / 5U; ++sampleIndex)
     (void)engine.renderMono();
 
-  // Key tracking uses the measured/corrected sample root (D4), not assumed D#.
+  // Key tracking uses the measured native root (~62.49), not assumed D# / retuned D4.
   const float expected = AirHornEngine::noteTransposeFor(60.f);
   const float want = std::pow(2.f, (60.f - kAirhornRootMidi) / 12.f);
   if (!approxEqual(expected, want, 0.01f))
@@ -59,23 +59,26 @@ int main()
                 expected, want, kAirhornRootMidi);
     return 1;
   }
-  // After tune correction, Fixed == concert D4, so Key D4 transpose is 1.
+  // Fixed stays native (~D4+49c), so Key D4 is ~49 cents below Fixed.
   const float d4_xpose = AirHornEngine::noteTransposeFor(62.f);
-  if (!approxEqual(d4_xpose, 1.f, 0.01f))
+  if (!(d4_xpose < 1.f && d4_xpose > 0.96f))
   {
-    std::printf("FAIL: D4 transpose expected 1.0, got %.6f\n", d4_xpose);
+    std::printf("FAIL: D4 transpose expected ~0.972, got %.6f\n", d4_xpose);
     return 1;
   }
-  // Concert D#4 is +1 semitone above corrected Fixed.
+  // Concert D#4 is ~51 cents above Fixed.
   const float ds4_xpose = AirHornEngine::noteTransposeFor(63.f);
-  if (!approxEqual(ds4_xpose, std::pow(2.f, 1.f / 12.f), 0.01f))
+  if (!(ds4_xpose > 1.f && ds4_xpose < 1.04f))
   {
-    std::printf("FAIL: D#4 transpose expected +1st, got %.6f\n", ds4_xpose);
+    std::printf("FAIL: D#4 transpose expected ~1.030, got %.6f\n", ds4_xpose);
     return 1;
   }
-  if (!approxEqual(kAirhornSettledHz * kAirhornTuneRatio, 293.664768f, 0.05f))
+  // Root MIDI must match settled Hz (A4=440), with Fixed left untuned.
+  const float root_from_hz = 69.f + 12.f * std::log2(kAirhornSettledHz / 440.f);
+  if (!approxEqual(root_from_hz, kAirhornRootMidi, 0.01f))
   {
-    std::printf("FAIL: tuned settled Hz got %.6f\n", kAirhornSettledHz * kAirhornTuneRatio);
+    std::printf("FAIL: root midi %.6f != settled-derived %.6f\n",
+                kAirhornRootMidi, root_from_hz);
     return 1;
   }
 

@@ -4,8 +4,8 @@ Embedded data is a single 16-bit PCM loop at 24 kHz. The settled DJ-horn tone is
 as a short seamless loop; the opening pitch drop is a pitch envelope.
 
 Measured settled fundamental on the shipping loop is ~302.03 Hz (about D4 + 49 cents),
-not tempered D#4. Playback applies `kAirhornTuneRatio` so Fixed lands on exact D4
-(MIDI 62); Key mode tracks concert pitch from that root.
+not tempered D#4. Fixed keeps that native pitch; Key mode alone tracks concert pitch
+from `kAirhornRootMidi` (~62.49).
 
 | Horn | File | License | Source | Playback |
 | --- | --- | --- | --- | --- |

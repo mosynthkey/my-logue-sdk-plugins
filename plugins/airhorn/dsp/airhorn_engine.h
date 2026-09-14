@@ -5,8 +5,8 @@
  *
  * DJ air horn: a 16-bit loop plus a pitch envelope that recreates the opening
  * drop. Settled pitch is measured on the embedded loop (~302.03 Hz ≈ D4 + 49c;
- * see kAirhornSettledHz). Playback applies kAirhornTuneRatio so Fixed lands on
- * exact D4; Key tracks concert pitch from kAirhornRootMidi (62).
+ * see kAirhornSettledHz). Fixed keeps that native pitch; Key alone tracks
+ * concert pitch from kAirhornRootMidi.
  *
  * NTS-1 / microKORG2: no natural fade (device EG); PitchMode Fixed or Key.
  * NTS-3: Decay (0-127, 127 = Sustain) replaces Fade; PitchMode Fixed or Pitch
@@ -162,7 +162,7 @@ struct AirHornVoice
 
     float output = sampleAt(horn, pos) * gain * amp;
 
-    pos += kBaseRate * kAirhornTuneRatio * pitch_ratio * transpose;
+    pos += kBaseRate * pitch_ratio * transpose;
     const float loop_length = static_cast<float>(horn.length);
     while (pos >= loop_length)
       pos -= loop_length;
