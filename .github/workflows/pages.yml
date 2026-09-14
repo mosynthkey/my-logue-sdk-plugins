@@ -25,7 +25,65 @@ jobs:
       - name: Run plugin category tests
         run: node tests/plugin-category.test.mjs
 
+  # Classify PR diffs so website-only / docs-only PRs skip heavy native/wasm work.
+  changes:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      native: ${{ steps.filter.outputs.native }}
+      website: ${{ steps.filter.outputs.website }}
+      mk2: ${{ steps.filter.outputs.mk2 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            native:
+              - 'plugins/**'
+              - 'Makefile'
+              - 'third_party/**'
+              - 'scripts/**'
+              - '.github/workflows/**'
+            website:
+              - 'website/**'
+              - 'scripts/build-website.sh'
+            mk2:
+              - 'plugins/**/targets/microkorg2/**'
+              - 'third_party/logue-sdk/platform/microkorg2/**'
+              - 'plugins/hypersaw/**'
+              - 'plugins/fbackosc/**'
+
+  # Frontend smoke for website-only PRs (no unit/wasm rebuild).
+  website-smoke:
+    if: >
+      github.event_name == 'pull_request' &&
+      needs.changes.result == 'success' &&
+      needs.changes.outputs.website == 'true' &&
+      needs.changes.outputs.native != 'true'
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - name: Build website frontend only
+        working-directory: website
+        run: |
+          npm ci
+          npm run build
+
   build:
+    # Push/dispatch: always. PR: only when native paths changed.
+    # always() so a skipped `changes` job on push does not skip build.
+    if: >
+      always() &&
+      (github.event_name != 'pull_request' ||
+       (needs.changes.result == 'success' && needs.changes.outputs.native == 'true'))
+    needs: changes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -80,6 +138,7 @@ jobs:
         run: make unit GCC_BIN_PATH="$GCC_BIN_PATH"
 
       - name: Build microKORG2 waves reference
+        if: github.event_name != 'pull_request' || needs.changes.outputs.mk2 == 'true'
         run: |
           MK2_PREFIX="$PWD/third_party/logue-sdk/tools/microkorg2-toolchain/arm-unknown-linux-gnueabihf/bin/arm-unknown-linux-gnueabihf-"
           make -C third_party/logue-sdk/platform/microkorg2/waves clean
@@ -87,6 +146,7 @@ jobs:
             CROSS_COMPILE="$MK2_PREFIX"
 
       - name: Build HyperSaw dependency diagnostics
+        if: github.event_name != 'pull_request' || needs.changes.outputs.mk2 == 'true'
         run: |
           MK2_PREFIX="$PWD/third_party/logue-sdk/tools/microkorg2-toolchain/arm-unknown-linux-gnueabihf/bin/arm-unknown-linux-gnueabihf-"
           mkdir -p microkorg2-diagnostics
@@ -104,6 +164,7 @@ jobs:
           done
 
       - name: Compare microKORG2 ELF binaries
+        if: github.event_name != 'pull_request' || needs.changes.outputs.mk2 == 'true'
         run: |
           MK2_READELF="$PWD/third_party/logue-sdk/tools/microkorg2-toolchain/arm-unknown-linux-gnueabihf/bin/arm-unknown-linux-gnueabihf-readelf"
           cp third_party/logue-sdk/platform/microkorg2/waves/build/waves.mk2unit \
@@ -119,6 +180,7 @@ jobs:
             > microkorg2-diagnostics/SHA256SUMS
 
       - name: Upload microKORG2 diagnostics
+        if: github.event_name != 'pull_request' || needs.changes.outputs.mk2 == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: microkorg2-diagnostics
@@ -136,17 +198,39 @@ jobs:
         run: make wasm EMCC_BIN_PATH="$(dirname "$(command -v emcc)")"
 
       - name: Setup Node.js
+        if: github.event_name != 'pull_request'
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: website/package-lock.json
 
       - name: Build deployable website
+        if: github.event_name != 'pull_request'
         run: bash scripts/build-website.sh dist/website
 
       - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist/website
+
+  # Always-present aggregate for branch protection (skipped jobs are OK).
+  ci-result:
+    if: always()
+    needs: [test, changes, website-smoke, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate required jobs
+        run: |
+          echo "test=${{ needs.test.result }}"
+          echo "changes=${{ needs.changes.result }}"
+          echo "website-smoke=${{ needs.website-smoke.result }}"
+          echo "build=${{ needs.build.result }}"
+          test "${{ needs.test.result }}" = "success"
+          case "${{ needs.build.result }}" in success|skipped) ;; *) exit 1 ;; esac
+          case "${{ needs.website-smoke.result }}" in success|skipped) ;; *) exit 1 ;; esac
+          case "${{ needs.changes.result }}" in success|skipped) ;; *) exit 1 ;; esac
 
   deploy:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'

@@ -285,7 +285,8 @@ wasm-ci:
 	$(EMBED_PCM)
 	@echo Building WebAssembly audio processor
 	@mkdir -p $(WASMDIR)
-	@cp -r $(SANDBOXDIR)/samples $(WASMDIR)/
+	@mkdir -p $(WASMDIR)/samples
+	@echo '[]' > $(WASMDIR)/samples/samples.json
 	@cp -r $(SANDBOXDIR)/scripts $(WASMDIR)/
 	@cp -r $(SANDBOXDIR)/images $(WASMDIR)/
 	@cp $(REPO_ROOT)/website/vendor/coi-serviceworker.js $(WASMDIR)/
@@ -295,7 +296,6 @@ wasm-ci:
 		-lembind \
 		--shell-file $(REPO_ROOT)/website/xypad.html \
 		-O2 \
-		-g -fdebug-compilation-dir='..' \
 		$(WASMSRC) \
 		-o $(WASMDIR)/$(PROJECT).html
 	@echo Done
