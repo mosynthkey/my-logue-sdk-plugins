@@ -24,3 +24,9 @@ website/node_modules/
 website/dist/
 website/.vite/
 plugins/*/scripts/render_offline_test
+
+# CI Emscripten cache (mymindstorm/setup-emsdk actions-cache-folder)
+emsdk-cache/
+
+# Downloaded microKORG2 / drumlogue toolchain (not part of logue-sdk)
+third_party/logue-sdk/tools/microkorg2-toolchain/

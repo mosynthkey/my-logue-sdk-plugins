@@ -72,11 +72,17 @@ for plugin_json in sorted((root / "plugins").glob("*/plugin.json")):
         if sim_src.is_dir():
             sim_dest = dest / "sim" / plugin_dir.name / target_dir.name
             sim_dest.mkdir(parents=True, exist_ok=True)
+            # Skip logue-sdk sandbox demo samples (chinese_orchestra.wav etc.).
+            # They are duplicated per sim and dominated the Pages artifact (~785MB).
             for child in sim_src.iterdir():
                 target = sim_dest / child.name
                 if child.is_file():
                     target.write_bytes(child.read_bytes())
                 elif child.is_dir():
+                    if child.name == "samples":
+                        target.mkdir(parents=True, exist_ok=True)
+                        (target / "samples.json").write_text("[]\n")
+                        continue
                     shutil.copytree(child, target, dirs_exist_ok=True)
             (sim_dest / "coi-serviceworker.js").write_bytes(
                 (root / "website/vendor/coi-serviceworker.js").read_bytes()
