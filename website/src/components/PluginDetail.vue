@@ -94,7 +94,9 @@ function showInlineSlots(target) {
 }
 
 function slotSelectLabel(target) {
-  return target === "nts-3_kaoss" ? t("nts3Slot") : t("slot");
+  if (target === "nts-1_mkii") return t("nts1Slot");
+  if (target === "nts-3_kaoss") return t("nts3Slot");
+  return t("slot");
 }
 
 function sendSelectedSlot(target) {
