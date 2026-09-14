@@ -4,8 +4,9 @@
  * File: s4ring.h
  *
  * Torso S-4 RING inspired morphing resonant 48-band filterbank.
- * Slope morphs LP → BP → HP, Decay raises per-band ringing, Scale
- * quantizes band centers. Pad-held wet (NTS-3 performance pattern).
+ * Parallel Chamberlin bandpasses with an LP→BP→HP spectral envelope
+ * (Slope), per-band Q from Decay, scale-quantized centers, and Tone tilt.
+ * Pad-held wet (NTS-3 performance pattern).
  */
 
 #include "fx_dsp.h"
@@ -18,7 +19,7 @@ class S4Ring : public Processor
 {
 public:
   static constexpr uint32_t kBandCount = 48U;
-  static constexpr float kTwoPi = 6.283185307179586f;
+  static constexpr float kPi = 3.141592653589793f;
 
   uint32_t getBufferSize() const override final { return 0; }
 
@@ -91,17 +92,11 @@ public:
     return kNames[value];
   }
 
-  void init(float *) override final
-  {
-    resetState();
-  }
+  void init(float *) override final { resetState(); }
 
   void teardown() override final {}
 
-  void reset() override final
-  {
-    resetState();
-  }
+  void reset() override final { resetState(); }
 
   void touchEvent(uint8_t, uint8_t phase, uint32_t, uint32_t) override final
   {
@@ -124,13 +119,13 @@ public:
   {
     updateBandTable();
 
-    const float sample_rate = getSampleRate();
-    // Decay maps to ringing time ~5 ms … ~2 s (avoid fasterexpf near 0).
+    // Decay raises per-band Q (ringing). Keep Chamberlin damp in a stable range.
     const float decay_shaped = decay_norm_ * decay_norm_;
-    const float tau = 0.005f + decay_shaped * 2.0f;
-    const float radius = resonatorRadius(tau, sample_rate);
+    const float q = 0.9f + decay_shaped * 220.f + reso_norm_ * 24.f;
+    const float damp = fx::clip(1.f / q, 0.003f, 1.2f);
+    const float makeup = 1.f / (0.5f + 0.045f * q);
     const float wet_coeff = 1.f - fasterexpf(-1.f / 128.f);
-    const float drive = 0.55f + reso_norm_ * 0.35f;
+    const float drive = 1.25f;
 
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
@@ -145,18 +140,20 @@ public:
       float wet_right = 0.f;
       for (uint32_t bandIndex = 0; bandIndex < kBandCount; ++bandIndex)
       {
-        const float cos_w = band_cos_[bandIndex];
-        const float sin_w = band_sin_[bandIndex];
+        const float f = band_f_[bandIndex];
         const float gain = band_gain_[bandIndex];
-        float re = band_re_[bandIndex];
-        float im = band_im_[bandIndex];
-        const float new_re = radius * (re * cos_w - im * sin_w) + excite * gain;
-        const float new_im = radius * (re * sin_w + im * cos_w);
-        band_re_[bandIndex] = new_re;
-        band_im_[bandIndex] = new_im;
+        float low = band_low_[bandIndex];
+        float bp = band_bp_[bandIndex];
 
-        const float band_out = new_re;
-        // Spread bands across stereo for a wider bank image.
+        low += f * bp;
+        const float hp = excite - low - damp * bp;
+        bp += f * hp;
+        low = fx::clip(low, -8.f, 8.f);
+        bp = fx::clip(bp, -8.f, 8.f);
+        band_low_[bandIndex] = low;
+        band_bp_[bandIndex] = bp;
+
+        const float band_out = bp * gain * makeup;
         const float pan = band_pan_[bandIndex];
         wet_left += band_out * (0.5f - 0.5f * pan);
         wet_right += band_out * (0.5f + 0.5f * pan);
@@ -180,10 +177,9 @@ private:
   {
     for (uint32_t bandIndex = 0; bandIndex < kBandCount; ++bandIndex)
     {
-      band_re_[bandIndex] = 0.f;
-      band_im_[bandIndex] = 0.f;
-      band_cos_[bandIndex] = 1.f;
-      band_sin_[bandIndex] = 0.f;
+      band_low_[bandIndex] = 0.f;
+      band_bp_[bandIndex] = 0.f;
+      band_f_[bandIndex] = 0.f;
       band_gain_[bandIndex] = 0.f;
       band_pan_[bandIndex] = 0.f;
     }
@@ -191,20 +187,11 @@ private:
     pad_held_ = false;
   }
 
-  // Per-sample coeff near 1: linearize exp (AGENTS.md / HSnare note).
-  static float resonatorRadius(float seconds, float sample_rate)
-  {
-    const float safe = fx::clip(seconds, 0.001f, 8.f);
-    const float x = -1.f / (safe * sample_rate);
-    return 1.f + x;
-  }
-
   static float quantizeToScale(float midi_note, uint8_t scale)
   {
     if (scale == SCALE_CHR)
       return midi_note;
 
-    // Pitch-class masks (1 = in scale). Root is C; absolute pitch comes from PTCH.
     static const uint8_t kMask[SCALE_COUNT][12] = {
         {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, // CHR
         {1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1}, // MAJ
@@ -237,29 +224,24 @@ private:
 
   static float morphWeight(float octaves, float slope)
   {
-    // Soft LP / BP / HP weights from signed octave distance to cutoff.
     const float steep = 2.8f;
     const float lp = 1.f / (1.f + fasterexpf(steep * octaves));
     const float hp = 1.f / (1.f + fasterexpf(-steep * octaves));
-    const float bp = fasterexpf(-octaves * octaves * 2.2f);
+    // Use 1+x near 0 so BP center is not biased by fasterexpf(0)≈0.971.
+    const float bp_x = -octaves * octaves * 2.2f;
+    const float bp = (bp_x > -0.2f) ? (1.f + bp_x) : fasterexpf(bp_x);
 
     if (slope <= 0.5f)
-    {
-      const float t = slope * 2.f;
-      return fx::mix(lp, bp, t);
-    }
-    const float t = (slope - 0.5f) * 2.f;
-    return fx::mix(bp, hp, t);
+      return fx::mix(lp, bp, slope * 2.f);
+    return fx::mix(bp, hp, (slope - 0.5f) * 2.f);
   }
 
   void updateBandTable()
   {
     const float sample_rate = getSampleRate();
-    // Four chromatic octaves from C2 + pitch offset ≈ S-4's 48-band span.
     const float base_note = 36.f + pitch_semi_;
-    // Cutoff as MIDI note across the same span.
     const float cutoff_note = base_note + cutoff_norm_ * 47.f;
-    const float tone = tone_norm_ * 2.f - 1.f; // -1 lows … +1 highs
+    const float tone = tone_norm_ * 2.f - 1.f;
     const float reso = reso_norm_;
 
     float gain_sum = 0.f;
@@ -267,18 +249,16 @@ private:
     {
       const float raw_note = base_note + static_cast<float>(bandIndex);
       const float note = quantizeToScale(raw_note, scale_);
-      const float hz = fx::clip(fx::noteToHz(note), 40.f, sample_rate * 0.45f);
-      const float omega = kTwoPi * hz / sample_rate;
-      // Small-angle rotate (same approach as RingExcit modals).
-      band_cos_[bandIndex] = 1.f - omega * omega * 0.5f;
-      band_sin_[bandIndex] = omega;
+      const float hz = fx::clip(fx::noteToHz(note), 40.f, sample_rate * 0.42f);
+      // Chamberlin f = 2*sin(pi*fc/fs); small-angle ≈ 2*pi*fc/fs.
+      const float f = fx::clip(2.f * kPi * hz / sample_rate, 0.001f, 0.95f);
+      band_f_[bandIndex] = f;
 
       const float octaves = (note - cutoff_note) * (1.f / 12.f);
       float weight = morphWeight(octaves, slope_norm_);
-      // Resonance boosts bands near cutoff.
-      const float near = fasterexpf(-octaves * octaves * 6.f);
-      weight += reso * near * 1.4f;
-      // Tone skews highs vs lows across the bank.
+      const float near_x = -octaves * octaves * 6.f;
+      const float near = (near_x > -0.2f) ? (1.f + near_x) : fasterexpf(near_x);
+      weight += reso * near * 1.25f;
       const float tilt = 1.f + tone * (static_cast<float>(bandIndex) * (2.f / 47.f) - 1.f);
       weight *= fx::clip(tilt, 0.15f, 2.2f);
       if (weight < 0.f)
@@ -289,15 +269,14 @@ private:
       gain_sum += weight;
     }
 
-    const float norm = (gain_sum > 0.001f) ? (1.8f / gain_sum) : 0.f;
+    const float norm = (gain_sum > 0.001f) ? (1.6f / gain_sum) : 0.f;
     for (uint32_t bandIndex = 0; bandIndex < kBandCount; ++bandIndex)
       band_gain_[bandIndex] *= norm;
   }
 
-  float band_re_[kBandCount] = {};
-  float band_im_[kBandCount] = {};
-  float band_cos_[kBandCount] = {};
-  float band_sin_[kBandCount] = {};
+  float band_low_[kBandCount] = {};
+  float band_bp_[kBandCount] = {};
+  float band_f_[kBandCount] = {};
   float band_gain_[kBandCount] = {};
   float band_pan_[kBandCount] = {};
 
