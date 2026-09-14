@@ -4,6 +4,7 @@
  * File: airhorn_mk2.h
  *
  * microKORG2 multi-voice AirHorn oscillator adapter.
+ * PitchMode Fixed: sample D# pitch. Key: keyboard tracks relative to D#4.
  */
 
 #include "airhorn_engine.h"
@@ -19,7 +20,7 @@ public:
   enum
   {
     kLevel = 0U,
-    kFade = 1U,
+    kPitchMode = 1U,
     kNumParams
   };
 
@@ -39,6 +40,7 @@ public:
 
     runtime_desc_ = *desc;
     engine_.init();
+    engine_.setTrackFromParam(false);
 
     for (uint8_t paramIndex = 0; paramIndex < kNumParams; ++paramIndex)
       cached_values_[paramIndex] = static_cast<int32_t>(unit_header.params[paramIndex].init);
@@ -71,8 +73,12 @@ public:
     {
       if (context->trigger & (1U << voiceIndex))
       {
-        (void)context->pitch[voiceIndex];
-        voices_[voiceIndex].trigger(127, 0);
+        const float midi_note = context->pitch[voiceIndex];
+        const uint8_t note = static_cast<uint8_t>(midi_note);
+        float transpose = 1.f;
+        if (engine_.pitchMode() == AirHornEngine::kPitchTrack)
+          transpose = AirHornEngine::noteTransposeFor(note);
+        voices_[voiceIndex].trigger(127, note, transpose);
       }
 
       ProcessVoice(out, voiceIndex, frames, context);
@@ -105,10 +111,14 @@ private:
                     const unit_runtime_osc_context_t *context)
   {
     const int offset = GetBufferOffset(context, voiceIndex, frames);
+    const float transpose = engine_.pitchMode() == AirHornEngine::kPitchTrack
+                                ? voices_[voiceIndex].note_transpose
+                                : 1.f;
 
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
-      const float mono = voices_[voiceIndex].render(engine_.naturalDecayCoeff()) * engine_.outputLevel();
+      const float mono =
+          voices_[voiceIndex].render(engine_.naturalDecayCoeff(), transpose) * engine_.outputLevel();
       write_oscillator_output_x1(out, mono, offset, context->outputStride, sampleIndex, voiceIndex);
     }
   }

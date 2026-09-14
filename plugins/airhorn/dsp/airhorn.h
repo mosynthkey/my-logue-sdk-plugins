@@ -18,7 +18,12 @@ public:
 
   uint32_t getBufferSize() const override final { return 0; }
 
-  void setStereoMix(bool enabled) { stereo_mix_ = enabled; }
+  void setStereoMix(bool enabled)
+  {
+    stereo_mix_ = enabled;
+    // NTS-3 uses stereo mix and Pitch-parameter tracking; keyboard targets do not.
+    engine_.setTrackFromParam(enabled);
+  }
 
   void setParameter(uint8_t index, int32_t value) override final
   {
@@ -33,6 +38,7 @@ public:
   void init(float *) override final
   {
     engine_.init();
+    engine_.setTrackFromParam(stereo_mix_);
   }
 
   void reset() override final { engine_.reset(); }
