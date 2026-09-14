@@ -13,7 +13,7 @@ import {
   readModuleSlots,
   readSlotStatus,
 } from "../../nts1-midi.js";
-import { LOAD_HINT, SENDABLE_TARGETS } from "../constants.js";
+import { LOAD_HINT, SENDABLE_TARGETS, TARGET_LABEL } from "../constants.js";
 import { moduleFor, sendableBuilds } from "../utils/plugin.js";
 
 function deviceForTarget(target) {
@@ -254,11 +254,8 @@ export function useMidiSend() {
       currentSlotModule.value = module;
     }
 
-    slotLabel.value = pendingTarget.value === "nts-3_kaoss"
-      ? "NTS-3 Slot"
-      : pendingTarget.value === "nts-1_mkii"
-        ? "NTS-1 mk2 Slot"
-        : `${module} slot`;
+    const targetLabel = TARGET_LABEL[pendingTarget.value];
+    slotLabel.value = targetLabel ? `${targetLabel} Slot` : `${module} slot`;
     const maxSlot = (MODULE_SLOTS[module] || 16) - 1;
     const nextSlot = Number.isFinite(previous) ? Math.min(Math.max(previous, 0), maxSlot) : 1;
     slot.value = nextSlot;
