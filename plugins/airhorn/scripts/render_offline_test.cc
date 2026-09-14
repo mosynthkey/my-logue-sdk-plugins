@@ -18,7 +18,7 @@ int main()
   engine.setParameter(AirHornEngine::LEVEL, 1023);
   engine.setParameter(AirHornEngine::PMODE, 0); // Fixed
 
-  engine.startVoice(127, 63); // D#4 — should match fixed pitch
+  engine.startVoice(127, 60); // Fixed mode ignores note for pitch
 
   float peak = 0.f;
   double sum_squares = 0.0;
@@ -50,11 +50,35 @@ int main()
   for (uint32_t sampleIndex = 0; sampleIndex < 48000U / 5U; ++sampleIndex)
     (void)engine.renderMono();
 
-  const float expected = AirHornEngine::noteTransposeFor(60);
-  const float want = std::pow(2.f, (60.f - 63.f) / 12.f);
+  // Key tracking uses the measured native root (~62.49), not assumed D# / retuned D4.
+  const float expected = AirHornEngine::noteTransposeFor(60.f);
+  const float want = std::pow(2.f, (60.f - kAirhornRootMidi) / 12.f);
   if (!approxEqual(expected, want, 0.01f))
   {
-    std::printf("FAIL: note transpose got %.6f want %.6f\n", expected, want);
+    std::printf("FAIL: note transpose got %.6f want %.6f (root=%.6f)\n",
+                expected, want, kAirhornRootMidi);
+    return 1;
+  }
+  // Fixed stays native (~D4+49c), so Key D4 is ~49 cents below Fixed.
+  const float d4_xpose = AirHornEngine::noteTransposeFor(62.f);
+  if (!(d4_xpose < 1.f && d4_xpose > 0.96f))
+  {
+    std::printf("FAIL: D4 transpose expected ~0.972, got %.6f\n", d4_xpose);
+    return 1;
+  }
+  // Concert D#4 is ~51 cents above Fixed.
+  const float ds4_xpose = AirHornEngine::noteTransposeFor(63.f);
+  if (!(ds4_xpose > 1.f && ds4_xpose < 1.04f))
+  {
+    std::printf("FAIL: D#4 transpose expected ~1.030, got %.6f\n", ds4_xpose);
+    return 1;
+  }
+  // Root MIDI must match settled Hz (A4=440), with Fixed left untuned.
+  const float root_from_hz = 69.f + 12.f * std::log2(kAirhornSettledHz / 440.f);
+  if (!approxEqual(root_from_hz, kAirhornRootMidi, 0.01f))
+  {
+    std::printf("FAIL: root midi %.6f != settled-derived %.6f\n",
+                kAirhornRootMidi, root_from_hz);
     return 1;
   }
 

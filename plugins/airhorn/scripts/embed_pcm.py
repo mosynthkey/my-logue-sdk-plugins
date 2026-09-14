@@ -578,6 +578,11 @@ def extract_dj_loop(
 
 
 def write_header(path: pathlib.Path, horns: list[dict], sample_rate: int) -> None:
+    settled_hz = float(horns[0]["settled_hz"]) if horns else 0.0
+    # Exact equal-temperament MIDI of the native settled pitch (A4=440).
+    # Fixed keeps native pitch; Key mode alone uses this root for concert tracking.
+    root_midi = 69.0 + 12.0 * math.log2(settled_hz / 440.0) if settled_hz > 0.0 else 69.0
+
     lines = [
         "#pragma once",
         "",
@@ -590,6 +595,11 @@ def write_header(path: pathlib.Path, horns: list[dict], sample_rate: int) -> Non
         "",
         f"static const uint32_t kAirhornSampleRate = {sample_rate}u;",
         f"static const uint32_t kAirhornCount = {len(horns)}u;",
+        "",
+        "// Settled loop fundamental from refined autocorrelation on the embedded PCM.",
+        f"// ~{settled_hz:.3f} Hz ≈ MIDI {root_midi:.3f}. Fixed keeps native pitch; Key uses the root.",
+        f"static const float kAirhornSettledHz = {settled_hz:.6f}f;",
+        f"static const float kAirhornRootMidi = {root_midi:.6f}f;",
         "",
         "typedef struct AirhornSample",
         "{",
