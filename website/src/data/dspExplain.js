@@ -450,6 +450,17 @@ export const dspExplainById = {
   Voices --> LPF[Dual recon LPF] --> Pump[Kick pump] --> Mix[Drum level over Audio In] --> Out[Out]
   In[Audio in] --> Mix`,
   },
+  stoneres: {
+    en: "Rubbing the XY pad scans a fractal stone surface into a modal body; a chord bandpass bank remaps that friction to ROOT/CHORD. LOAD/ROUGH on the pad; MAT/GRAIN/DAMP shape the stone; MIX blends dry stone vs resonator. Instrument-only (no dry oscillator pass-through).",
+    ja: "XYパッドを擦るとフラクタル表面を走査して石のモーダル体を鳴らし、ROOT/CHORDのバンドパス群で共鳴させます。パッドはLOAD/ROUGH、石はMAT/GRAIN/DAMP、MIXは石ドライとレゾのブレンド。楽器出力のみ（ドライOSC通過なし）。",
+    mermaid: `flowchart LR
+  Rub[Pad rub speed] --> Excite[Friction excite]
+  Excite --> Stone[Stone modal bank]
+  Stone --> Dry[Stone dry]
+  Stone --> Chord[Chord bandpass bank]
+  Dry --> Mix[Equal-power MIX]
+  Chord --> Mix --> Out[Stereo wet]`,
+  },
   ringexcit: {
     en: "Input (plus a touch noise burst) excites a Karplus–Strong delay and three complex modal resonators. Structure blends string vs modal; tone/pos set damping and pickup; then dry/wet.",
     ja: "入力とタッチ・ノイズでKarplus–Strong遅延と3つのモーダル共振を励起します。構造で弦／モーダル比、トーン／位置で減衰とピックアップを決め、ドライ／ウェットします。",

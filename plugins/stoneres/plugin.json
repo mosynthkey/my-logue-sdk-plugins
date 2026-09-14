@@ -1,0 +1,18 @@
+{
+  "id": "stoneres",
+  "experimental": true,
+  "name": "StoneRes",
+  "type": "synth",
+  "targets": ["nts-3_kaoss"],
+  "description": "Rub the XY pad to grind a stone surface; a chord resonator bank remaps the friction noise. LOAD/ROUGH on the pad, MAT/GRAIN/DAMP for the stone, ROOT/CHORD for the resonator.\nStill being fine-tuned; the official release is coming soon.",
+  "params": [
+    { "name": "LOAD", "role": "X", "detail": "Contact pressure / load" },
+    { "name": "ROUGH", "role": "Y", "detail": "Surface roughness" },
+    { "name": "MIX", "role": "Depth", "detail": "Stone dry vs chord resonator wet" },
+    { "name": "MAT", "role": "Edit", "detail": "Stone material preset" },
+    { "name": "GRAIN", "role": "Edit", "detail": "Grain density / catch rate" },
+    { "name": "DAMP", "role": "Edit", "detail": "Stone body ring / sustain" },
+    { "name": "ROOT", "role": "Edit", "detail": "Chord root (C-B)" },
+    { "name": "CHORD", "role": "Edit", "detail": "Chord type" }
+  ]
+}
