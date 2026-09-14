@@ -23,8 +23,8 @@ namespace
 {
 
 constexpr float kSampleRate = AirHornEngine::kHostSampleRate;
-constexpr int32_t kFadeCentre = 511; // matches the engine default of tau ~1.8 s
-constexpr int32_t kFadeHold = 0;     // 0 disables the sustain fade entirely
+constexpr int32_t kDecaySustain = AirHornEngine::kDecaySustainValue;
+constexpr int32_t kDecayMedium = 64;
 
 uint32_t toSamples(float seconds)
 {
@@ -98,7 +98,7 @@ struct Section
 {
   const char *file_name;
   const char *label;
-  int32_t fade_param;
+  int32_t decay_param;
   float skip_seconds;
   float gate_seconds;
   float tail_seconds;
@@ -108,9 +108,10 @@ std::vector<float> renderSection(const Section &section)
 {
   AirHornEngine engine;
   engine.init();
+  engine.setTrackFromParam(true);
   engine.setParameter(AirHornEngine::LEVEL, 1023);
   engine.setParameter(AirHornEngine::MIX, 1000);
-  engine.setParameter(AirHornEngine::FADE, section.fade_param);
+  engine.setParameter(AirHornEngine::DECAY, section.decay_param);
   engine.startVoice(127, 60);
 
   const float output_gain = engine.outputLevel();
@@ -143,13 +144,13 @@ int main(int argc, char **argv)
 
   const Section sections[] = {
       {"airhorn_attack.wav", "pitch drop from +6.4 semitones down to the settled tone",
-       kFadeCentre, 0.f, 0.6f, 0.f},
-      {"airhorn_sustain.wav", "settled loop, FADE=0 flat hold, ~7 loop passes",
-       kFadeHold, 0.8f, 3.8f, 0.f},
+       kDecaySustain, 0.f, 0.6f, 0.f},
+      {"airhorn_sustain.wav", "settled loop, DECAY=Sustain flat hold, ~7 loop passes",
+       kDecaySustain, 0.8f, 3.8f, 0.f},
       {"airhorn_release.wav", "sustain into the note-off release tail",
-       kFadeHold, 0.8f, 1.8f, 1.6f},
-      {"airhorn_full_note.wav", "note-on to note-off with the default FADE of ~1.8 s",
-       kFadeCentre, 0.f, 6.f, 1.f},
+       kDecaySustain, 0.8f, 1.8f, 1.6f},
+      {"airhorn_full_note.wav", "note-on to note-off with a medium DECAY",
+       kDecayMedium, 0.f, 6.f, 1.f},
   };
 
   for (const Section &section : sections)
