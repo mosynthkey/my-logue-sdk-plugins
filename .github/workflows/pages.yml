@@ -232,8 +232,15 @@ jobs:
           case "${{ needs.website-smoke.result }}" in success|skipped) ;; *) exit 1 ;; esac
           case "${{ needs.changes.result }}" in success|skipped) ;; *) exit 1 ;; esac
 
+  # always() is required: on push, `changes` is skipped and `build` continues via
+  # always(); without always() here, GHA still skips deploy as a skipped-ancestor child.
   deploy:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: >
+      always() &&
+      github.event_name != 'pull_request' &&
+      github.ref == 'refs/heads/main' &&
+      needs.test.result == 'success' &&
+      needs.build.result == 'success'
     needs: [test, build]
     runs-on: ubuntu-latest
     environment:
