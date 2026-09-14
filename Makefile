@@ -2,20 +2,19 @@
 
 PLUGIN_TARGETS := $(dir $(wildcard plugins/*/targets/*/Makefile))
 
+# Parallelism for unit/wasm/clean. Override with `make unit JOBS=2`.
+JOBS ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+
 export GCC_BIN_PATH
 export EMCC_BIN_PATH
 
 all: unit
 
 unit:
-	@set -e; for target_dir in $(PLUGIN_TARGETS); do \
-		$(MAKE) -C $$target_dir install; \
-	done
+	@printf '%s\0' $(PLUGIN_TARGETS) | xargs -0 -P $(JOBS) -I{} $(MAKE) -C {} install
 
 wasm:
-	@set -e; for target_dir in $(PLUGIN_TARGETS); do \
-		$(MAKE) -C $$target_dir wasm-ci; \
-	done
+	@printf '%s\0' $(PLUGIN_TARGETS) | xargs -0 -P $(JOBS) -I{} $(MAKE) -C {} wasm-ci
 
 test:
 	node tests/nts1-midi.test.mjs
@@ -27,7 +26,5 @@ website: unit
 	bash scripts/build-website.sh dist/website
 
 clean:
-	@for target_dir in $(PLUGIN_TARGETS); do \
-		$(MAKE) -C $$target_dir clean; \
-	done
+	@printf '%s\0' $(PLUGIN_TARGETS) | xargs -0 -P $(JOBS) -I{} $(MAKE) -C {} clean
 	rm -rf dist

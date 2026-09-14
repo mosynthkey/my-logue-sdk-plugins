@@ -58,6 +58,13 @@ jobs:
           fi
           echo "GCC_BIN_PATH=$TOOLCHAIN_BIN" >> "$GITHUB_ENV"
 
+      - name: Cache microKORG2 toolchain
+        if: hashFiles('plugins/*/targets/microkorg2/Makefile') != ''
+        uses: actions/cache@v4
+        with:
+          path: third_party/logue-sdk/tools/microkorg2-toolchain
+          key: microkorg2-toolchain-drumlogue-amd64
+
       - name: Install microKORG2 toolchain (when needed)
         if: hashFiles('plugins/*/targets/microkorg2/Makefile') != ''
         run: |
@@ -65,7 +72,7 @@ jobs:
           if [ ! -x "$MK2_ROOT/arm-unknown-linux-gnueabihf/bin/arm-unknown-linux-gnueabihf-gcc" ]; then
             mkdir -p "$MK2_ROOT"
             curl -fL -o /tmp/mk2-toolchain.tar.bz2 \
-              https://www.dropbox.com/s/3curhjx9yip29os/drumlogue-toolchain-amd64.tar.bz2
+              "https://www.dropbox.com/s/3curhjx9yip29os/drumlogue-toolchain-amd64.tar.bz2?dl=1"
             tar -xjf /tmp/mk2-toolchain.tar.bz2 -C "$MK2_ROOT" --strip-components=1
           fi
 
@@ -122,6 +129,8 @@ jobs:
         uses: mymindstorm/setup-emsdk@v14
         with:
           version: 3.1.74
+          actions-cache-folder: emsdk-cache
+          cache-key: emsdk-3.1.74-linux-x64
 
       - name: Build Wasm simulator
         run: make wasm EMCC_BIN_PATH="$(dirname "$(command -v emcc)")"
