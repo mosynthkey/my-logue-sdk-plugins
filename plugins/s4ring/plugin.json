@@ -1,0 +1,52 @@
+{
+  "id": "s4ring",
+  "experimental": true,
+  "name": "S4Ring",
+  "type": "fx",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Torso S-4 RING inspired morphing resonant filterbank. 48 tuned bands with LP/BP/HP slope morph, per-band decay ringing, scale quantization, and spectral tone. X = cutoff, Y = decay.",
+  "params": [
+    {
+      "name": "CUT",
+      "role": "X",
+      "detail": "Filterbank cutoff"
+    },
+    {
+      "name": "DEC",
+      "role": "Y",
+      "detail": "Per-band decay / ringing"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Dry/wet"
+    },
+    {
+      "name": "RES",
+      "role": "Edit",
+      "detail": "Cutoff resonance boost"
+    },
+    {
+      "name": "SLOP",
+      "role": "Edit",
+      "detail": "Morph LP → BP → HP"
+    },
+    {
+      "name": "PTCH",
+      "role": "Edit",
+      "detail": "Bank pitch (-24..+24 st)"
+    },
+    {
+      "name": "SCAL",
+      "role": "Edit",
+      "detail": "Chromatic, Maj, Min, Pen, Blu, Whl"
+    },
+    {
+      "name": "TONE",
+      "role": "Edit",
+      "detail": "Spectral tilt (lows ↔ highs)"
+    }
+  ]
+}
