@@ -65,7 +65,7 @@ int main()
   nts3.setParameter(AirHornEngine::DECAY, 127);
   nts3.setParameter(AirHornEngine::MIX, 1000);
   nts3.setParameter(AirHornEngine::PMODE_NTS3, 1);
-  nts3.setParameter(AirHornEngine::PITCH, 12); // +1 oct
+  nts3.setParameter(AirHornEngine::PITCH, 768); // +1 oct (512 + 256)
 
   const char *sustain = nts3.getParameterStrValue(AirHornEngine::DECAY, 127);
   if (sustain == nullptr || std::strcmp(sustain, "Sustain") != 0)
@@ -79,9 +79,30 @@ int main()
     std::printf("FAIL: expected Pitch mode label\n");
     return 1;
   }
-  if (!approxEqual(nts3.pitchTranspose(), 2.f, 0.02f))
+  // Allow smoothing to settle toward +1 octave (ratio 2).
+  for (uint32_t sampleIndex = 0; sampleIndex < 48000U / 5U; ++sampleIndex)
+    (void)nts3.renderMono();
+  if (!approxEqual(nts3.pitchTranspose(), 2.f, 0.05f))
   {
-    std::printf("FAIL: +12 semis transpose got %.6f\n", nts3.pitchTranspose());
+    std::printf("FAIL: +1 oct transpose got %.6f\n", nts3.pitchTranspose());
+    return 1;
+  }
+
+  // Continuous sweep endpoints: 0 → 0.25, 1023 → ~4.
+  nts3.setParameter(AirHornEngine::PITCH, 0);
+  for (uint32_t sampleIndex = 0; sampleIndex < 48000U / 5U; ++sampleIndex)
+    (void)nts3.renderMono();
+  if (!approxEqual(nts3.pitchTranspose(), 0.25f, 0.02f))
+  {
+    std::printf("FAIL: -2 oct transpose got %.6f\n", nts3.pitchTranspose());
+    return 1;
+  }
+  nts3.setParameter(AirHornEngine::PITCH, 1023);
+  for (uint32_t sampleIndex = 0; sampleIndex < 48000U / 5U; ++sampleIndex)
+    (void)nts3.renderMono();
+  if (!approxEqual(nts3.pitchTranspose(), 4.f, 0.05f))
+  {
+    std::printf("FAIL: +2 oct transpose got %.6f\n", nts3.pitchTranspose());
     return 1;
   }
 

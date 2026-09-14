@@ -8,7 +8,7 @@
  *
  * NTS-1 / microKORG2: no natural fade (device EG); PitchMode Fixed or Key.
  * NTS-3: Decay (0-127, 127 = Sustain) replaces Fade; PitchMode Fixed or Pitch
- * with a ±2 oct Pitch parameter.
+ * with a continuous ±2 oct Pitch parameter (10-bit, smoothed for X-pad play).
  *
  * Sustain uses one wrapping player, not a ping-pong pair. A second player with
  * a runtime crossfade would re-blend the loop tail into a head that already
@@ -221,7 +221,7 @@ public:
     natural_decay_coeff_ = 1.f; // default: Sustain / no auto-fade (NTS-1)
     mix_ = 1.f;
     pitch_mode_ = kPitchFixed;
-    pitch_semitones_ = 0.f;
+    pitch_transpose_target_ = 1.f;
     pitch_transpose_ = 1.f;
     track_from_param_ = false;
     next_voice_ = 0U;
@@ -256,12 +256,8 @@ public:
         pitch_mode_ = (value != 0) ? kPitchTrack : kPitchFixed;
         break;
       case PITCH:
-        pitch_semitones_ = static_cast<float>(value);
-        if (pitch_semitones_ < -24.f)
-          pitch_semitones_ = -24.f;
-        if (pitch_semitones_ > 24.f)
-          pitch_semitones_ = 24.f;
-        pitch_transpose_ = fastpow2f(pitch_semitones_ * (1.f / 12.f));
+        // Continuous ±2 oct: 0 → -24st, 512 → 0, 1023 → +24st.
+        pitch_transpose_target_ = pitchParamToTranspose(value);
         break;
       default:
         break;
@@ -342,6 +338,9 @@ public:
 
   float renderMono() const
   {
+    // One-pole toward the Pitch target (~8 ms) so X-pad sweeps stay continuous.
+    pitch_transpose_ += (pitch_transpose_target_ - pitch_transpose_) * kPitchSmoothCoeff;
+
     float wet = 0.f;
     for (uint32_t voiceIndex = 0; voiceIndex < kMaxVoices; ++voiceIndex)
       wet += voices_[voiceIndex].render(natural_decay_coeff_, voicePlaybackTranspose(voiceIndex));
@@ -378,10 +377,22 @@ public:
 private:
   static constexpr float kDecayTauMinSec = 0.15f;
   static constexpr float kDecayTauMaxSec = 8.f;
+  static constexpr float kPitchSmoothCoeff = 0.0026f; // ≈ 1 - e^(-1/(0.008*48000))
 
   static float param10BitToFloat(int32_t value)
   {
     return static_cast<uint16_t>(value) * 9.77517106549365e-004f;
+  }
+
+  static float pitchParamToTranspose(int32_t value)
+  {
+    // 0..1023 → -24..+24 semitones continuously (center 512 = unison).
+    float norm = (static_cast<float>(value) - 512.f) * (1.f / 512.f);
+    if (norm < -1.f)
+      norm = -1.f;
+    if (norm > 1.f)
+      norm = 1.f;
+    return fastpow2f(norm * 2.f);
   }
 
   static float decayParamToCoeff(int32_t value)
@@ -413,8 +424,8 @@ private:
   float natural_decay_coeff_ = 1.f;
   float mix_ = 1.f;
   PitchMode pitch_mode_ = kPitchFixed;
-  float pitch_semitones_ = 0.f;
-  float pitch_transpose_ = 1.f;
+  float pitch_transpose_target_ = 1.f;
+  mutable float pitch_transpose_ = 1.f;
   bool track_from_param_ = false;
   mutable AirHornVoice voices_[kMaxVoices];
 };

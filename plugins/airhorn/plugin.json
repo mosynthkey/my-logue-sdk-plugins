@@ -9,7 +9,7 @@
     { "name": "LEVEL", "role": "A", "detail": "Output level" },
     { "name": "PMODE", "role": "Edit", "detail": "Pitch mode: Fixed, or Key (NTS-1/mk2) / Pitch (NTS-3)" },
     { "name": "DECAY", "role": "Edit", "detail": "Natural fade after settle (NTS-3; 127 = Sustain)" },
-    { "name": "PITCH", "role": "X", "detail": "Pitch offset ±2 oct when PMODE=Pitch (NTS-3)" },
+    { "name": "PITCH", "role": "X", "detail": "Continuous pitch ±2 oct when PMODE=Pitch (NTS-3; center = unison)" },
     { "name": "MIX", "role": "NTS-3 Mix", "detail": "Dry/wet (NTS-3 only)" }
   ]
 }
