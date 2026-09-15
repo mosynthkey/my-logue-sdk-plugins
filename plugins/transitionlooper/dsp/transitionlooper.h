@@ -3,12 +3,13 @@
 /*
  * File: transitionlooper.h
  *
- * Tempo-synced 16-step DJ transition looper for NTS-3. Prefers raw AUDIO IN
- * (get_raw_input) because unit_render input is muted while the pad is up.
- * If that pre-roll is still silent, the first hold captures one live bar
- * and then freezes. Pad up bypasses; pad down fades into the frozen loop.
- * On pad-down, the nearest 16th clock becomes relative step 1 so loop phase
- * lines up with the user's tap (host 4ppqn when present, else internal).
+ * Tempo-synced 16-step DJ transition looper for NTS-3. Always records AUDIO
+ * IN into a ring buffer while the pad is up (prefers get_raw_input because
+ * unit_render input is muted off-pad). If that pre-roll is still silent, the
+ * first hold captures one live bar and then freezes. Pad up bypasses; pad
+ * down freezes the previous 16 steps ending at the tap and fades into that
+ * loop. The nearest 16th clock becomes relative step 1 (Ride909-style).
+ * TYPE STEP picks loop vs live per relative step; PAT selects the mask.
  */
 
 #include "macros.h"
@@ -42,6 +43,7 @@ public:
     TYPE,
     GLUE,
     SYNC,
+    PAT,
     NUM_PARAMS
   };
 
@@ -54,6 +56,7 @@ public:
     TYPE_ECHO,
     TYPE_BRK,
     TYPE_ROLL,
+    TYPE_STEP,
     NUM_TYPES
   };
 
@@ -64,6 +67,17 @@ public:
     SYNC_4,
     SYNC_2,
     NUM_SYNCS
+  };
+
+  // Loop/live masks for TYPE_STEP (1-based relative steps from pad-down).
+  enum
+  {
+    PAT_ALT = 0, // 1,3,5... loop / 2,4,6... live
+    PAT_INV,     // inverse of ALT
+    PAT_H8,      // 1-8 loop / 9-16 live
+    PAT_L8,      // 1-8 live / 9-16 loop
+    PAT_Q4,      // 1-4+9-12 loop / 5-8+13-16 live
+    NUM_PATS
   };
 
   void setParameter(uint8_t index, int32_t value) override final
@@ -114,6 +128,16 @@ public:
       sync_ = static_cast<uint8_t>(sync);
       break;
     }
+    case PAT:
+    {
+      int32_t pat = value;
+      if (pat < 0)
+        pat = 0;
+      if (pat >= NUM_PATS)
+        pat = NUM_PATS - 1;
+      pat_ = static_cast<uint8_t>(pat);
+      break;
+    }
     default:
       break;
     }
@@ -121,13 +145,16 @@ public:
 
   const char *getParameterStrValue(uint8_t index, int32_t value) const override final
   {
-    static const char *type_names[NUM_TYPES] = {"VOL", "HPF", "LPF", "BASS", "ECHO", "BRK", "ROLL"};
+    static const char *type_names[NUM_TYPES] = {"VOL", "HPF", "LPF", "BASS", "ECHO", "BRK", "ROLL", "STEP"};
     static const char *sync_names[NUM_SYNCS] = {"1/16", "1/8", "1/4", "1/2"};
+    static const char *pat_names[NUM_PATS] = {"ALT", "INV", "H8", "L8", "Q4"};
 
     if (index == TYPE && value >= 0 && value < NUM_TYPES)
       return type_names[value];
     if (index == SYNC && value >= 0 && value < NUM_SYNCS)
       return sync_names[value];
+    if (index == PAT && value >= 0 && value < NUM_PATS)
+      return pat_names[value];
     return nullptr;
   }
 
@@ -146,6 +173,7 @@ public:
     type_ = TYPE_VOL;
     glue_norm_ = 0.39f;
     sync_ = SYNC_4;
+    pat_ = PAT_ALT;
     tone_norm_ = 0.68f;
     bpm_ = 120.f;
     updateLoopGeometry();
@@ -179,6 +207,7 @@ public:
     wet_target_ = 0.f;
     play_pos_ = 0.f;
     play_window_ = 0U;
+    step_sel_ = 1.f;
     live_lp_left_ = 0.f;
     live_lp_right_ = 0.f;
     loop_lp_left_ = 0.f;
@@ -332,7 +361,10 @@ public:
       if (frozen_)
         renderLoop(loop_left, loop_right);
 
-      applyTransition(live_left, live_right, loop_left, loop_right);
+      if (type_ == TYPE_STEP)
+        applyStepMix(live_left, live_right, loop_left, loop_right);
+      else
+        applyTransition(live_left, live_right, loop_left, loop_right);
 
       out[0] = live_left + loop_left * mix_;
       out[1] = live_right + loop_right * mix_;
@@ -353,6 +385,8 @@ public:
   float debugPlayPos() const { return play_pos_; }
   bool debugHaveSeenTick() const { return have_seen_tick_; }
   float debugSamplesSinceTick() const { return samples_since_tick_; }
+  uint32_t debugRelativeStep() const { return relativeStepFromPlayPos(); }
+  float debugStepSel() const { return step_sel_; }
 
 private:
   static float clamp01(float value)
@@ -510,6 +544,8 @@ private:
       play_window_ = kMinLoopSamples;
 
     alignPlayPhaseToNearestStep1();
+
+    step_sel_ = patternWantsLoop(relativeStepFromPlayPos()) ? 1.f : 0.f;
 
     loop_lp_left_ = 0.f;
     loop_lp_right_ = 0.f;
@@ -713,6 +749,69 @@ private:
     right += delayed_right * send_amount;
   }
 
+  // Relative 1..16 from play_pos (step 1 is the pad-down / nearest-clock origin).
+  uint32_t relativeStepFromPlayPos() const
+  {
+    const uint32_t window = play_window_ == 0U ? (loop_length_ == 0U ? 1U : loop_length_) : play_window_;
+    float pos = play_pos_;
+    while (pos >= static_cast<float>(window))
+      pos -= static_cast<float>(window);
+    while (pos < 0.f)
+      pos += static_cast<float>(window);
+
+    uint32_t step_samples = window / kStepsPerBar;
+    if (step_samples == 0U)
+      step_samples = 1U;
+    uint32_t step_index = static_cast<uint32_t>(pos / static_cast<float>(step_samples));
+    if (step_index >= kStepsPerBar)
+      step_index = kStepsPerBar - 1U;
+    return step_index + 1U;
+  }
+
+  bool patternWantsLoop(uint32_t step_1based) const
+  {
+    if (step_1based < 1U)
+      step_1based = 1U;
+    if (step_1based > kStepsPerBar)
+      step_1based = kStepsPerBar;
+
+    switch (pat_)
+    {
+    case PAT_INV:
+      return (step_1based & 1U) == 0U;
+    case PAT_H8:
+      return step_1based <= 8U;
+    case PAT_L8:
+      return step_1based > 8U;
+    case PAT_Q4:
+    {
+      const uint32_t quarter = ((step_1based - 1U) / 4U) & 1U;
+      return quarter == 0U;
+    }
+    case PAT_ALT:
+    default:
+      return (step_1based & 1U) != 0U;
+    }
+  }
+
+  void applyStepMix(float &live_left, float &live_right, float &loop_left, float &loop_right)
+  {
+    const float amount = wet_;
+    const uint32_t step = relativeStepFromPlayPos();
+    const float target = patternWantsLoop(step) ? 1.f : 0.f;
+
+    // TONE sharpens the loop/live edges (soft morph → near-click cut).
+    const float smooth = 1.f / (8.f + (1.f - tone_norm_) * 120.f);
+    step_sel_ += (target - step_sel_) * smooth;
+
+    const float live_gain = 1.f - amount * step_sel_;
+    const float loop_gain = amount * step_sel_;
+    live_left *= live_gain;
+    live_right *= live_gain;
+    loop_left *= loop_gain;
+    loop_right *= loop_gain;
+  }
+
   void applyTransition(float &live_left, float &live_right, float &loop_left, float &loop_right)
   {
     const float amount = wet_;
@@ -805,6 +904,7 @@ private:
   float wet_target_ = 0.f;
   float fade_increment_ = 0.0001f;
   float play_pos_ = 0.f;
+  float step_sel_ = 1.f;
   float live_lp_left_ = 0.f;
   float live_lp_right_ = 0.f;
   float loop_lp_left_ = 0.f;
@@ -830,6 +930,7 @@ private:
   uint32_t arm_samples_ = 0U;
   uint8_t type_ = TYPE_VOL;
   uint8_t sync_ = SYNC_4;
+  uint8_t pat_ = PAT_ALT;
   bool frozen_ = false;
   bool pad_held_ = false;
   bool arming_ = false;
