@@ -4,11 +4,13 @@
  * File: ride909.h
  *
  * Tempo-synced TR-909 ride layer for NTS-3.
- * Hold the pad to gate a techno ride wash on off-beats 3-7-11-15.
- * Quarter-note steps 1-5-9-13 sidechain-pump the tail.
+ * Hold the pad to gate a techno ride wash. On pad-down, the nearest 16th
+ * clock becomes relative step 1 (kick / pump). The pattern is a 4-step cycle:
+ *   1 = kick sidechain pump, 3 = ride hit (2 and 4 silent).
+ * Tap with the kick and rides land on the off-beats automatically.
  * X is 909 Tune: analog clock rate through the Ride ROM, zero-order hold,
  * no interpolation. Decay shortens as pitch rises, matching the hardware.
- * Y is kick sidechain amount. Depth is dry/wet.
+ * Y is kick sidechain amount. Depth (MIX) is wet level only; dry input always passes.
  *
  * Voice path follows the 9090 Ride section of the TR-909 voicing board:
  *   variable clock -> 4040/4520 address -> 6-bit ROM -> resistor DAC
@@ -45,7 +47,7 @@ class Ride909 : public Processor
 {
 public:
   static constexpr uint32_t kVoiceCount = 4U;
-  static constexpr uint32_t kStepsPerBar = 16U;
+  static constexpr uint32_t kStepsPerCycle = 4U;
   static constexpr float kPitchRangeSemitones = 12.f;
   static constexpr float kMaxPumpDepth = 0.92f;
   static constexpr float kPumpHoldFraction = 0.22f;
@@ -106,8 +108,9 @@ public:
     bpm_ = 120.f;
     running_ = false;
     use_host_clock_ = false;
-    tick_counter_ = 0U;
-    internal_tick_phase_ = 0.f;
+    have_seen_tick_ = false;
+    next_step_ = 1U;
+    samples_since_tick_ = 0.f;
     dc_prev_in_ = 0.f;
     dc_prev_out_ = 0.f;
     updateClockRatio();
@@ -117,6 +120,7 @@ public:
   void reset() override final
   {
     running_ = false;
+    next_step_ = 1U;
     pump_gain_ = 1.f;
     dc_prev_in_ = 0.f;
     dc_prev_out_ = 0.f;
@@ -131,8 +135,9 @@ public:
 
   void tempo4ppqnTick(uint32_t counter) override final
   {
+    (void)counter;
     use_host_clock_ = true;
-    handleTick(counter);
+    onClockTick();
   }
 
   void touchEvent(uint8_t id, uint8_t phase, uint32_t x, uint32_t y) override final
@@ -145,7 +150,10 @@ public:
         phase == k_unit_touch_phase_stationary)
     {
       if (!running_)
+      {
+        syncToNearestClockAsStep1();
         running_ = true;
+      }
       return;
     }
 
@@ -161,6 +169,7 @@ public:
   {
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
+      samples_since_tick_ += 1.f;
       if (!use_host_clock_)
         advanceInternalClockOneSample();
       advancePumpEnvelope();
@@ -173,6 +182,9 @@ public:
     }
   }
 
+  uint32_t debugNextStep() const { return next_step_; }
+  bool debugHaveSeenTick() const { return have_seen_tick_; }
+
 private:
   struct Voice
   {
@@ -183,37 +195,11 @@ private:
     float lpf_b = 0.f;
   };
 
-  static uint32_t stepOneBased(uint32_t counter)
+  float samplesPerTick() const
   {
-    return ((counter - 1U) % kStepsPerBar) + 1U;
-  }
-
-  static bool isKickStep(uint32_t counter)
-  {
-    switch (stepOneBased(counter))
-    {
-    case 1U:
-    case 5U:
-    case 9U:
-    case 13U:
-      return true;
-    default:
-      return false;
-    }
-  }
-
-  static bool isRideStep(uint32_t counter)
-  {
-    switch (stepOneBased(counter))
-    {
-    case 3U:
-    case 7U:
-    case 11U:
-    case 15U:
-      return true;
-    default:
-      return false;
-    }
+    if (bpm_ <= 0.f)
+      return 0.f;
+    return getSampleRate() * 60.f / (bpm_ * 4.f);
   }
 
   static uint8_t readPcm6(uint32_t sample_index)
@@ -232,8 +218,7 @@ private:
     if (bpm_ <= 0.f)
       return;
 
-    const float sample_rate = getSampleRate();
-    const float samples_per_16th = sample_rate * 60.f / (bpm_ * 4.f);
+    const float samples_per_16th = samplesPerTick();
     pump_hold_samples_ = static_cast<uint32_t>(samples_per_16th * kPumpHoldFraction);
   }
 
@@ -248,8 +233,7 @@ private:
     if (bpm_ <= 0.f)
       return;
 
-    const float sample_rate = getSampleRate();
-    const float samples_per_16th = sample_rate * 60.f / (bpm_ * 4.f);
+    const float samples_per_16th = samplesPerTick();
     if (samples_per_16th <= 0.f)
       return;
 
@@ -281,35 +265,58 @@ private:
     next_voice_index_ = 0U;
   }
 
-  void handleTick(uint32_t counter)
+  void syncToNearestClockAsStep1()
   {
-    tick_counter_ = counter;
+    const float samples_per_tick = samplesPerTick();
+    if (!have_seen_tick_ || samples_per_tick <= 0.f)
+    {
+      // No grid yet — the next clock pulse becomes step 1.
+      next_step_ = 1U;
+      return;
+    }
+
+    float since = samples_since_tick_;
+    if (since > samples_per_tick)
+      since = samples_per_tick;
+    const float until_next = samples_per_tick - since;
+
+    if (until_next < since)
+    {
+      // Closer to the upcoming clock → that tick is step 1.
+      next_step_ = 1U;
+      return;
+    }
+
+    // Closer to the previous clock → treat it as step 1 (late kick tap).
+    next_step_ = 2U;
+    triggerPump();
+  }
+
+  void onClockTick()
+  {
+    samples_since_tick_ = 0.f;
+    have_seen_tick_ = true;
     if (!running_)
       return;
 
-    if (isKickStep(counter))
-      triggerPump();
+    const uint32_t step = next_step_;
+    next_step_ = (next_step_ % kStepsPerCycle) + 1U;
 
-    if (isRideStep(counter))
+    if (step == 1U)
+      triggerPump();
+    if (step == 3U)
       triggerRide();
   }
 
   void advanceInternalClockOneSample()
   {
-    if (bpm_ <= 0.f)
-      return;
-
-    const float samples_per_tick = getSampleRate() * 60.f / (bpm_ * 4.f);
+    const float samples_per_tick = samplesPerTick();
     if (samples_per_tick <= 0.f)
       return;
 
-    internal_tick_phase_ += 1.f;
-    if (internal_tick_phase_ >= samples_per_tick)
-    {
-      internal_tick_phase_ -= samples_per_tick;
-      ++tick_counter_;
-      handleTick(tick_counter_);
-    }
+    // samples_since_tick_ was already incremented in process().
+    if (samples_since_tick_ >= samples_per_tick)
+      onClockTick();
   }
 
   void triggerRide()
@@ -364,7 +371,7 @@ private:
 
   Voice voices_[kVoiceCount];
   uint32_t next_voice_index_ = 0U;
-  uint32_t tick_counter_ = 0U;
+  uint32_t next_step_ = 1U;
   float pitch_norm_ = 0.f;
   float clock_ratio_ = 1.f;
   float dc_prev_in_ = 0.f;
@@ -375,7 +382,8 @@ private:
   uint32_t pump_hold_samples_ = 0U;
   float mix_ = 1.f;
   float bpm_ = 120.f;
-  float internal_tick_phase_ = 0.f;
+  float samples_since_tick_ = 0.f;
   bool running_ = false;
   bool use_host_clock_ = false;
+  bool have_seen_tick_ = false;
 };
