@@ -116,7 +116,7 @@ __unit_callback void unit_tempo_4ppqn_tick(uint32_t counter)
 
 __unit_callback void unit_pitch_bend(uint16_t bend)
 {
-  (void)bend;
+  s_airhorn_instance.setPitchBend(bend);
 }
 
 __unit_callback void unit_channel_pressure(uint8_t press)

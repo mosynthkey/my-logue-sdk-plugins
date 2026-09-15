@@ -18,12 +18,12 @@ const __unit_header genericfx_unit_header_t unit_header = {
         .name = "AirHorn",
         .num_params = 5,
         .params = {
-            {0, 1023, 0, 1023, k_unit_param_type_none, 0, 0, 0, {"LEVEL"}},
-            {0, 127, 0, 127, k_unit_param_type_strings, 0, 0, 0, {"DECAY"}},
-            {0, 1000, 0, 1000, k_unit_param_type_percent, 1, 1, 0, {"MIX"}},
-            {0, 1, 0, 0, k_unit_param_type_strings, 0, 0, 0, {"PMODE"}},
+            {0, 1023, 0, 1023, k_unit_param_type_none, 0, 0, 0, {"Level"}},
+            {0, 127, 0, 127, k_unit_param_type_strings, 0, 0, 0, {"Decay"}},
+            {0, 1000, 0, 1000, k_unit_param_type_percent, 1, 1, 0, {"Mix"}},
+            {0, 1, 0, 0, k_unit_param_type_strings, 0, 0, 0, {"P.Mode"}},
             // Continuous ±2 oct (0=-2oct, 512=unison, 1023=+2oct); smoothed in DSP.
-            {0, 1023, 512, 512, k_unit_param_type_none, 0, 0, 0, {"PITCH"}},
+            {0, 1023, 512, 512, k_unit_param_type_none, 0, 0, 0, {"Pitch"}},
             {0, 0, 0, 0, k_unit_param_type_none, 0, 0, 0, {""}},
             {0, 0, 0, 0, k_unit_param_type_none, 0, 0, 0, {""}},
             {0, 0, 0, 0, k_unit_param_type_none, 0, 0, 0, {""}}},

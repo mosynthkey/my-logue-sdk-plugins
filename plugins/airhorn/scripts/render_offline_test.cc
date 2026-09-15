@@ -159,5 +159,33 @@ int main()
               peak, rms, max_delta, kAirhornSamples[0].length, expected);
   if (rms < 0.02f)
     return 1;
+
+  // Pitch bend ±1 oct (NTS-1 path): center = unity, max = *2, min = *0.5.
+  {
+    AirHornEngine bend_engine;
+    bend_engine.init();
+    bend_engine.setTrackFromParam(false);
+    bend_engine.setParameter(AirHornEngine::LEVEL, 127);
+    bend_engine.setParameter(AirHornEngine::PMODE, 0); // Fixed
+    bend_engine.setPitchBend(0x2000);
+    if (!approxEqual(bend_engine.voicePlaybackTranspose(0), 1.f, 0.001f))
+    {
+      std::printf("FAIL: center bend transpose %.6f\n", bend_engine.voicePlaybackTranspose(0));
+      return 1;
+    }
+    bend_engine.setPitchBend(0x3FFF);
+    if (!approxEqual(bend_engine.voicePlaybackTranspose(0), 2.f, 0.02f))
+    {
+      std::printf("FAIL: +1oct bend transpose %.6f\n", bend_engine.voicePlaybackTranspose(0));
+      return 1;
+    }
+    bend_engine.setPitchBend(0);
+    if (!approxEqual(bend_engine.voicePlaybackTranspose(0), 0.5f, 0.02f))
+    {
+      std::printf("FAIL: -1oct bend transpose %.6f\n", bend_engine.voicePlaybackTranspose(0));
+      return 1;
+    }
+  }
+
   return 0;
 }

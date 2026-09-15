@@ -17,8 +17,8 @@ const __unit_header unit_header_t unit_header = {
     .name = "AirHorn",
     .num_params = 2,
     .params = {
-        {0, 127, 0, 127, k_unit_param_type_none, 0, 0, 0, {"LEVEL"}},
-        {0, 1, 0, 0, k_unit_param_type_strings, 0, 0, 0, {"PMODE"}},
+        {0, 127, 0, 127, k_unit_param_type_none, 0, 0, 0, {"Level"}},
+        {0, 1, 0, 0, k_unit_param_type_strings, 0, 0, 0, {"P.Mode"}},
         {0, 0, 0, 0, k_unit_param_type_none, 0, 0, 0, {""}},
         {0, 0, 0, 0, k_unit_param_type_none, 0, 0, 0, {""}},
         {0, 0, 0, 0, k_unit_param_type_none, 0, 0, 0, {""}},
