@@ -10,7 +10,7 @@
  * Tap with the kick and rides land on the off-beats automatically.
  * X is 909 Tune: analog clock rate through the Ride ROM, zero-order hold,
  * no interpolation. Decay shortens as pitch rises, matching the hardware.
- * Y is kick sidechain amount. Depth is dry/wet.
+ * Y is kick sidechain amount. Depth (MIX) is wet level only; dry input always passes.
  *
  * Voice path follows the 9090 Ride section of the TR-909 voicing board:
  *   variable clock -> 4040/4520 address -> 6-bit ROM -> resistor DAC
