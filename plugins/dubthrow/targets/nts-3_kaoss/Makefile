@@ -271,4 +271,7 @@ wasm-ci:
 		-O2 \
 		$(WASMSRC) \
 		-o $(WASMDIR)/$(PROJECT).html
+	@# emcc 3.1+ minifies the shell HTML in a way Vite's HTML transform rejects.
+	@# Restore the readable shell and inject the generated module script.
+	@python3 -c "from pathlib import Path; root=Path('$(REPO_ROOT)'); wasm=Path('$(WASMDIR)'); name='$(PROJECT)'; html=(root/'website'/'xypad.html').read_text(); html=html.replace('{{{ SCRIPT }}}', f'<script async type=\"text/javascript\" src=\"{name}.js\"></script>'); (wasm/f'{name}.html').write_text(html)"
 	@echo Done
