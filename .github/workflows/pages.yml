@@ -51,8 +51,6 @@ jobs:
             mk2:
               - 'plugins/**/targets/microkorg2/**'
               - 'third_party/logue-sdk/platform/microkorg2/**'
-              - 'plugins/hypersaw/**'
-              - 'plugins/fbackosc/**'
 
   # Frontend smoke for website-only PRs (no unit/wasm rebuild).
   website-smoke:
