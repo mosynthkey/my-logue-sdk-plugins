@@ -5,8 +5,9 @@
  *
  * Tempo-synced sample-and-hold flanger. Dry by default; touch engages.
  * Y is dual around center: |Y| = LFO depth, sign(Y) = feedback polarity.
- * Each STEPS grid period redraws a random 0..1 amount; applied feedback is
- * Y * hold. X = LFO rate. TIME sets the base delay in the flanger range.
+ * STEPS redraws the random feedback amount on a grid.
+ * LFO is a separate tempo-synced sweep cycle (not free Hz — avoids clashing
+ * with STEPS). X = base delay TIME.
  */
 
 #include "fx_dsp.h"
@@ -24,22 +25,21 @@ public:
   static constexpr float kMaxDelayMs = 12.f;
   static constexpr float kMaxModMs = 7.5f;
   static constexpr float kMaxFeedback = 0.92f;
-  static constexpr float kMinLfoHz = 0.05f;
-  static constexpr float kMaxLfoHz = 8.f;
   static constexpr float kParamSmoothCoeff = 0.0025f;
   static constexpr float kMinSlewSec = 0.0005f;
   static constexpr float kMaxSlewSec = 0.18f;
   static constexpr uint8_t kNumPeriods = 8U;
+  static constexpr uint8_t kNumLfoCycles = 8U;
 
   uint32_t getBufferSize() const override final { return kMaxDelaySamples * 2U; }
 
   enum
   {
-    RATE = 0U,
+    TIME = 0U,
     DEPTH,
     MIX,
     STEPS,
-    TIME,
+    LFO,
     SLEW,
     NUM_PARAMS
   };
@@ -56,12 +56,24 @@ public:
     PERIOD_HALF
   };
 
+  enum
+  {
+    LFO_4BAR = 0U,
+    LFO_2BAR,
+    LFO_1BAR,
+    LFO_HALF,
+    LFO_QUARTER,
+    LFO_8TH,
+    LFO_16TH,
+    LFO_32ND
+  };
+
   void setParameter(uint8_t index, int32_t value) override final
   {
     switch (index)
     {
-    case RATE:
-      rate_norm_ = param_10bit_to_f32(value);
+    case TIME:
+      time_norm_ = param_10bit_to_f32(value);
       break;
     case DEPTH:
       // Bipolar Y: center ≈ 0, up = +, down = −.
@@ -74,8 +86,8 @@ public:
     case STEPS:
       period_sel_ = static_cast<uint8_t>(fx::clip(static_cast<float>(value), 0.f, static_cast<float>(kNumPeriods - 1U)));
       break;
-    case TIME:
-      time_norm_ = param_10bit_to_f32(value);
+    case LFO:
+      lfo_sel_ = static_cast<uint8_t>(fx::clip(static_cast<float>(value), 0.f, static_cast<float>(kNumLfoCycles - 1U)));
       break;
     case SLEW:
       slew_norm_ = param_10bit_to_f32(value);
@@ -88,8 +100,11 @@ public:
   const char *getParameterStrValue(uint8_t index, int32_t value) const override final
   {
     static const char *period_names[kNumPeriods] = {"4Bar", "2Bar", "16St", "8St", "4St", "2St", "1St", "1/2"};
+    static const char *lfo_names[kNumLfoCycles] = {"4Bar", "2Bar", "1Bar", "1/2", "1/4", "1/8", "1/16", "1/32"};
     if (index == STEPS && value >= 0 && value < static_cast<int32_t>(kNumPeriods))
       return period_names[value];
+    if (index == LFO && value >= 0 && value < static_cast<int32_t>(kNumLfoCycles))
+      return lfo_names[value];
     return nullptr;
   }
 
@@ -104,13 +119,13 @@ public:
     }
 
     bpm_ = 120.f;
-    rate_norm_ = 0.35f;
     y_bipolar_target_ = 0.55f;
     y_bipolar_smooth_ = 0.55f;
     time_norm_ = 0.35f;
     slew_norm_ = 0.15f;
     mix_ = 1.f;
     period_sel_ = PERIOD_1STEP;
+    lfo_sel_ = LFO_1BAR;
     clock_acc_ = 0.f;
     hold_amount_ = 0.65f;
     feed_smooth_ = 0.f;
@@ -191,12 +206,12 @@ public:
     const float sr = getSampleRate();
     const float beat = static_cast<float>(fx::samplesPerBeat(bpm_, sr));
     const float period_samples = beat * 0.25f * periodSixteenths(period_sel_);
+    const float lfo_cycle_samples = beat * 0.25f * lfoSixteenths(lfo_sel_);
+    const float lfo_inc = 1.f / fx::clip(lfo_cycle_samples, 1.f, sr * 60.f);
+
     const float slew_sec = kMinSlewSec + slew_norm_ * slew_norm_ * (kMaxSlewSec - kMinSlewSec);
     const float slew_x = -1.f / (slew_sec * sr);
     const float slew_coeff = fx::clip(1.f + slew_x, 0.f, 1.f);
-
-    const float lfo_hz = kMinLfoHz * fasterpowf(kMaxLfoHz / kMinLfoHz, fx::clip01(rate_norm_));
-    const float lfo_inc = lfo_hz / sr;
 
     const float base_ms = kMinDelayMs + time_norm_ * time_norm_ * (kMaxDelayMs - kMinDelayMs);
     const float ms_to_samples = sr * 0.001f;
@@ -297,6 +312,13 @@ private:
     return kPeriods[period_sel < kNumPeriods ? period_sel : PERIOD_1STEP];
   }
 
+  static float lfoSixteenths(uint8_t lfo_sel)
+  {
+    // One full triangle cycle as a note length (in 16ths).
+    static const float kCycles[kNumLfoCycles] = {64.f, 32.f, 16.f, 8.f, 4.f, 2.f, 1.f, 0.5f};
+    return kCycles[lfo_sel < kNumLfoCycles ? lfo_sel : LFO_1BAR];
+  }
+
   static float readDelay(const float *buffer, uint32_t write_pos, float delay_samples)
   {
     float read_pos = static_cast<float>(write_pos) - delay_samples;
@@ -318,7 +340,6 @@ private:
   float depth_smooth_ = 0.55f;
   float lfo_phase_ = 0.f;
   float bpm_ = 120.f;
-  float rate_norm_ = 0.35f;
   float y_bipolar_target_ = 0.55f;
   float y_bipolar_smooth_ = 0.55f;
   float time_norm_ = 0.35f;
@@ -326,5 +347,6 @@ private:
   float mix_ = 1.f;
   uint32_t rng_ = 0xC0FFEE71U;
   uint8_t period_sel_ = PERIOD_1STEP;
+  uint8_t lfo_sel_ = LFO_1BAR;
   bool pad_held_ = false;
 };

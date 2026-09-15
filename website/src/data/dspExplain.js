@@ -550,18 +550,19 @@ export const dspExplainById = {
   In --> Mix`,
   },
   stepflanger: {
-    en: "Tempo-synced sample-and-hold flanger on AUDIO IN. Y is dual around center: |Y| = LFO depth, sign(Y) × step-random = feedback (up +, down −). X is LFO rate. Hold the pad to engage.",
-    ja: "AUDIO INへのテンポ同期S&Hフランジャーです。Yは中央基準の二重割り当て（|Y|=LFOデプス、符号×ステップ乱数=フィードバックで上=+・下=−）。XはLFOレート。パッド押下中のみ効きます。",
+    en: "Tempo-synced sample-and-hold flanger on AUDIO IN. Y is dual around center: |Y| = LFO depth, sign(Y) × step-random = feedback (up +, down −). STEPS = feedback S&H grid; LFO = separate tempo-synced sweep cycle. X = base delay. Hold the pad to engage.",
+    ja: "AUDIO INへのテンポ同期S&Hフランジャーです。Yは中央基準の二重割り当て（|Y|=LFOデプス、符号×ステップ乱数=フィードバックで上=+・下=−）。STEPSはFB乱数周期、LFOはスイープ周期（別々）。Xは基点ディレイ。パッド押下中のみ効きます。",
     mermaid: `flowchart LR
-  Tempo[BPM clock] --> Grid[Step period]
+  Tempo[BPM clock] --> Grid[STEPS period]
+  Tempo --> Sweep[LFO cycle]
   Grid --> SH[Feedback S and H]
   Y[Y bipolar] --> Depth[LFO depth abs Y]
   Y --> Fb[Feedback]
   SH --> Fb
-  Rate[X rate] --> LFO[Triangle LFO]
+  Sweep --> LFO[Triangle LFO]
   Depth --> Mod[Delay mod]
   LFO --> Mod
-  Time[TIME] --> Delay[Short delay]
+  Time[X TIME] --> Delay[Short delay]
   Mod --> Delay
   In[Audio in] --> Delay
   Fb --> Delay

@@ -29,11 +29,11 @@ int main()
   std::vector<float> ram(fx.getBufferSize(), 0.f);
   fx.init(ram.data());
   fx.setTempo(120.f);
-  fx.setParameter(StepFlanger::RATE, 400);
+  fx.setParameter(StepFlanger::TIME, 400);
   fx.setParameter(StepFlanger::DEPTH, 900); // upper half: +feedback, deep LFO
   fx.setParameter(StepFlanger::MIX, 1000);
   fx.setParameter(StepFlanger::STEPS, StepFlanger::PERIOD_1STEP);
-  fx.setParameter(StepFlanger::TIME, 400);
+  fx.setParameter(StepFlanger::LFO, StepFlanger::LFO_QUARTER);
   fx.setParameter(StepFlanger::SLEW, 100);
 
   fx.touchEvent(0, k_unit_touch_phase_began, 512U, 200U);
@@ -86,11 +86,11 @@ int main()
   std::vector<float> ram_neg(fx_neg.getBufferSize(), 0.f);
   fx_neg.init(ram_neg.data());
   fx_neg.setTempo(120.f);
-  fx_neg.setParameter(StepFlanger::RATE, 400);
+  fx_neg.setParameter(StepFlanger::TIME, 400);
   fx_neg.setParameter(StepFlanger::DEPTH, 100); // lower half: −feedback
   fx_neg.setParameter(StepFlanger::MIX, 1000);
   fx_neg.setParameter(StepFlanger::STEPS, StepFlanger::PERIOD_HALF);
-  fx_neg.setParameter(StepFlanger::TIME, 400);
+  fx_neg.setParameter(StepFlanger::LFO, StepFlanger::LFO_8TH);
   fx_neg.setParameter(StepFlanger::SLEW, 100);
   fx_neg.touchEvent(0, k_unit_touch_phase_began, 512U, 900U);
 

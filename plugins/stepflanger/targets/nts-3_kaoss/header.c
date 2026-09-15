@@ -54,13 +54,13 @@ const __unit_header genericfx_unit_header_t unit_header = {
         .name = "StepFlanger",
         .num_params = 6,
         .params = {
-            // RATE (X)
-            {0, 1023, 0, 358, k_unit_param_type_none, 0, 0, 0, {"RATE"}},
+            // TIME (X): base delay
+            {0, 1023, 0, 358, k_unit_param_type_none, 0, 0, 0, {"TIME"}},
             // DEPTH (Y): bipolar — |Y|=LFO depth, sign=feedback polarity
             {0, 1023, 512, 768, k_unit_param_type_none, 0, 0, 0, {"DEPTH"}},
             {0, 1000, 0, 1000, k_unit_param_type_percent, 1, 1, 0, {"MIX"}},
             {0, 7, 0, 6, k_unit_param_type_strings, 0, 0, 0, {"STEPS"}},
-            {0, 1023, 0, 358, k_unit_param_type_none, 0, 0, 0, {"TIME"}},
+            {0, 7, 0, 2, k_unit_param_type_strings, 0, 0, 0, {"LFO"}},
             {0, 1023, 0, 154, k_unit_param_type_none, 0, 0, 0, {"SLEW"}},
             {0, 0, 0, 0, k_unit_param_type_none, 0, 0, 0, {""}},
             {0, 0, 0, 0, k_unit_param_type_none, 0, 0, 0, {""}}},
@@ -70,7 +70,7 @@ const __unit_header genericfx_unit_header_t unit_header = {
         {k_genericfx_param_assign_y, k_genericfx_curve_linear, k_genericfx_curve_bipolar, 0, 1023, 768},
         {k_genericfx_param_assign_depth, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1000, 1000},
         {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 7, 6},
-        {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1023, 358},
+        {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 7, 2},
         {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1023, 154},
         {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 0, 0},
         {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 0, 0},
