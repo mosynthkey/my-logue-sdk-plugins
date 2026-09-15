@@ -549,6 +549,25 @@ export const dspExplainById = {
   Flt --> Mix[Dry or wet] --> Out[Out]
   In --> Mix`,
   },
+  stepflanger: {
+    en: "Tempo-synced sample-and-hold flanger on AUDIO IN. Y is dual around center: |Y| = LFO depth, sign(Y) × step-random = feedback (up +, down −). X is LFO rate. Hold the pad to engage.",
+    ja: "AUDIO INへのテンポ同期S&Hフランジャーです。Yは中央基準の二重割り当て（|Y|=LFOデプス、符号×ステップ乱数=フィードバックで上=+・下=−）。XはLFOレート。パッド押下中のみ効きます。",
+    mermaid: `flowchart LR
+  Tempo[BPM clock] --> Grid[Step period]
+  Grid --> SH[Feedback S and H]
+  Y[Y bipolar] --> Depth[LFO depth abs Y]
+  Y --> Fb[Feedback]
+  SH --> Fb
+  Rate[X rate] --> LFO[Triangle LFO]
+  Depth --> Mod[Delay mod]
+  LFO --> Mod
+  Time[TIME] --> Delay[Short delay]
+  Mod --> Delay
+  In[Audio in] --> Delay
+  Fb --> Delay
+  Delay --> Mix[Dry or wet] --> Out[Out]
+  In --> Mix`,
+  },
   trap808: {
     en: "Beat-locked trap phrase pad. Hold gates the clock; hits ignore tap phase and fire on 4ppqn. Closed/open hats play packed 6-bit PCM from the TR-909 Hi-Hat ROM (CH top quarter, truncated OH). X = hat rolls, Y = groove, ROOT = 808 key. Age-based kick/snare/808; top-right arms a fill on the next downbeat.",
     ja: "ビートロックのトラップ・フレーズパッドです。ホールドはゲートのみで、発音は4ppqnに同期（タップ位相は無視）。ハットはTR-909ハイハットROMの6bit PCM（CH=上位1/4、OHは短縮）。Xはロール、Yはグルーヴ、ROOTは808キー。キック／スネア／808は年齢エンベロープ。右上で次の拍頭からフィル。",

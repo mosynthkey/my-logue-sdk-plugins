@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-15T14:47:32.099395+00:00",
+  "generatedAt": "2026-09-15T20:28:44.258941+00:00",
   "plugins": [
     {
       "id": "dubthrow",
@@ -59,6 +59,57 @@
           "file": "./units/dubthrow-nts-3_kaoss.nts3unit",
           "size": 8552,
           "wasm": "./sim/dubthrow/nts-3_kaoss/dubthrow.html"
+        }
+      ]
+    },
+    {
+      "id": "stepflanger",
+      "experimental": true,
+      "name": "StepFlanger",
+      "type": "fx",
+      "targets": [
+        "nts-3_kaoss"
+      ],
+      "description": "Tempo-synced sample-and-hold flanger on AUDIO IN. Y is dual around center: distance sets LFO depth, sign sets feedback polarity (up = +, down = \u2212). Each STEPS period redraws a random feedback amount. X = LFO rate. Hold the pad to engage; release returns to dry.",
+      "params": [
+        {
+          "name": "RATE",
+          "role": "X",
+          "detail": "Free-running LFO rate (~0.05\u20138 Hz)"
+        },
+        {
+          "name": "DEPTH",
+          "role": "Y",
+          "detail": "Bipolar around center: |Y| = LFO depth, sign(Y) \u00d7 step-random = feedback (+ up / \u2212 down)"
+        },
+        {
+          "name": "MIX",
+          "role": "Depth",
+          "detail": "Dry/wet while the pad is held"
+        },
+        {
+          "name": "STEPS",
+          "role": "Edit",
+          "detail": "Feedback S&H period: 4Bar, 2Bar, 16St, 8St, 4St, 2St, 1St, 1/2"
+        },
+        {
+          "name": "TIME",
+          "role": "Edit",
+          "detail": "Base delay time (short flanger range)"
+        },
+        {
+          "name": "SLEW",
+          "role": "Edit",
+          "detail": "How quickly feedback glides to each new random value"
+        }
+      ],
+      "builds": [
+        {
+          "target": "nts-3_kaoss",
+          "module": "genericfx",
+          "file": "./units/stepflanger-nts-3_kaoss.nts3unit",
+          "size": 8256,
+          "wasm": "./sim/stepflanger/nts-3_kaoss/stepflanger.html"
         }
       ]
     },
