@@ -129,6 +129,19 @@ export const dspExplainById = {
   Env --> LPF --> Mix[Dry or wet] --> Out[Out]
   In[Audio in] --> Mix`,
   },
+  stepgatedelay: {
+    en: "Euclidean 1/16 gate into a tempo delay. Pad-down captures the nearest 16th as relative step 0. X = hit density among 16, Y = delay wet. Default time is a dotted eighth. Feedback high/low damp; low damp is on by default.",
+    ja: "ユークリッド1/16ゲートをテンポディレイへ送ります。パッド押下で最寄りの16分が相対ステップ0。Xは16ステップ中の密度、YはディレイWet。既定タイムは付点8分。FBにハイ／ローダンプ（既定でローダンプON）。",
+    mermaid: `flowchart LR
+  Clock[Nearest 16th] --> Euclid[Euclid density]
+  Pad[Pad hold] --> Euclid
+  In[Audio in] --> Gate[Step gate] --> Delay[Tempo delay]
+  Euclid --> Gate
+  Delay --> Mix[Dry or wet] --> Out[Out]
+  In --> Mix
+  Y[Y wet] --> Mix
+  Damp[Hi and Lo damp] --> Delay`,
+  },
   eucgate: {
     en: "Tempo Euclidean/probability gate on the input. Closed steps mute; duty sets the open fraction. Touch fills (opens every step). Mix blends gated vs ungated level.",
     ja: "テンポ上のユークリッド／確率ゲートです。閉じたステップはミュートし、デューティで開時間を決めます。タッチで全ステップ開放。Mixでゲート量を調整します。",

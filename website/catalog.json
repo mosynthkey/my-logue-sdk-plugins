@@ -1,64 +1,64 @@
 {
-  "generatedAt": "2026-09-14T14:44:21.655586+00:00",
+  "generatedAt": "2026-09-15T14:13:15.178655+00:00",
   "plugins": [
     {
-      "id": "stoneres",
+      "id": "stepgatedelay",
       "experimental": true,
-      "name": "StoneRes",
-      "type": "synth",
+      "name": "StepGateDelay",
+      "type": "fx",
       "targets": [
         "nts-3_kaoss"
       ],
-      "description": "Rub the XY pad to grind a stone surface; a chord resonator bank remaps the friction noise. LOAD/ROUGH on the pad, MAT/GRAIN/DAMP for the stone, ROOT/CHORD for the resonator.\nStill being fine-tuned; the official release is coming soon.",
+      "description": "Euclidean 1/16 gate into a tempo delay. Hold the pad to engage; the nearest 16th clock becomes relative step 0 (Ride909-style). X = Euclidean density among 16 steps (hits open the gate). Y = delay wet. Default delay is a dotted eighth. Feedback has high/low damp; low damp is on by default so repeats stay thin.",
       "params": [
         {
-          "name": "LOAD",
+          "name": "DENS",
           "role": "X",
-          "detail": "Contact pressure / load"
+          "detail": "Euclidean hits among 16 steps (1\u201316)"
         },
         {
-          "name": "ROUGH",
+          "name": "DWET",
           "role": "Y",
-          "detail": "Surface roughness"
+          "detail": "Delay wet amount"
         },
         {
           "name": "MIX",
           "role": "Depth",
-          "detail": "Stone dry vs chord resonator wet"
+          "detail": "Overall wet while the pad is held"
         },
         {
-          "name": "MAT",
+          "name": "FEED",
           "role": "Edit",
-          "detail": "Stone material preset"
+          "detail": "Delay feedback"
         },
         {
-          "name": "GRAIN",
+          "name": "HDAMP",
           "role": "Edit",
-          "detail": "Grain density / catch rate"
+          "detail": "High damp (darker repeats)"
         },
         {
-          "name": "DAMP",
+          "name": "LDAMP",
           "role": "Edit",
-          "detail": "Stone body ring / sustain"
+          "detail": "Low damp (thinner repeats; default engaged)"
         },
         {
-          "name": "ROOT",
+          "name": "TIME",
           "role": "Edit",
-          "detail": "Chord root (C-B)"
+          "detail": "Delay time: 1/16, 1/8, 1/8D, 1/4, 1/4D, 1/2 (default 1/8D)"
         },
         {
-          "name": "CHORD",
+          "name": "ROT",
           "role": "Edit",
-          "detail": "Chord type"
+          "detail": "Rotate the Euclidean pattern"
         }
       ],
       "builds": [
         {
           "target": "nts-3_kaoss",
           "module": "genericfx",
-          "file": "./units/stoneres-nts-3_kaoss.nts3unit",
-          "size": 14956,
-          "wasm": "./sim/stoneres/nts-3_kaoss/stoneres.html"
+          "file": "./units/stepgatedelay-nts-3_kaoss.nts3unit",
+          "size": 8324,
+          "wasm": "./sim/stepgatedelay/nts-3_kaoss/stepgatedelay.html"
         }
       ]
     }
