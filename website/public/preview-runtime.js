@@ -212,6 +212,31 @@
     }
   }
 
+  function scheduleSawPad(context, destination, time, frequencies, duration, gain = 0.055) {
+    const attack = Math.min(0.08, duration * 0.18);
+    const release = Math.min(0.22, duration * 0.35);
+    const sustainEnd = Math.max(time + attack + 0.02, time + duration - release);
+    const stopAt = time + duration + 0.04;
+    for (let voiceIndex = 0; voiceIndex < frequencies.length; voiceIndex += 1) {
+      const oscillator = context.createOscillator();
+      oscillator.type = "sawtooth";
+      oscillator.frequency.value = frequencies[voiceIndex];
+      const filter = context.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.Q.value = 0.7;
+      filter.frequency.setValueAtTime(1600, time);
+      filter.frequency.linearRampToValueAtTime(1100, sustainEnd);
+      const envelope = context.createGain();
+      envelope.gain.setValueAtTime(0.0001, time);
+      envelope.gain.exponentialRampToValueAtTime(gain, time + attack);
+      envelope.gain.setValueAtTime(gain, sustainEnd);
+      envelope.gain.exponentialRampToValueAtTime(0.0001, time + duration);
+      oscillator.connect(filter).connect(envelope).connect(destination);
+      oscillator.start(time);
+      oscillator.stop(stopAt);
+    }
+  }
+
   function startOscillatorSource(context, destination, type) {
     const dryGain = context.createGain();
     dryGain.gain.value = 0.2;
@@ -258,9 +283,16 @@
     return nodes;
   }
 
-  const LOOP_SOURCE_IDS = new Set(["house", "techno", "garage", "acid", "kick", "breakbeat", "stab"]);
+  const LOOP_SOURCE_IDS = new Set(["house", "techno", "garage", "acid", "kick", "breakbeat", "stab", "sawpad"]);
   const OSCILLATOR_SOURCE_IDS = new Set(["sawtooth", "square", "sine", "triangle"]);
   const HOUSE_STAB = [220, 261.63, 329.63, 392];
+  // Am → F → C → G, one chord per beat within the 16-step bar.
+  const SAWPAD_CHORDS = [
+    [220.00, 261.63, 329.63, 440.00],
+    [174.61, 220.00, 261.63, 349.23],
+    [130.81, 164.81, 196.00, 261.63],
+    [196.00, 246.94, 293.66, 392.00],
+  ];
   const ACID_NOTES = {
     0: [110, null],
     1: [110, null],
@@ -274,7 +306,7 @@
     14: [130.81, null],
   };
 
-  function scheduleLoopStep(context, destination, noiseBuffer, sourceId, stepIndex, time) {
+  function scheduleLoopStep(context, destination, noiseBuffer, sourceId, stepIndex, time, stepInterval) {
     const onBeat = stepIndex % 4 === 0;
     const evenStep = stepIndex % 2 === 0;
 
@@ -383,6 +415,13 @@
       } else if (stepIndex === 0) {
         scheduleStab(context, destination, time, HOUSE_STAB, 0.08);
       }
+      return;
+    }
+
+    if (sourceId === "sawpad" && onBeat) {
+      const chordIndex = Math.floor(stepIndex / 4) % SAWPAD_CHORDS.length;
+      const chordDuration = stepInterval * 4.25;
+      scheduleSawPad(context, destination, time, SAWPAD_CHORDS[chordIndex], chordDuration);
     }
   }
 
@@ -440,7 +479,7 @@
       }
       const stepInterval = (60 / currentBpm) / 4;
       while (nextStepTime < context.currentTime + 0.15) {
-        scheduleLoopStep(context, mixGain, noiseBuffer, sourceId, stepIndex, nextStepTime);
+        scheduleLoopStep(context, mixGain, noiseBuffer, sourceId, stepIndex, nextStepTime, stepInterval);
         nextStepTime += stepInterval;
         stepIndex = (stepIndex + 1) % 16;
       }
