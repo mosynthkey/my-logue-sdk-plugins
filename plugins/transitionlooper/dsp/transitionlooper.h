@@ -7,6 +7,8 @@
  * (get_raw_input) because unit_render input is muted while the pad is up.
  * If that pre-roll is still silent, the first hold captures one live bar
  * and then freezes. Pad up bypasses; pad down fades into the frozen loop.
+ * On pad-down, the nearest 16th clock becomes relative step 1 so loop phase
+ * lines up with the user's tap (host 4ppqn when present, else internal).
  */
 
 #include "macros.h"
@@ -170,6 +172,9 @@ public:
     frozen_ = false;
     pad_held_ = false;
     arming_ = false;
+    use_host_clock_ = false;
+    have_seen_tick_ = false;
+    samples_since_tick_ = 0.f;
     wet_ = 0.f;
     wet_target_ = 0.f;
     play_pos_ = 0.f;
@@ -214,6 +219,14 @@ public:
       if (!frozen_)
         updateLoopGeometry();
     }
+  }
+
+  void tempo4ppqnTick(uint32_t counter) override final
+  {
+    (void)counter;
+    use_host_clock_ = true;
+    samples_since_tick_ = 0.f;
+    have_seen_tick_ = true;
   }
 
   void touchEvent(uint8_t id, uint8_t phase, uint32_t x, uint32_t y) override final
@@ -264,6 +277,8 @@ public:
   {
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
+      advanceClockOneSample();
+
       float live_left = in[0];
       float live_right = in[1];
       float rec_left = live_left;
@@ -335,6 +350,9 @@ public:
   float capturedPeak() const { return captured_peak_; }
   uint32_t loopLength() const { return loop_length_; }
   uint32_t capturedSamples() const { return captured_samples_; }
+  float debugPlayPos() const { return play_pos_; }
+  bool debugHaveSeenTick() const { return have_seen_tick_; }
+  float debugSamplesSinceTick() const { return samples_since_tick_; }
 
 private:
   static float clamp01(float value)
@@ -362,6 +380,76 @@ private:
     if (length == 0U)
       return 0U;
     return index >= length ? index - length : index;
+  }
+
+  float samplesPerTick() const
+  {
+    if (bpm_ <= 0.f)
+      return 0.f;
+    return getSampleRate() * 60.f / (bpm_ * 4.f);
+  }
+
+  void advanceClockOneSample()
+  {
+    samples_since_tick_ += 1.f;
+    if (use_host_clock_)
+      return;
+
+    const float samples_per_tick = samplesPerTick();
+    if (samples_per_tick <= 0.f)
+      return;
+
+    if (samples_since_tick_ >= samples_per_tick)
+    {
+      samples_since_tick_ -= samples_per_tick;
+      have_seen_tick_ = true;
+    }
+  }
+
+  // Snap loop phase so the nearest 16th clock is relative step 1.
+  void alignPlayPhaseToNearestStep1()
+  {
+    const uint32_t newest_index = write_pos_ == 0U ? record_length_ - 1U : write_pos_ - 1U;
+    const float bar = static_cast<float>(loop_length_ == 0U ? 1U : loop_length_);
+    const float samples_per_tick = samplesPerTick();
+
+    float phase;
+    if (!have_seen_tick_ || samples_per_tick <= 0.f)
+    {
+      phase = static_cast<float>(loop_length_ == 0U ? 0U : (captured_samples_ % loop_length_));
+    }
+    else
+    {
+      float since = samples_since_tick_;
+      if (since > samples_per_tick)
+        since = samples_per_tick;
+      const float until_next = samples_per_tick - since;
+      if (until_next < since)
+        phase = bar - until_next; // upcoming clock is step 1
+      else
+        phase = since; // previous clock is step 1
+    }
+
+    while (phase >= bar)
+      phase -= bar;
+    if (phase < 0.f)
+      phase = 0.f;
+
+    play_pos_ = phase;
+    if (play_window_ > 0U)
+    {
+      while (play_pos_ >= static_cast<float>(play_window_))
+        play_pos_ -= static_cast<float>(play_window_);
+    }
+
+    // Rotate origin so play_pos reads "now" and step 1 sits at 0.
+    int32_t origin = static_cast<int32_t>(newest_index) - static_cast<int32_t>(play_pos_ + 0.5f);
+    const int32_t record = static_cast<int32_t>(record_length_ == 0U ? 1U : record_length_);
+    while (origin < 0)
+      origin += record;
+    while (origin >= record)
+      origin -= record;
+    loop_origin_ = static_cast<uint32_t>(origin);
   }
 
   void updateFadeIncrement()
@@ -421,16 +509,7 @@ private:
     if (play_window_ < kMinLoopSamples)
       play_window_ = kMinLoopSamples;
 
-    const uint32_t newest_index = write_pos_ == 0U ? record_length_ - 1U : write_pos_ - 1U;
-    int32_t origin = static_cast<int32_t>(newest_index) - static_cast<int32_t>(play_window_) + 1;
-    if (origin < 0)
-      origin += static_cast<int32_t>(record_length_);
-    loop_origin_ = static_cast<uint32_t>(origin);
-
-    const uint32_t phase_in_bar = loop_length_ == 0U ? 0U : (captured_samples_ % loop_length_);
-    play_pos_ = static_cast<float>(phase_in_bar);
-    if (play_pos_ >= static_cast<float>(play_window_))
-      play_pos_ = 0.f;
+    alignPlayPhaseToNearestStep1();
 
     loop_lp_left_ = 0.f;
     loop_lp_right_ = 0.f;
@@ -755,4 +834,7 @@ private:
   bool pad_held_ = false;
   bool arming_ = false;
   bool filter_dirty_ = true;
+  bool use_host_clock_ = false;
+  bool have_seen_tick_ = false;
+  float samples_since_tick_ = 0.f;
 };

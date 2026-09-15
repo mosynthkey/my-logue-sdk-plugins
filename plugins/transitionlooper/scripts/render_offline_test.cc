@@ -292,5 +292,43 @@ int main()
     return 21;
   }
 
+
+  // Nearest-clock snap: tap just after a host 16th → play_pos near step 1.
+  TransitionLooper snap_fx;
+  std::vector<float> snap_ram(snap_fx.getBufferSize(), 0.f);
+  snap_fx.init(snap_ram.data());
+  snap_fx.setTempo(120.f);
+  snap_fx.setParameter(TransitionLooper::TIME, 80);
+  snap_fx.setParameter(TransitionLooper::MIX, 1000);
+  snap_fx.setParameter(TransitionLooper::TYPE, TransitionLooper::TYPE_VOL);
+  std::vector<float> snap_left(bar_frames, 0.f);
+  std::vector<float> snap_right(bar_frames, 0.f);
+  fillTone(snap_left, snap_right, 247.f, 0.4f);
+  // Establish host grid, then sit slightly after a tick before priming finishes.
+  snap_fx.tempo4ppqnTick(1U);
+  std::vector<float> snap_prime;
+  renderWithInput(snap_fx, snap_left.data(), snap_right.data(), bar_frames, snap_prime);
+  snap_fx.tempo4ppqnTick(2U);
+  std::vector<float> after_tick(64U, 0.f);
+  std::vector<float> after_tick_r(64U, 0.f);
+  std::vector<float> after_tick_out;
+  renderWithInput(snap_fx, after_tick.data(), after_tick_r.data(), 64U, after_tick_out);
+  const float since = snap_fx.debugSamplesSinceTick();
+  snap_fx.touchEvent(0, k_unit_touch_phase_began, 512U, 512U);
+  const float play_pos = snap_fx.debugPlayPos();
+  std::printf("snap_since=%.1f snap_play_pos=%.1f have_tick=%d\n", since, play_pos,
+              snap_fx.debugHaveSeenTick() ? 1 : 0);
+  if (!snap_fx.debugHaveSeenTick())
+  {
+    std::printf("host tick should mark the grid before snap\n");
+    return 22;
+  }
+  // 64 samples after the tick at 48 kHz / 120 BPM is far closer to previous than next.
+  if (play_pos > 512.f)
+  {
+    std::printf("late tap after a tick should put play_pos near relative step 1\n");
+    return 23;
+  }
+
   return 0;
 }
