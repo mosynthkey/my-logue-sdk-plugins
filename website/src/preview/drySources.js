@@ -7,6 +7,7 @@ export const DRY_SOURCES = [
   { id: "breakbeat", labelKey: "sourceBreakbeat" },
   { id: "reese", labelKey: "sourceReese" },
   { id: "stab", labelKey: "sourceStab" },
+  { id: "sawpad", labelKey: "sourceSawPad" },
   { id: "sawtooth", labelKey: "sourceSawtooth" },
   { id: "square", labelKey: "sourceSquare" },
   { id: "sine", labelKey: "sourceSine" },
