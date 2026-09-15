@@ -1,6 +1,67 @@
 {
-  "generatedAt": "2026-09-14T14:44:21.655586+00:00",
+  "generatedAt": "2026-09-15T13:59:52.151794+00:00",
   "plugins": [
+    {
+      "id": "dubthrow",
+      "experimental": true,
+      "name": "DubThrow",
+      "type": "fx",
+      "targets": [
+        "nts-3_kaoss"
+      ],
+      "description": "Dub-desk send throw on the XY pad. Dry always passes; pad throw feeds a BPM-synced stereo delay with feedback-path bandpass. X = throw amount, Y = feedback tone. Release stops new input while the echo tail decays.",
+      "params": [
+        {
+          "name": "THROW",
+          "role": "X",
+          "detail": "Send / throw amount (left = nearly dry, right = full throw)"
+        },
+        {
+          "name": "TONE",
+          "role": "Y",
+          "detail": "Feedback bandpass cutoff (down = dark tail, up = bright / nasal)"
+        },
+        {
+          "name": "DEPTH",
+          "role": "Depth",
+          "detail": "Overall wet ceiling and throw sensitivity"
+        },
+        {
+          "name": "TIME",
+          "role": "Edit",
+          "detail": "Synced delay note: 1/16, 1/8, dotted 1/8, 1/4, dotted 1/4"
+        },
+        {
+          "name": "FDBK",
+          "role": "Edit",
+          "detail": "Base feedback ceiling (high for near self-oscillation)"
+        },
+        {
+          "name": "SPRD",
+          "role": "Edit",
+          "detail": "L/R delay time spread (dub stereo offset)"
+        },
+        {
+          "name": "MODE",
+          "role": "Edit",
+          "detail": "Ping-pong, dual, or mono delay"
+        },
+        {
+          "name": "TOUCH",
+          "role": "Edit",
+          "detail": "Gate (hold to throw), Latch (keep send), Always (X only)"
+        }
+      ],
+      "builds": [
+        {
+          "target": "nts-3_kaoss",
+          "module": "genericfx",
+          "file": "./units/dubthrow-nts-3_kaoss.nts3unit",
+          "size": 8552,
+          "wasm": "./sim/dubthrow/nts-3_kaoss/dubthrow.html"
+        }
+      ]
+    },
     {
       "id": "stoneres",
       "experimental": true,

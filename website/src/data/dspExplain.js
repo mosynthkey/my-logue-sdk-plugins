@@ -129,6 +129,19 @@ export const dspExplainById = {
   Env --> LPF --> Mix[Dry or wet] --> Out[Out]
   In[Audio in] --> Mix`,
   },
+  dubthrow: {
+    en: "Dub-desk send throw. Dry always passes; pad throw feeds a BPM-synced stereo delay with feedback-path bandpass and soft sat. X = throw, Y = feedback tone. Release stops new send while the echo tail decays. Not a dry-kill echo out.",
+    ja: "ダブ机のセンド投げ。ドライは常時通し、パッドでBPM同期ディレイへ投げます。帰還内はバンドパス＋ゆるいサチュ。Xは投げ量、Yは帰還音色。離すと新規取り込みだけ止まり、テールはFBで残ります。",
+    mermaid: `flowchart LR
+  In[Audio in] --> Dry[Dry pass]
+  In --> Send[Pad throw send]
+  Send --> Delay[Sync delay L/R]
+  Delay --> BPF[Feedback BPF and sat]
+  BPF --> Delay
+  Delay --> Lim[Wet limiter]
+  Dry --> Out[Out]
+  Lim --> Out`,
+  },
   eucgate: {
     en: "Tempo Euclidean/probability gate on the input. Closed steps mute; duty sets the open fraction. Touch fills (opens every step). Mix blends gated vs ungated level.",
     ja: "テンポ上のユークリッド／確率ゲートです。閉じたステップはミュートし、デューティで開時間を決めます。タッチで全ステップ開放。Mixでゲート量を調整します。",
