@@ -3,8 +3,10 @@ import { computed, reactive, watch } from "vue";
 import PreviewPanel from "./PreviewPanel.vue";
 import { useI18n } from "../composables/useI18n.js";
 import {
-  buildForTarget,
+  canonicalPreviewTarget,
   downloadableBuilds,
+  previewBuildForTarget,
+  previewModeItems,
   sendableBuilds,
   targetName,
   unitFileName,
@@ -40,25 +42,17 @@ const props = defineProps({
 const emit = defineEmits(["select-target", "send", "send-slot", "explain-dsp"]);
 const { pluginDescription, t } = useI18n();
 
-const activeBuild = computed(() => buildForTarget(props.plugin, props.activeTarget));
+const activeBuild = computed(() => previewBuildForTarget(props.plugin, props.activeTarget));
 const downloads = computed(() => downloadableBuilds(props.plugin));
 const sends = computed(() => sendableBuilds(props.plugin));
 const selectedSlotByTarget = reactive({});
-
-const targetItems = computed(() => {
-  const targets = new Set([
-    ...downloads.value.map((build) => build.target),
-    ...sends.value.map((build) => build.target),
-    ...(props.plugin.targets || []),
-  ]);
-  if (props.activeTarget) {
-    targets.add(props.activeTarget);
-  }
-  return [...targets].map((target) => ({
-    value: target,
-    title: targetName(target),
-  }));
-});
+const previewModes = computed(() =>
+  previewModeItems(props.plugin).map((item) => ({
+    value: item.value,
+    title: item.mode === "xypad" ? t("previewXyPad") : t("previewKeyboard"),
+  })),
+);
+const activePreviewMode = computed(() => canonicalPreviewTarget(props.activeTarget));
 
 watch(
   () => props.inlineSlotsByTarget,
@@ -106,6 +100,10 @@ function sendSelectedSlot(target) {
   }
   emit("send-slot", props.plugin, target, slotIndex);
 }
+
+function deviceNotFoundLabel(target) {
+  return t("deviceNotFound", { target: targetName(target) });
+}
 </script>
 
 <template>
@@ -137,7 +135,7 @@ function sendSelectedSlot(target) {
             :key="`download-${build.target}`"
             :href="build.file"
             :download="unitFileName(build)"
-            variant="outlined"
+            variant="tonal"
             prepend-icon="mdi-download"
           >
             {{ targetName(build.target) }}
@@ -152,8 +150,8 @@ function sendSelectedSlot(target) {
       >
         <h2 class="text-title-medium mb-3">{{ t("sendToDevice") }}</h2>
 
-        <div class="d-flex flex-column ga-4">
-          <div
+        <div class="d-flex flex-wrap align-center ga-2">
+          <template
             v-for="build in sends"
             :key="`send-${build.target}`"
           >
@@ -171,8 +169,7 @@ function sendSelectedSlot(target) {
                   style="min-width: 14rem; max-width: 22rem;"
                 />
                 <v-btn
-                  color="primary"
-                  variant="flat"
+                  variant="tonal"
                   :disabled="sending || selectedSlotByTarget[build.target] == null"
                   @click="sendSelectedSlot(build.target)"
                 >
@@ -188,13 +185,13 @@ function sendSelectedSlot(target) {
             </template>
             <v-btn
               v-else
-              variant="outlined"
+              variant="tonal"
               prepend-icon="mdi-usb"
               @click="emit('send', plugin, build.target)"
             >
-              {{ targetName(build.target) }}
+              {{ deviceNotFoundLabel(build.target) }}
             </v-btn>
-          </div>
+          </template>
         </div>
       </v-col>
     </v-row>
@@ -205,24 +202,21 @@ function sendSelectedSlot(target) {
     >
       <div class="d-flex flex-wrap align-center justify-space-between ga-3 mb-4">
         <h2 class="text-title-medium">{{ t("preview") }}</h2>
-        <v-btn-toggle
-          v-if="targetItems.length > 1"
-          :model-value="activeTarget"
-          mandatory
-          density="compact"
-          color="primary"
-          divided
-          @update:model-value="emit('select-target', $event)"
+        <div
+          v-if="previewModes.length > 1"
+          class="d-flex flex-wrap ga-2"
         >
           <v-btn
-            v-for="item in targetItems"
+            v-for="item in previewModes"
             :key="item.value"
-            :value="item.value"
-            size="small"
+            variant="tonal"
+            :color="activePreviewMode === item.value ? 'primary' : undefined"
+            :aria-pressed="activePreviewMode === item.value"
+            @click="emit('select-target', item.value)"
           >
             {{ item.title }}
           </v-btn>
-        </v-btn-toggle>
+        </div>
       </div>
 
       <PreviewPanel

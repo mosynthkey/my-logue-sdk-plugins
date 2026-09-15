@@ -132,7 +132,7 @@ function handleHoldToggle() {
             class="preview-dry-input"
           >
             <v-btn
-              :variant="dryPlaying ? 'flat' : 'outlined'"
+              variant="tonal"
               :color="dryPlaying ? 'primary' : undefined"
               :prepend-icon="dryPlaying ? 'mdi-stop' : 'mdi-play'"
               :aria-pressed="dryPlaying"
@@ -158,7 +158,7 @@ function handleHoldToggle() {
 
           <v-btn
             v-if="showInstrument && layout === 'keyboard' && !kickDemoActive"
-            :variant="latchEnabled ? 'flat' : 'outlined'"
+            variant="tonal"
             :color="latchEnabled ? 'primary' : undefined"
             :aria-pressed="latchEnabled"
             @click="onLatchToggle"
@@ -168,7 +168,7 @@ function handleHoldToggle() {
 
           <v-btn
             v-if="showInstrument && layout === 'xypad'"
-            :variant="holdEnabled ? 'flat' : 'outlined'"
+            variant="tonal"
             :color="holdEnabled ? 'primary' : undefined"
             :aria-pressed="holdEnabled"
             @click="handleHoldToggle"
