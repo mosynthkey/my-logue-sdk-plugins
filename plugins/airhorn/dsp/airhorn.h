@@ -48,6 +48,12 @@ public:
     (void)w0;
   }
 
+  // NTS-1 mkII: 14-bit MIDI pitch bend, ±range ±1 octave (unit-defined).
+  void setPitchBend(uint16_t bend)
+  {
+    engine_.setPitchBend(bend);
+  }
+
   void noteOn(uint8_t note, uint8_t velo) override final
   {
     engine_.startVoice(velo, note);

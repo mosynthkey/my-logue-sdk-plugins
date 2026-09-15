@@ -4,8 +4,9 @@
  * File: airhorn_mk2.h
  *
  * microKORG2 multi-voice AirHorn oscillator adapter.
- * PitchMode Fixed: native sample pitch. Key: keyboard tracks concert pitch
- * from kAirhornRootMidi.
+ * PitchMode Fixed: native sample pitch + host pitch-bend via context->pitch.
+ * Key: keyboard tracks concert pitch from kAirhornRootMidi (bend included).
+ * Pitch is read every render from context->pitch[] (host applies Bend Range).
  */
 
 #include "airhorn_engine.h"
@@ -58,7 +59,10 @@ public:
   {
     engine_.reset();
     for (uint32_t voiceIndex = 0; voiceIndex < kMk2MaxVoices; ++voiceIndex)
+    {
       voices_[voiceIndex].reset();
+      trigger_pitch_[voiceIndex] = 0.f;
+    }
   }
 
   void Resume() { Reset(); }
@@ -79,6 +83,7 @@ public:
         float transpose = 1.f;
         if (engine_.pitchMode() == AirHornEngine::kPitchTrack)
           transpose = AirHornEngine::noteTransposeFor(midi_note);
+        trigger_pitch_[voiceIndex] = midi_note;
         voices_[voiceIndex].trigger(127, note, transpose);
       }
 
@@ -112,9 +117,23 @@ private:
                     const unit_runtime_osc_context_t *context)
   {
     const int offset = GetBufferOffset(context, voiceIndex, frames);
-    const float transpose = engine_.pitchMode() == AirHornEngine::kPitchTrack
-                                ? voices_[voiceIndex].note_transpose
-                                : 1.f;
+
+    // Host bakes pitch bend (and other pitch mods) into context->pitch[].
+    // Key: absolute concert tracking. Fixed: native sample pitch + relative bend.
+    float transpose = 1.f;
+    if (voices_[voiceIndex].active)
+    {
+      const float midi_note = context->pitch[voiceIndex];
+      if (engine_.pitchMode() == AirHornEngine::kPitchTrack)
+      {
+        transpose = AirHornEngine::noteTransposeFor(midi_note);
+        voices_[voiceIndex].note_transpose = transpose;
+      }
+      else
+      {
+        transpose = fastpow2f((midi_note - trigger_pitch_[voiceIndex]) * (1.f / 12.f));
+      }
+    }
 
     for (uint32_t sampleIndex = 0; sampleIndex < frames; ++sampleIndex)
     {
@@ -127,5 +146,6 @@ private:
   unit_runtime_desc_t runtime_desc_;
   AirHornEngine engine_;
   AirHornVoice voices_[kMk2MaxVoices];
+  float trigger_pitch_[kMk2MaxVoices] = {};
   int32_t cached_values_[kNumParams] = {};
 };

@@ -226,6 +226,7 @@ public:
     pitch_transpose_target_ = 1.f;
     pitch_transpose_ = 1.f;
     track_from_param_ = false;
+    bend_transpose_ = 1.f;
     next_voice_ = 0U;
     clearVoices();
   }
@@ -234,6 +235,18 @@ public:
 
   // NTS-3: pitch follows the Pitch parameter. NTS-1/mk2: pitch follows MIDI note.
   void setTrackFromParam(bool enabled) { track_from_param_ = enabled; }
+
+  // NTS-1 mkII MIDI pitch bend. 14-bit, center 0x2000; sensitivity is ±1 octave
+  // (host does not provide Bend Range). No-op path for NTS-3 param tracking.
+  void setPitchBend(uint16_t bend)
+  {
+    float norm = (static_cast<float>(bend) - 8192.f) * (1.f / 8192.f);
+    if (norm < -1.f)
+      norm = -1.f;
+    if (norm > 1.f)
+      norm = 1.f;
+    bend_transpose_ = fastpow2f(norm);
+  }
 
   void setParameter(uint8_t index, int32_t value)
   {
@@ -364,11 +377,18 @@ public:
 
   float voicePlaybackTranspose(uint32_t voiceIndex) const
   {
-    if (pitch_mode_ == kPitchFixed)
-      return 1.f;
-    if (track_from_param_)
-      return pitch_transpose_;
-    return voices_[voiceIndex].note_transpose;
+    float transpose = 1.f;
+    if (pitch_mode_ == kPitchTrack)
+    {
+      if (track_from_param_)
+        transpose = pitch_transpose_;
+      else
+        transpose = voices_[voiceIndex].note_transpose;
+    }
+    // Keyboard targets: apply unit pitch-bend (±1 oct on NTS-1). NTS-3 leaves bend at 1.
+    if (!track_from_param_)
+      transpose *= bend_transpose_;
+    return transpose;
   }
 
   // Direct voice access for microKORG2 (per-voice rendering outside the pool).
@@ -430,5 +450,6 @@ private:
   float pitch_transpose_target_ = 1.f;
   mutable float pitch_transpose_ = 1.f;
   bool track_from_param_ = false;
+  float bend_transpose_ = 1.f;
   mutable AirHornVoice voices_[kMaxVoices];
 };
