@@ -5,7 +5,7 @@ const STORAGE_KEY = "logue-sdk-preview-language";
 
 export const japanesePluginDescriptions = {
   airfm: "Alesis airSynthに着想を得た、FM効果音シンセです。Xはキャリア周波数（CARR）、Yはモジュレータ周波数（MOD）です。",
-  airhorn: "AirHornを鳴らします。\n現在も調整中で、正式版\u2060は近日公開予定。",
+  airhorn: "AirHornを鳴らします。 Pitch Modeでピッチ固定か、鍵盤/Pitchパラメーター合わせるかを決められます。",
   amentime: "合成した1小節のamen風ブレイクを、ホストBPMに合わせてスライス再生します。オリジナル録音は入っていません。パッドを押しているあいだ、小節頭からステップ同期で再生（タップ位置は開始16分を決めません）。Xはリバース確率、Yはグリッド（1/4〜1/32）、STRTはEditで開始オフセット。手元のWAVはWavSliceを使います。",
   wavslice: "任意の1小節WAVをホストBPMに合わせてスライス再生します。同梱はオリジナルのCC0ドラムループ。パッドを押しているあいだ、小節頭からステップ同期で再生（タップ位置は開始16分を決めません）。Xはリバース確率、Yはグリッド。assets/loop.wav を置くか make embed WAV=... で差し替えます。",
   fbackosc: "JP-8080に着想を得たFeedback oscillatorです。band-limited sawをkey-tracked resonant comb filterに通します。FEEDを上げても1/(1-fb)で音量が跳ねないよう補償しています。",

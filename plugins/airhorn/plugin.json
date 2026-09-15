@@ -1,10 +1,9 @@
 {
   "id": "airhorn",
-  "experimental": true,
   "name": "AirHorn",
   "type": "osc",
   "targets": ["nts-1_mkii", "nts-3_kaoss", "microkorg2"],
-  "description": "Plays an air horn.\nStill being fine-tuned; the official release is coming soon.",
+  "description": "Plays an AirHorn. Pitch Mode chooses fixed pitch, or tracking from the keyboard / Pitch parameter.",
   "params": [
     { "name": "Level", "role": "A", "detail": "Output level" },
     { "name": "P.Mode", "role": "Edit", "detail": "Pitch mode: Fixed, or Key (NTS-1/mk2) / Pitch (NTS-3)" },
