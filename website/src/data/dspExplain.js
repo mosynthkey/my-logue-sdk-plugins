@@ -129,18 +129,18 @@ export const dspExplainById = {
   Env --> LPF --> Mix[Dry or wet] --> Out[Out]
   In[Audio in] --> Mix`,
   },
-  stepgatedelay: {
-    en: "Euclidean 1/16 gate into a tempo delay. Pad-down captures the nearest 16th as relative step 0. X = hit density among 16, Y = delay wet. Default time is a dotted eighth. Feedback high/low damp; low damp is on by default.",
-    ja: "ユークリッド1/16ゲートをテンポディレイへ送ります。パッド押下で最寄りの16分が相対ステップ0。Xは16ステップ中の密度、YはディレイWet。既定タイムは付点8分。FBにハイ／ローダンプ（既定でローダンプON）。",
+  dubthrow: {
+    en: "Dub-desk send throw. Dry always passes; pad throw feeds a BPM-synced stereo delay with feedback-path bandpass and soft sat. X = throw, Y = feedback tone. Release stops new send while the echo tail decays. Not a dry-kill echo out.",
+    ja: "ダブ机のセンド投げ。ドライは常時通し、パッドでBPM同期ディレイへ投げます。帰還内はバンドパス＋ゆるいサチュ。Xは投げ量、Yは帰還音色。離すと新規取り込みだけ止まり、テールはFBで残ります。",
     mermaid: `flowchart LR
-  Clock[Nearest 16th] --> Euclid[Euclid density]
-  Pad[Pad hold] --> Euclid
-  In[Audio in] --> Gate[Step gate] --> Delay[Tempo delay]
-  Euclid --> Gate
-  Delay --> Mix[Dry or wet] --> Out[Out]
-  In --> Mix
-  Y[Y wet] --> Mix
-  Damp[Hi and Lo damp] --> Delay`,
+  In[Audio in] --> Dry[Dry pass]
+  In --> Send[Pad throw send]
+  Send --> Delay[Sync delay L/R]
+  Delay --> BPF[Feedback BPF and sat]
+  BPF --> Delay
+  Delay --> Lim[Wet limiter]
+  Dry --> Out[Out]
+  Lim --> Out`,
   },
   eucgate: {
     en: "Tempo Euclidean/probability gate on the input. Closed steps mute; duty sets the open fraction. Touch fills (opens every step). Mix blends gated vs ungated level.",
@@ -492,6 +492,19 @@ export const dspExplainById = {
     mermaid: `flowchart LR
   Shake[Note or Touch energy] --> Noise[Collision noise]
   Noise --> Res[Resonator bank] --> Out[Stereo wet]`,
+  },
+  stepgatedelay: {
+    en: "Euclidean 1/16 gate into a tempo delay. Pad-down captures the nearest 16th as relative step 0. X = hit density among 16, Y = delay wet. Default time is a dotted eighth. Feedback high/low damp; low damp is on by default.",
+    ja: "ユークリッド1/16ゲートをテンポディレイへ送ります。パッド押下で最寄りの16分が相対ステップ0。Xは16ステップ中の密度、YはディレイWet。既定タイムは付点8分。FBにハイ／ローダンプ（既定でローダンプON）。",
+    mermaid: `flowchart LR
+  Clock[Nearest 16th] --> Euclid[Euclid density]
+  Pad[Pad hold] --> Euclid
+  In[Audio in] --> Gate[Step gate] --> Delay[Tempo delay]
+  Euclid --> Gate
+  Delay --> Mix[Dry or wet] --> Out[Out]
+  In --> Mix
+  Y[Y wet] --> Mix
+  Damp[Hi and Lo damp] --> Delay`,
   },
   stepdice: {
     en: "Tempo-synced step FX dice. A bar is split into 16/8/4/2/1 steps; each step is a seeded permutation of gate, filter, crush, ring, pan, drive, stutter, reverse, or echo. X scales intensity, Y re-seeds the pattern, touch re-rolls in RUN.",

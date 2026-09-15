@@ -1,6 +1,67 @@
 {
-  "generatedAt": "2026-09-15T14:13:15.178655+00:00",
+  "generatedAt": "2026-09-15T14:17:35.937882+00:00",
   "plugins": [
+    {
+      "id": "dubthrow",
+      "experimental": true,
+      "name": "DubThrow",
+      "type": "fx",
+      "targets": [
+        "nts-3_kaoss"
+      ],
+      "description": "Dub-desk send throw on the XY pad. Dry always passes; pad throw feeds a BPM-synced stereo delay with feedback-path bandpass. X = throw amount, Y = feedback tone. Release stops new input while the echo tail decays.",
+      "params": [
+        {
+          "name": "THROW",
+          "role": "X",
+          "detail": "Send / throw amount (left = nearly dry, right = full throw)"
+        },
+        {
+          "name": "TONE",
+          "role": "Y",
+          "detail": "Feedback bandpass cutoff (down = dark tail, up = bright / nasal)"
+        },
+        {
+          "name": "DEPTH",
+          "role": "Depth",
+          "detail": "Overall wet ceiling and throw sensitivity"
+        },
+        {
+          "name": "TIME",
+          "role": "Edit",
+          "detail": "Synced delay note: 1/16, 1/8, dotted 1/8, 1/4, dotted 1/4"
+        },
+        {
+          "name": "FDBK",
+          "role": "Edit",
+          "detail": "Base feedback ceiling (high for near self-oscillation)"
+        },
+        {
+          "name": "SPRD",
+          "role": "Edit",
+          "detail": "L/R delay time spread (dub stereo offset)"
+        },
+        {
+          "name": "MODE",
+          "role": "Edit",
+          "detail": "Ping-pong, dual, or mono delay"
+        },
+        {
+          "name": "TOUCH",
+          "role": "Edit",
+          "detail": "Gate (hold to throw), Latch (keep send), Always (X only)"
+        }
+      ],
+      "builds": [
+        {
+          "target": "nts-3_kaoss",
+          "module": "genericfx",
+          "file": "./units/dubthrow-nts-3_kaoss.nts3unit",
+          "size": 8552,
+          "wasm": "./sim/dubthrow/nts-3_kaoss/dubthrow.html"
+        }
+      ]
+    },
     {
       "id": "stepgatedelay",
       "experimental": true,
@@ -59,6 +120,67 @@
           "file": "./units/stepgatedelay-nts-3_kaoss.nts3unit",
           "size": 8324,
           "wasm": "./sim/stepgatedelay/nts-3_kaoss/stepgatedelay.html"
+        }
+      ]
+    },
+    {
+      "id": "stoneres",
+      "experimental": true,
+      "name": "StoneRes",
+      "type": "synth",
+      "targets": [
+        "nts-3_kaoss"
+      ],
+      "description": "Rub the XY pad to grind a stone surface; a chord resonator bank remaps the friction noise. LOAD/ROUGH on the pad, MAT/GRAIN/DAMP for the stone, ROOT/CHORD for the resonator.\nStill being fine-tuned; the official release is coming soon.",
+      "params": [
+        {
+          "name": "LOAD",
+          "role": "X",
+          "detail": "Contact pressure / load"
+        },
+        {
+          "name": "ROUGH",
+          "role": "Y",
+          "detail": "Surface roughness"
+        },
+        {
+          "name": "MIX",
+          "role": "Depth",
+          "detail": "Stone dry vs chord resonator wet"
+        },
+        {
+          "name": "MAT",
+          "role": "Edit",
+          "detail": "Stone material preset"
+        },
+        {
+          "name": "GRAIN",
+          "role": "Edit",
+          "detail": "Grain density / catch rate"
+        },
+        {
+          "name": "DAMP",
+          "role": "Edit",
+          "detail": "Stone body ring / sustain"
+        },
+        {
+          "name": "ROOT",
+          "role": "Edit",
+          "detail": "Chord root (C-B)"
+        },
+        {
+          "name": "CHORD",
+          "role": "Edit",
+          "detail": "Chord type"
+        }
+      ],
+      "builds": [
+        {
+          "target": "nts-3_kaoss",
+          "module": "genericfx",
+          "file": "./units/stoneres-nts-3_kaoss.nts3unit",
+          "size": 14956,
+          "wasm": "./sim/stoneres/nts-3_kaoss/stoneres.html"
         }
       ]
     }
