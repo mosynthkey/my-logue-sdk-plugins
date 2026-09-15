@@ -2,6 +2,9 @@
 dist/
 plugins/*/targets/*/build/
 plugins/*/targets/*/sim/
+# logue-sdk sandbox demo samples (chinese_orchestra.wav etc.) — never commit
+website/sim/**/samples/*
+!website/sim/**/samples/samples.json
 plugins/*/targets/*/*.nts1mkiiunit
 plugins/*/targets/*/*.ntkdigunit
 plugins/*/targets/*/*.prlgunit
