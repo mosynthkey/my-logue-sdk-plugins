@@ -493,6 +493,19 @@ export const dspExplainById = {
   Shake[Note or Touch energy] --> Noise[Collision noise]
   Noise --> Res[Resonator bank] --> Out[Stereo wet]`,
   },
+  stepgatedelay: {
+    en: "Euclidean 1/16 gate into a tempo delay. Pad-down captures the nearest 16th as relative step 0. X = hit density among 16, Y = delay wet. Default time is a dotted eighth. Feedback high/low damp; low damp is on by default.",
+    ja: "ユークリッド1/16ゲートをテンポディレイへ送ります。パッド押下で最寄りの16分が相対ステップ0。Xは16ステップ中の密度、YはディレイWet。既定タイムは付点8分。FBにハイ／ローダンプ（既定でローダンプON）。",
+    mermaid: `flowchart LR
+  Clock[Nearest 16th] --> Euclid[Euclid density]
+  Pad[Pad hold] --> Euclid
+  In[Audio in] --> Gate[Step gate] --> Delay[Tempo delay]
+  Euclid --> Gate
+  Delay --> Mix[Dry or wet] --> Out[Out]
+  In --> Mix
+  Y[Y wet] --> Mix
+  Damp[Hi and Lo damp] --> Delay`,
+  },
   stepdice: {
     en: "Tempo-synced step FX dice. A bar is split into 16/8/4/2/1 steps; each step is a seeded permutation of gate, filter, crush, ring, pan, drive, stutter, reverse, or echo. X scales intensity, Y re-seeds the pattern, touch re-rolls in RUN.",
     ja: "テンポ同期のステップFXダイスです。1小節を16/8/4/2/1ステップに分け、ゲート／フィルタ／クラッシュ／リング／パン／ドライブ／スタッタ／リバース／エコーをステップごとに割り当てます。Xは強さ、Yはパターンの種、RUN中のタッチで再ロールです。",

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-15T13:59:52.151794+00:00",
+  "generatedAt": "2026-09-15T14:17:35.937882+00:00",
   "plugins": [
     {
       "id": "dubthrow",
@@ -59,6 +59,67 @@
           "file": "./units/dubthrow-nts-3_kaoss.nts3unit",
           "size": 8552,
           "wasm": "./sim/dubthrow/nts-3_kaoss/dubthrow.html"
+        }
+      ]
+    },
+    {
+      "id": "stepgatedelay",
+      "experimental": true,
+      "name": "StepGateDelay",
+      "type": "fx",
+      "targets": [
+        "nts-3_kaoss"
+      ],
+      "description": "Euclidean 1/16 gate into a tempo delay. Hold the pad to engage; the nearest 16th clock becomes relative step 0 (Ride909-style). X = Euclidean density among 16 steps (hits open the gate). Y = delay wet. Default delay is a dotted eighth. Feedback has high/low damp; low damp is on by default so repeats stay thin.",
+      "params": [
+        {
+          "name": "DENS",
+          "role": "X",
+          "detail": "Euclidean hits among 16 steps (1\u201316)"
+        },
+        {
+          "name": "DWET",
+          "role": "Y",
+          "detail": "Delay wet amount"
+        },
+        {
+          "name": "MIX",
+          "role": "Depth",
+          "detail": "Overall wet while the pad is held"
+        },
+        {
+          "name": "FEED",
+          "role": "Edit",
+          "detail": "Delay feedback"
+        },
+        {
+          "name": "HDAMP",
+          "role": "Edit",
+          "detail": "High damp (darker repeats)"
+        },
+        {
+          "name": "LDAMP",
+          "role": "Edit",
+          "detail": "Low damp (thinner repeats; default engaged)"
+        },
+        {
+          "name": "TIME",
+          "role": "Edit",
+          "detail": "Delay time: 1/16, 1/8, 1/8D, 1/4, 1/4D, 1/2 (default 1/8D)"
+        },
+        {
+          "name": "ROT",
+          "role": "Edit",
+          "detail": "Rotate the Euclidean pattern"
+        }
+      ],
+      "builds": [
+        {
+          "target": "nts-3_kaoss",
+          "module": "genericfx",
+          "file": "./units/stepgatedelay-nts-3_kaoss.nts3unit",
+          "size": 8324,
+          "wasm": "./sim/stepgatedelay/nts-3_kaoss/stepgatedelay.html"
         }
       ]
     },
