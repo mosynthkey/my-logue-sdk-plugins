@@ -1,6 +1,6 @@
 import { computed, ref, shallowRef } from "vue";
 import { filterPluginsByCategory, pluginCategory } from "../utils/pluginCategory.js";
-import { buildForTarget, defaultTarget } from "../utils/plugin.js";
+import { buildForTarget, canonicalPreviewTarget, defaultTarget } from "../utils/plugin.js";
 import { findPlugin, resolveInitialPlugin, visiblePlugins } from "../utils/visiblePlugins.js";
 
 export function usePluginSelection(catalog, siteQuery) {
@@ -36,19 +36,31 @@ export function usePluginSelection(catalog, siteQuery) {
     siteQuery.syncSelection(pluginId, target);
   }
 
-  async function selectTarget(pluginId, target) {
-    const nextTargets = new Map(selectedTargetByPlugin.value);
-    nextTargets.set(pluginId, target);
-    selectedTargetByPlugin.value = nextTargets;
+  function resolvePreviewTarget(plugin, target) {
+    const canonical = canonicalPreviewTarget(target);
+    if (canonical === "nts-1_mkii" && !buildForTarget(plugin, "nts-1_mkii") && buildForTarget(plugin, "microkorg2")) {
+      return "microkorg2";
+    }
+    if (canonical === "nts-3_kaoss" && !buildForTarget(plugin, "nts-3_kaoss")) {
+      return target;
+    }
+    return canonical;
+  }
 
+  async function selectTarget(pluginId, target) {
     const plugin = findPlugin(catalog.value?.plugins, pluginId);
     if (!plugin) {
       return;
     }
 
+    const resolvedTarget = resolvePreviewTarget(plugin, target);
+    const nextTargets = new Map(selectedTargetByPlugin.value);
+    nextTargets.set(pluginId, resolvedTarget);
+    selectedTargetByPlugin.value = nextTargets;
+
     activePlugin.value = plugin;
-    activeTarget.value = target;
-    syncUrl(pluginId, target);
+    activeTarget.value = resolvedTarget;
+    syncUrl(pluginId, resolvedTarget);
   }
 
   async function selectPlugin(pluginId) {
@@ -60,7 +72,7 @@ export function usePluginSelection(catalog, siteQuery) {
     selectedPluginId.value = pluginId;
     activePlugin.value = plugin;
 
-    const target = defaultTarget(plugin, selectedTargetByPlugin.value);
+    const target = resolvePreviewTarget(plugin, defaultTarget(plugin, selectedTargetByPlugin.value));
     const nextTargets = new Map(selectedTargetByPlugin.value);
     nextTargets.set(pluginId, target);
     selectedTargetByPlugin.value = nextTargets;
@@ -95,9 +107,13 @@ export function usePluginSelection(catalog, siteQuery) {
     }
 
     const requestedTarget = siteQuery.requestedTarget();
-    const target = requestedTarget && buildForTarget(initialPlugin, requestedTarget)
+    const rawTarget = requestedTarget && (
+      buildForTarget(initialPlugin, requestedTarget)
+      || buildForTarget(initialPlugin, canonicalPreviewTarget(requestedTarget))
+    )
       ? requestedTarget
       : defaultTarget(initialPlugin, selectedTargetByPlugin.value);
+    const target = resolvePreviewTarget(initialPlugin, rawTarget);
 
     selectedPluginId.value = initialPlugin.id;
     activePlugin.value = initialPlugin;

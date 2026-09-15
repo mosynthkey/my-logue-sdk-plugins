@@ -26,7 +26,7 @@ async function onCopy() {
     <header class="preview-debug__head">
       <h3>Preview debug log</h3>
       <v-btn
-        variant="outlined"
+        variant="tonal"
         prepend-icon="mdi-content-copy"
         @click="onCopy"
       >

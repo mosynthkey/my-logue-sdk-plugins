@@ -398,7 +398,7 @@ onBeforeUnmount(() => {
   <div class="preview-keyboard-shell">
     <div class="preview-keyboard-head">
       <v-btn
-        variant="outlined"
+        variant="tonal"
         :disabled="!canOctaveDown"
         :aria-label="t('octaveDown')"
         @click="onOctaveDown"
@@ -410,7 +410,7 @@ onBeforeUnmount(() => {
         aria-live="polite"
       >{{ viewLabel }}</span>
       <v-btn
-        variant="outlined"
+        variant="tonal"
         :disabled="!canOctaveUp"
         :aria-label="t('octaveUp')"
         @click="onOctaveUp"
