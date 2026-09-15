@@ -2,6 +2,7 @@
 #include "ride909.h"
 #include "runtime.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <vector>
@@ -14,6 +15,8 @@ static void render_blocks(Ride909 &ride, uint32_t blocks, std::vector<float> &mo
 
   for (uint32_t blockIndex = 0; blockIndex < blocks; ++blockIndex)
   {
+    // process() is dry+wet; clear so in-place render does not accumulate.
+    std::fill(buffer.begin(), buffer.end(), 0.f);
     ride.process(buffer.data(), buffer.data(), kBlockSize);
     for (uint32_t sampleIndex = 0; sampleIndex < kBlockSize; ++sampleIndex)
       mono_out[blockIndex * kBlockSize + sampleIndex] = buffer[sampleIndex * 2U];

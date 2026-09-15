@@ -2,6 +2,7 @@
 #include "ride909.h"
 #include "runtime.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <vector>
@@ -22,9 +23,12 @@ TailMetrics measureTail(Ride909 &ride, int32_t pitch_value, uint32_t sample_rate
   ride.setParameter(Ride909::MIX, 1000);
   ride.setParameter(Ride909::PUMP, 0);
   ride.setParameter(Ride909::PITCH, pitch_value);
-  // Slow enough that 3-7-11-15 does not retrigger during one ROM playthrough.
+  // Slow enough that the 4-step cycle does not retrigger during one ROM playthrough.
   ride.setTempo(21.f);
   ride.touchEvent(0, k_unit_touch_phase_began, 512, 0);
+  // Relative 4-step cycle: 1=pump, 2=rest, 3=ride.
+  ride.tempo4ppqnTick(1U);
+  ride.tempo4ppqnTick(2U);
   ride.tempo4ppqnTick(3U);
 
   constexpr uint32_t kBlockSize = 128U;
@@ -34,6 +38,8 @@ TailMetrics measureTail(Ride909 &ride, int32_t pitch_value, uint32_t sample_rate
 
   for (uint32_t blockIndex = 0; blockIndex < kBlockCount; ++blockIndex)
   {
+    std::fill(block.begin(), block.end(), 0.f);
+
     ride.process(block.data(), block.data(), kBlockSize);
     for (uint32_t sampleIndex = 0; sampleIndex < kBlockSize; ++sampleIndex)
       mono[blockIndex * kBlockSize + sampleIndex] = block[sampleIndex * 2U];

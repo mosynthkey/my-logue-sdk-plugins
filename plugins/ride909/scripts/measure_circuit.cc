@@ -2,6 +2,7 @@
 #include "ride909.h"
 #include "runtime.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <vector>
@@ -24,6 +25,9 @@ static void render_one_hit(Ride909 &ride, int32_t pitch, std::vector<float> &mon
   ride.setParameter(Ride909::PITCH, pitch);
   ride.setTempo(21.f);
   ride.touchEvent(0, k_unit_touch_phase_began, 512, 0);
+  // Relative 4-step cycle: 1=pump, 2=rest, 3=ride.
+  ride.tempo4ppqnTick(1U);
+  ride.tempo4ppqnTick(2U);
   ride.tempo4ppqnTick(3U);
 
   constexpr uint32_t kBlockSize = 128U;
@@ -33,6 +37,8 @@ static void render_one_hit(Ride909 &ride, int32_t pitch, std::vector<float> &mon
 
   for (uint32_t blockIndex = 0; blockIndex < kBlockCount; ++blockIndex)
   {
+    std::fill(block.begin(), block.end(), 0.f);
+
     ride.process(block.data(), block.data(), kBlockSize);
     for (uint32_t sampleIndex = 0; sampleIndex < kBlockSize; ++sampleIndex)
       mono[blockIndex * kBlockSize + sampleIndex] = block[sampleIndex * 2U];
