@@ -152,6 +152,25 @@ int main()
     return 1;
   }
 
-  std::printf("ok midi=%.0f tresi=6 cinq=10 peak=%f late=%f\n", midi, peak, late);
+  // Pitch may change across steps: latch on every step edge, not only on hits.
+  setup(bass);
+  bass.setParameter(RootBass::RHY, RootBass::RHY_TRESI);
+  bass.debugForcePitch(36.f);
+  bass.touchEvent(0, k_unit_touch_phase_began, 512, 512);
+  bass.tempo4ppqnTick(1U); // step 0
+  if (bass.debugLockedMidi() < 35.5f || bass.debugLockedMidi() > 36.5f)
+  {
+    std::printf("FAIL: step0 lock want 36 got %f\n", bass.debugLockedMidi());
+    return 1;
+  }
+  bass.debugForcePitch(41.f); // chord change mid-bar
+  bass.tempo4ppqnTick(2U); // step 1 (not a tresillo hit) should still re-latch
+  if (bass.debugLockedMidi() < 40.5f || bass.debugLockedMidi() > 41.5f)
+  {
+    std::printf("FAIL: step1 should follow chord to 41 got %f\n", bass.debugLockedMidi());
+    return 1;
+  }
+
+  std::printf("ok midi=%.0f tresi=6 cinq=10 peak=%f late=%f follow=41\n", midi, peak, late);
   return 0;
 }

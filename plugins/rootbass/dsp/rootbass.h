@@ -5,8 +5,12 @@
  *
  * Lowest-pitch follower bass for NTS-3.
  * Detects the input's bass-range fundamental (AMDF, 40–220 Hz), quantizes to
- * 12-TET A440, and gates a synth oscillator on a fixed rhythm. Pitch does not
- * change per step — only the gate fires. Hold pad to run; hits lock to tempo.
+ * 12-TET A440, and gates a synth oscillator on a fixed rhythm. Hold to run;
+ * hits lock to tempo.
+ *
+ * Pitch model: the chord is assumed stable *inside* one 16th-note step, so the
+ * voice latches the detector only on step boundaries (and can follow chord
+ * changes from step to step). HOLD mode follows the detector continuously.
  *
  * Featured rhythm: Tresillo (3+3+2), the clave cell behind dembow / reggaeton.
  */
@@ -260,6 +264,11 @@ private:
     tick_counter_ = counter;
     if (!running_)
       return;
+
+    // Latch pitch once per 16th: stable within the step, free to move across steps.
+    if (have_pitch_ && rhythm_ != RHY_HOLD)
+      locked_midi_ = detected_midi_;
+
     triggerForStep((counter == 0U) ? 0U : ((counter - 1U) % kSteps));
   }
 
@@ -292,7 +301,6 @@ private:
     if (!have_pitch_)
       return;
 
-    locked_midi_ = detected_midi_;
     env_age_ = 0.f;
     env_vel_ = 1.f;
     ++triggers_;

@@ -6,7 +6,7 @@
   "targets": [
     "nts-3_kaoss"
   ],
-  "description": "Follows the lowest pitch in Audio In (bass-range AMDF → 12-TET A440) and plays a gated synth bass. Pitch stays put across steps; only the gate fires. Featured groove is Tresillo (3+3+2). Hold to run. X = octave, Y = waveform.",
+  "description": "Follows the lowest pitch in Audio In (bass-band AMDF → 12-TET A440) and plays a gated synth bass. Assumes the chord is stable within each 16th; pitch latches on step boundaries and can follow changes across steps. Featured groove is Tresillo (3+3+2). Hold to run. X = octave, Y = waveform.",
   "params": [
     {
       "name": "OCT",

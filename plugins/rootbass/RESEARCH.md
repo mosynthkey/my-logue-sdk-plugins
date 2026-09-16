@@ -13,7 +13,10 @@ subdivision that underpins dembow / reggaeton grooves:
 | Beat 1–2 | 0, 3, 6 |
 | Beat 3–4 | 8, 11, 14 |
 
-Pitch is locked at trigger time and does not walk per step. Also included:
+Pitch assumption: the input chord is stable **inside** one 16th-note step.
+The voice latches the detector on each step boundary, so it can follow chord
+changes from step to step, but does not hunt mid-step. `HOLD` follows the
+detector continuously. Also included:
 
 - `HOLD` — continuous drone while the pad is held
 - `CINQ` — Cinquillo (2+1+2+1+2) for denser Afro-Cuban gating
