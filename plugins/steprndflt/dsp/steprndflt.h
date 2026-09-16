@@ -6,7 +6,7 @@
  * Tempo-synced sample-and-hold LFO into a multimode resonant filter. Dry by
  * default; touch engages. Each grid period redraws a random bipolar offset
  * around CUT; DEPTH scales that offset in octaves. Y is resonance (capped).
- * TYPE picks LPF12 / LPF24 / BPF / HPF12 / HPF24 / Peak. LEVEL scales wet before the
+ * TYPE picks Peak / LPF12 / LPF24 / BPF / HPF12 / HPF24. LEVEL scales wet before the
  * final softclip.
  */
 
@@ -59,12 +59,12 @@ public:
 
   enum
   {
-    TYPE_LPF12 = 0U,
+    TYPE_PEAK = 0U,
+    TYPE_LPF12,
     TYPE_LPF24,
     TYPE_BPF,
     TYPE_HPF12,
-    TYPE_HPF24,
-    TYPE_PEAK
+    TYPE_HPF24
   };
 
   void setParameter(uint8_t index, int32_t value) override final
@@ -103,7 +103,7 @@ public:
   const char *getParameterStrValue(uint8_t index, int32_t value) const override final
   {
     static const char *period_names[kNumPeriods] = {"4Bar", "2Bar", "16St", "8St", "4St", "2St", "1St", "1/2"};
-    static const char *type_names[kNumTypes] = {"LP12", "LP24", "BPF", "HP12", "HP24", "Peak"};
+    static const char *type_names[kNumTypes] = {"Peak", "LP12", "LP24", "BPF", "HP12", "HP24"};
     if (index == STEPS && value >= 0 && value < static_cast<int32_t>(kNumPeriods))
       return period_names[value];
     if (index == TYPE && value >= 0 && value < static_cast<int32_t>(kNumTypes))
@@ -124,7 +124,7 @@ public:
     mix_ = 1.f;
     level_ = 1.f;
     period_sel_ = PERIOD_1STEP;
-    type_sel_ = TYPE_LPF12;
+    type_sel_ = TYPE_PEAK;
     clock_acc_ = 0.f;
     hold_bipolar_ = 0.f;
     cutoff_hz_smooth_ = baseCutoffHz(0.5f);
@@ -373,7 +373,7 @@ private:
   float level_ = 1.f;
   uint32_t rng_ = 0xA5F15237U;
   uint8_t period_sel_ = PERIOD_1STEP;
-  uint8_t type_sel_ = TYPE_LPF12;
+  uint8_t type_sel_ = TYPE_PEAK;
   bool pad_held_ = false;
   SvfState svf_left_a_;
   SvfState svf_left_b_;
