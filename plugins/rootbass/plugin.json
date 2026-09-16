@@ -1,0 +1,37 @@
+{
+  "id": "rootbass",
+  "experimental": true,
+  "name": "RootBass",
+  "type": "synth",
+  "targets": [
+    "nts-3_kaoss"
+  ],
+  "description": "Follows the lowest pitch in Audio In (bass-band AMDF → 12-TET A440) and plays a gated synth bass. Assumes the chord is stable within each 16th; pitch latches on step boundaries and can follow changes across steps. Featured groove is Tresillo (3+3+2). Hold to run. X = octave, Y = waveform.",
+  "params": [
+    {
+      "name": "OCT",
+      "role": "X",
+      "detail": "Octave offset relative to detected note (-2…+1)"
+    },
+    {
+      "name": "WAVE",
+      "role": "Y",
+      "detail": "Oscillator: SIN, TRI, SAW, SQR"
+    },
+    {
+      "name": "MIX",
+      "role": "Depth",
+      "detail": "Bass level over Audio In"
+    },
+    {
+      "name": "RHY",
+      "role": "Edit",
+      "detail": "Gate pattern: HOLD, TRESI (tresillo), CINQ (cinquillo), HALF"
+    },
+    {
+      "name": "DEC",
+      "role": "Edit",
+      "detail": "Amp decay after each rhythmic hit"
+    }
+  ]
+}
