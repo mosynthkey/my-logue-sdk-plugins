@@ -534,19 +534,21 @@ export const dspExplainById = {
   In --> Mix`,
   },
   steprndflt: {
-    en: "Tempo-synced sample-and-hold LFO into a multimode resonant filter on AUDIO IN. Each step redraws a random bipolar offset around CUT; X (DEPTH) scales that swing in octaves, Y is resonance. TYPE selects LP12 / LP24 / BPF / HP12 / HP24. Hold the pad to engage.",
-    ja: "AUDIO INへのテンポ同期S&H LFO→マルチモード共振フィルタです。各ステップでCUT周りのバイポーラ乱数を引き直し、X（DEPTH）がその振れ幅（オクターブ）、Yがレゾナンス。TYPEはLP12/LP24/BPF/HP12/HP24。パッド押下中のみ効きます。",
+    en: "Tempo-synced sample-and-hold LFO into a multimode resonant filter on AUDIO IN. Each step redraws a random bipolar offset around CUT; X (DEPTH) scales that swing in octaves, Y is resonance (capped). TYPE selects LP12 / LP24 / BPF / HP12 / HP24 / Peak. LEVEL scales wet into a final softclip. Hold the pad to engage.",
+    ja: "AUDIO INへのテンポ同期S&H LFO→マルチモード共振フィルタです。各ステップでCUT周りのバイポーラ乱数を引き直し、X（DEPTH）がその振れ幅（オクターブ）、Yがレゾナンス（上限付き）。TYPEはLP12/LP24/BPF/HP12/HP24/Peak。LEVELでウェットを最終ソフトクリップへ。パッド押下中のみ効きます。",
     mermaid: `flowchart LR
   Tempo[BPM clock] --> Grid[Step period]
   Grid --> SH[Sample and hold]
   SH --> CutMod[Cutoff offset]
   Depth[X depth] --> CutMod
   Cut[CUT center] --> CutMod
-  In[Audio in] --> Flt[LP12 LP24 BPF HP12 HP24]
+  In[Audio in] --> Flt[LP12 LP24 BPF HP12 HP24 Peak]
   CutMod --> Flt
   Res[Y resonance] --> Flt
   Type[TYPE] --> Flt
-  Flt --> Mix[Dry or wet] --> Out[Out]
+  Flt --> Level[LEVEL]
+  Level --> Clip[Softclip]
+  Clip --> Mix[Dry or wet] --> Out[Out]
   In --> Mix`,
   },
   stepflanger: {

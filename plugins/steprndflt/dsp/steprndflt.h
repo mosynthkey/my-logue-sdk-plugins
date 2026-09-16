@@ -5,8 +5,9 @@
  *
  * Tempo-synced sample-and-hold LFO into a multimode resonant filter. Dry by
  * default; touch engages. Each grid period redraws a random bipolar offset
- * around CUT; DEPTH scales that offset in octaves. Y is resonance. TYPE picks
- * LPF12 / LPF24 / BPF / HPF12 / HPF24.
+ * around CUT; DEPTH scales that offset in octaves. Y is resonance (capped).
+ * TYPE picks LPF12 / LPF24 / BPF / HPF12 / HPF24 / Peak. LEVEL scales wet before the
+ * final softclip.
  */
 
 #include "fx_dsp.h"
@@ -22,11 +23,12 @@ public:
   static constexpr float kMinFilterCutoffHz = 40.f;
   static constexpr float kMaxFilterCutoffHz = 18000.f;
   static constexpr float kMaxDepthOctaves = 5.f;
+  static constexpr float kMaxResonanceNorm = 0.8f;
   static constexpr float kParamSmoothCoeff = 0.0025f;
   static constexpr float kMinSlewSec = 0.0005f;
   static constexpr float kMaxSlewSec = 0.12f;
   static constexpr uint8_t kNumPeriods = 8U;
-  static constexpr uint8_t kNumTypes = 5U;
+  static constexpr uint8_t kNumTypes = 6U;
 
   uint32_t getBufferSize() const override final { return 0; }
 
@@ -39,6 +41,7 @@ public:
     STEPS,
     TYPE,
     SLEW,
+    LEVEL,
     NUM_PARAMS
   };
 
@@ -60,7 +63,8 @@ public:
     TYPE_LPF24,
     TYPE_BPF,
     TYPE_HPF12,
-    TYPE_HPF24
+    TYPE_HPF24,
+    TYPE_PEAK
   };
 
   void setParameter(uint8_t index, int32_t value) override final
@@ -71,7 +75,7 @@ public:
       depth_target_ = param_10bit_to_f32(value);
       break;
     case RES:
-      resonance_norm_target_ = param_10bit_to_f32(value);
+      resonance_norm_target_ = param_10bit_to_f32(value) * kMaxResonanceNorm;
       break;
     case MIX:
       mix_ = fx::clip01(value / 1000.f);
@@ -88,6 +92,9 @@ public:
     case SLEW:
       slew_norm_ = param_10bit_to_f32(value);
       break;
+    case LEVEL:
+      level_ = param_10bit_to_f32(value);
+      break;
     default:
       break;
     }
@@ -96,7 +103,7 @@ public:
   const char *getParameterStrValue(uint8_t index, int32_t value) const override final
   {
     static const char *period_names[kNumPeriods] = {"4Bar", "2Bar", "16St", "8St", "4St", "2St", "1St", "1/2"};
-    static const char *type_names[kNumTypes] = {"LP12", "LP24", "BPF", "HP12", "HP24"};
+    static const char *type_names[kNumTypes] = {"LP12", "LP24", "BPF", "HP12", "HP24", "Peak"};
     if (index == STEPS && value >= 0 && value < static_cast<int32_t>(kNumPeriods))
       return period_names[value];
     if (index == TYPE && value >= 0 && value < static_cast<int32_t>(kNumTypes))
@@ -109,12 +116,13 @@ public:
     bpm_ = 120.f;
     depth_target_ = 0.55f;
     depth_smooth_ = 0.55f;
-    resonance_norm_target_ = 0.45f;
-    resonance_norm_smooth_ = 0.45f;
+    resonance_norm_target_ = 0.45f * kMaxResonanceNorm;
+    resonance_norm_smooth_ = 0.45f * kMaxResonanceNorm;
     cutoff_norm_target_ = 0.5f;
     cutoff_norm_smooth_ = 0.5f;
     slew_norm_ = 0.15f;
     mix_ = 1.f;
+    level_ = 1.f;
     period_sel_ = PERIOD_1STEP;
     type_sel_ = TYPE_LPF12;
     clock_acc_ = 0.f;
@@ -211,8 +219,11 @@ public:
       const float target_hz = modulatedCutoffHz(cutoff_norm_smooth_, depth_smooth_, hold_bipolar_);
       cutoff_hz_smooth_ += (target_hz - cutoff_hz_smooth_) * slew_coeff;
 
-      const float wet_left = processFilter(live_left, cutoff_hz_smooth_, resonance_norm_smooth_, type_sel_, svf_left_a_, svf_left_b_);
-      const float wet_right = processFilter(live_right, cutoff_hz_smooth_, resonance_norm_smooth_, type_sel_, svf_right_a_, svf_right_b_);
+      const float filtered_left = processFilter(live_left, cutoff_hz_smooth_, resonance_norm_smooth_, type_sel_, svf_left_a_, svf_left_b_);
+      const float filtered_right = processFilter(live_right, cutoff_hz_smooth_, resonance_norm_smooth_, type_sel_, svf_right_a_, svf_right_b_);
+      // Clip before softclip: fastertanhf is unusable for |x| ≫ 1.
+      const float wet_left = fx::softclip(fx::clip(filtered_left * level_, -1.5f, 1.5f));
+      const float wet_right = fx::softclip(fx::clip(filtered_right * level_, -1.5f, 1.5f));
 
       out[0] = fx::mix(live_left, wet_left, mix_);
       out[1] = fx::mix(live_right, wet_right, mix_);
@@ -295,11 +306,19 @@ private:
     const float fc = fx::clip(cutoff_hz, kMinFilterCutoffHz, 16000.f);
     const float g = fastertanfullf(3.14159265f * fc / getSampleRate());
     const float k = 1.f / resonanceQ(resonance_norm);
-    const float drive_comp = resonanceComp(resonance_norm);
 
     float low = 0.f;
     float band = 0.f;
     float high = 0.f;
+
+    if (type == TYPE_PEAK)
+    {
+      // Peaking/bell: flat dry plus resonant band boost at fc (no drive atten).
+      tickSvf(input, g, k, 1.f, stage_a, low, band, high);
+      return input + band * 2.f;
+    }
+
+    const float drive_comp = resonanceComp(resonance_norm);
     tickSvf(input, g, k, drive_comp, stage_a, low, band, high);
 
     float output = low;
@@ -336,7 +355,7 @@ private:
       break;
     }
 
-    return fx::softclip(output);
+    return output;
   }
 
   float clock_acc_ = 0.f;
@@ -345,12 +364,13 @@ private:
   float bpm_ = 120.f;
   float depth_target_ = 0.55f;
   float depth_smooth_ = 0.55f;
-  float resonance_norm_target_ = 0.45f;
-  float resonance_norm_smooth_ = 0.45f;
+  float resonance_norm_target_ = 0.45f * kMaxResonanceNorm;
+  float resonance_norm_smooth_ = 0.45f * kMaxResonanceNorm;
   float cutoff_norm_target_ = 0.5f;
   float cutoff_norm_smooth_ = 0.5f;
   float slew_norm_ = 0.15f;
   float mix_ = 1.f;
+  float level_ = 1.f;
   uint32_t rng_ = 0xA5F15237U;
   uint8_t period_sel_ = PERIOD_1STEP;
   uint8_t type_sel_ = TYPE_LPF12;
