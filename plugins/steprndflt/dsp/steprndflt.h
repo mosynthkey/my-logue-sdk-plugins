@@ -6,7 +6,7 @@
  * Tempo-synced sample-and-hold LFO into a multimode resonant filter. Dry by
  * default; touch engages. Each grid period redraws a random bipolar offset
  * around CUT; DEPTH scales that offset in octaves. Y is resonance (capped).
- * TYPE picks LPF12 / LPF24 / BPF / HPF12 / HPF24. LEVEL scales wet before the
+ * TYPE picks LPF12 / LPF24 / BPF / HPF12 / HPF24 / Peak. LEVEL scales wet before the
  * final softclip.
  */
 
@@ -28,7 +28,7 @@ public:
   static constexpr float kMinSlewSec = 0.0005f;
   static constexpr float kMaxSlewSec = 0.12f;
   static constexpr uint8_t kNumPeriods = 8U;
-  static constexpr uint8_t kNumTypes = 5U;
+  static constexpr uint8_t kNumTypes = 6U;
 
   uint32_t getBufferSize() const override final { return 0; }
 
@@ -63,7 +63,8 @@ public:
     TYPE_LPF24,
     TYPE_BPF,
     TYPE_HPF12,
-    TYPE_HPF24
+    TYPE_HPF24,
+    TYPE_PEAK
   };
 
   void setParameter(uint8_t index, int32_t value) override final
@@ -102,7 +103,7 @@ public:
   const char *getParameterStrValue(uint8_t index, int32_t value) const override final
   {
     static const char *period_names[kNumPeriods] = {"4Bar", "2Bar", "16St", "8St", "4St", "2St", "1St", "1/2"};
-    static const char *type_names[kNumTypes] = {"LP12", "LP24", "BPF", "HP12", "HP24"};
+    static const char *type_names[kNumTypes] = {"LP12", "LP24", "BPF", "HP12", "HP24", "Peak"};
     if (index == STEPS && value >= 0 && value < static_cast<int32_t>(kNumPeriods))
       return period_names[value];
     if (index == TYPE && value >= 0 && value < static_cast<int32_t>(kNumTypes))
@@ -305,11 +306,19 @@ private:
     const float fc = fx::clip(cutoff_hz, kMinFilterCutoffHz, 16000.f);
     const float g = fastertanfullf(3.14159265f * fc / getSampleRate());
     const float k = 1.f / resonanceQ(resonance_norm);
-    const float drive_comp = resonanceComp(resonance_norm);
 
     float low = 0.f;
     float band = 0.f;
     float high = 0.f;
+
+    if (type == TYPE_PEAK)
+    {
+      // Peaking/bell: flat dry plus resonant band boost at fc (no drive atten).
+      tickSvf(input, g, k, 1.f, stage_a, low, band, high);
+      return input + band * 2.f;
+    }
+
+    const float drive_comp = resonanceComp(resonance_norm);
     tickSvf(input, g, k, drive_comp, stage_a, low, band, high);
 
     float output = low;
