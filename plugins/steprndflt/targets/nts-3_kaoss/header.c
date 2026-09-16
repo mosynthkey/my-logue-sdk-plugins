@@ -52,7 +52,7 @@ const __unit_header genericfx_unit_header_t unit_header = {
         .unit_id = 0x0000003BU,
         .version = MLSA_VERSION_EXPERIMENTAL,
         .name = "StepRndFlt",
-        .num_params = 7,
+        .num_params = 8,
         .params = {
             {0, 1023, 0, 563, k_unit_param_type_none, 0, 0, 0, {"DEPTH"}},
             {0, 1023, 0, 460, k_unit_param_type_none, 0, 0, 0, {"RES"}},
@@ -61,7 +61,7 @@ const __unit_header genericfx_unit_header_t unit_header = {
             {0, 7, 0, 6, k_unit_param_type_strings, 0, 0, 0, {"STEPS"}},
             {0, 4, 0, 0, k_unit_param_type_strings, 0, 0, 0, {"TYPE"}},
             {0, 1023, 0, 154, k_unit_param_type_none, 0, 0, 0, {"SLEW"}},
-            {0, 0, 0, 0, k_unit_param_type_none, 0, 0, 0, {""}}},
+            {0, 1023, 0, 1023, k_unit_param_type_none, 0, 0, 0, {"LEVEL"}}},
     },
     .default_mappings = {
         {k_genericfx_param_assign_x, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1023, 563},
@@ -71,6 +71,6 @@ const __unit_header genericfx_unit_header_t unit_header = {
         {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 7, 6},
         {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 4, 0},
         {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1023, 154},
-        {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 0, 0},
+        {k_genericfx_param_assign_none, k_genericfx_curve_linear, k_genericfx_curve_unipolar, 0, 1023, 1023},
     },
 };

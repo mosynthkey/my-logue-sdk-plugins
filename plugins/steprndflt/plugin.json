@@ -6,7 +6,7 @@
   "targets": [
     "nts-3_kaoss"
   ],
-  "description": "Tempo-synced sample-and-hold LFO into a multimode resonant filter on AUDIO IN. Each step redraws a random cutoff offset around CUT. X = LFO depth, Y = resonance. TYPE selects LP12 / LP24 / BPF / HP12 / HP24. Hold the pad to engage; release returns to dry.",
+  "description": "Tempo-synced sample-and-hold LFO into a multimode resonant filter on AUDIO IN. Each step redraws a random cutoff offset around CUT. X = LFO depth, Y = resonance (capped). TYPE selects LP12 / LP24 / BPF / HP12 / HP24. LEVEL scales wet into a final softclip. Hold the pad to engage; release returns to dry.",
   "params": [
     {
       "name": "DEPTH",
@@ -16,7 +16,7 @@
     {
       "name": "RES",
       "role": "Y",
-      "detail": "Filter resonance"
+      "detail": "Filter resonance (max ~0.8 of former range)"
     },
     {
       "name": "MIX",
@@ -42,6 +42,11 @@
       "name": "SLEW",
       "role": "Edit",
       "detail": "How quickly cutoff glides to each new random value"
+    },
+    {
+      "name": "LEVEL",
+      "role": "Edit",
+      "detail": "Wet level into the final softclip"
     }
   ]
 }
